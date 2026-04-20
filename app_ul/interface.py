@@ -178,7 +178,7 @@ class JarvisUI(QWidget):
         self.btn_off.setStyleSheet(style_red)
 
         self.btn_mute.setToolTip("Mutar / Desmutar microfone")
-        self.btn_code.setToolTip("Abrir Painel C.O.R.E")
+        self.btn_code.setToolTip("Abrir Painel J.A.R.V.I.S")
         self.btn_off.setToolTip("Encerrar sistema")
 
         self.btn_mute.clicked.connect(self._toggle_mute)
@@ -443,7 +443,7 @@ class JarvisUI(QWidget):
         fnt.setLetterSpacing(QFont.SpacingType.AbsoluteSpacing, 7)
         p.setFont(fnt)
         p.setPen(QPen(QColor(255, 200, 0, alpha)))
-        texto = "C.O.R.E"
+        texto = "J.A.R.V.I.S"
         fm = QFontMetrics(fnt)
         larg = fm.horizontalAdvance(texto)
         p.drawText(int(cx - larg // 2), int(y), texto)

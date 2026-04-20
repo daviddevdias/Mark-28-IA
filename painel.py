@@ -177,7 +177,7 @@ class JarvisBridge(QObject):
     def obter_biblioteca_comandos(self) -> str:
         biblioteca = []
 
-        for nome, dados in config.COMANDOS_CORE.items():
+        for nome, dados in config.COMANDOS_JARVIS.items():
             biblioteca.append({
                 "cmd": nome.upper(),
                 "cat": dados.get("cat", "GERAL"),
@@ -210,6 +210,7 @@ class JarvisBridge(QObject):
             "smartthings": config.SMARTTHINGS_TOKEN,
             "nome_mestre": config.NOME_MESTRE,
             "ia_mode": router.modo_atual,
+            "notas": config.notas  
         })
 
 
@@ -269,7 +270,7 @@ class JarvisBridge(QObject):
 class PainelCore(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("C.O.R.E ◈ MARK XXIX")
+        self.setWindowTitle("J.A.R.V.I.S ◈ MARK XXVIII")
         self.resize(1480, 750)
 
         self.view = QWebEngineView()

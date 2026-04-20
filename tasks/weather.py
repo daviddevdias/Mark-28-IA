@@ -10,7 +10,7 @@ _cache: dict = {}
 _CACHE_TTL = timedelta(minutes=10)
 
 
-def _requisitar_telemetria(cidade: str = "Esteio") -> Optional[dict]:
+def _requisitar_telemetria(cidade: str = "") -> Optional[dict]:
     now = datetime.now()
     if cidade in _cache:
         dados, ts = _cache[cidade]
@@ -37,8 +37,8 @@ def _extrair_descricao(bloco: dict) -> str:
     return bloco.get("lang_pt", [{}])[0].get("value", "Estável")
 
 
-def obter_previsao_hoje(cidade_alvo: str = "Esteio") -> str:
-    alvo = (cidade_alvo or "Esteio").strip()
+def obter_previsao_hoje(cidade_alvo: str = "") -> str:
+    alvo = (cidade_alvo or "").strip()
     dados = _requisitar_telemetria(alvo)
 
     if not dados:
@@ -64,8 +64,8 @@ def obter_previsao_hoje(cidade_alvo: str = "Esteio") -> str:
         return f"ERRO: Dados climáticos incompletos. ({e})"
 
 
-def verificar_chuva_amanha(cidade_alvo: str = "Esteio") -> str:
-    alvo = (cidade_alvo or "Esteio").strip()
+def verificar_chuva_amanha(cidade_alvo: str = "") -> str:
+    alvo = (cidade_alvo or "").strip()
     dados = _requisitar_telemetria(alvo)
 
     if not dados or "weather" not in dados or len(dados["weather"]) < 2:

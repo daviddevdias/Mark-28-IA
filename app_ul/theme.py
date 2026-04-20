@@ -2,6 +2,7 @@ TEMAS_CORE = {
     "PHANTOM": {
         "bg": "#030a05",
         "card": "#060e08",
+        "surface": "#060e08",  # Cor para a barra lateral e topo
         "border": "#0d2210",
         "accent": "#00ff88",
         "secondary": "#00aa55",
@@ -15,6 +16,7 @@ TEMAS_CORE = {
     "ABYSSAL": {
         "bg": "#00050f",
         "card": "#000810",
+        "surface": "#000810",
         "border": "#001535",
         "accent": "#00aaff",
         "secondary": "#0055cc",
@@ -28,6 +30,7 @@ TEMAS_CORE = {
     "CRIMSON": {
         "bg": "#0a0002",
         "card": "#0d0003",
+        "surface": "#0d0003",
         "border": "#2a0008",
         "accent": "#ff2244",
         "secondary": "#aa0022",
@@ -41,6 +44,7 @@ TEMAS_CORE = {
     "GOLD": {
         "bg": "#080600",
         "card": "#0c0900",
+        "surface": "#0c0900",
         "border": "#221800",
         "accent": "#ffcc00",
         "secondary": "#cc9900",
@@ -54,6 +58,7 @@ TEMAS_CORE = {
     "VIOLETA": {
         "bg": "#06000f",
         "card": "#090012",
+        "surface": "#090012",
         "border": "#1a0033",
         "accent": "#aa44ff",
         "secondary": "#7722cc",
@@ -64,17 +69,19 @@ TEMAS_CORE = {
         "grad_b": "#440077",
         "grad_c": None,
     },
-    "STEEL": {
-        "bg": "#000000",
-        "card": "#0a0a0a",
-        "border": "#1a1a1a",
-        "accent": "#bfbfbf",
-        "secondary": "#7a7a7a",
-        "danger": "#ff3b3b",
-        "text_pri": "#e6e6e6",
-        "text_sec": "#8c8c8c",
-        "grad_a": "#ffffff",
-        "grad_b": "#666666",
+    # --- NOVO TEMA PARA DEGRADÊS ---
+    "CYBER_NEON": {
+        "bg": "#020205",
+        "card": "#05050f",
+        "surface": "#07071a",
+        "border": "#101035",
+        "accent": "#00d4ff",
+        "secondary": "#9944ff",
+        "danger": "#ff2255",
+        "text_pri": "#e0e0ff",
+        "text_sec": "#6060aa",
+        "grad_a": "#00d4ff",
+        "grad_b": "#9944ff",
         "grad_c": None,
-    },
+    }
 }

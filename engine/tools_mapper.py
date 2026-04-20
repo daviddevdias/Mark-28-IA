@@ -81,7 +81,7 @@ def gerenciador_spotify(argumentos: dict) -> str:
 
 
 def gerenciador_clima(argumentos: dict) -> str:
-    cidade = argumentos.get("city", "Esteio")
+    cidade = argumentos.get("city", "")
     previsao = argumentos.get("forecast", "hoje").lower()
 
     if previsao == "amanha":

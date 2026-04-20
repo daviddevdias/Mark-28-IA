@@ -14,7 +14,7 @@ from openai import OpenAI
 from PIL import Image
 
 
-log = logging.getLogger("CORE.vision")
+log = logging.getLogger("vision")
 
 MAX_WIDTH = 1280
 JPEG_QUALITY = 40
@@ -67,7 +67,7 @@ def _hash_frame(b64: str) -> str:
 
 
 _SYSTEM_VISION = (
-    "Você é o módulo de visão do C.O.R.E. "
+    "Você é o módulo de visão do J.A.R.V.I.S "
     "Descreva o que vê de forma direta e técnica. "
     "Máximo 25 palavras."
 )

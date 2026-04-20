@@ -1,6 +1,6 @@
-/* ==========================================================================
+/*
    1. CONSTANTES E CONFIGURAÇÕES
-   ========================================================================== */
+ */
 const CORES_CAT = {
     'SISTEMA':    '#ff2255',
     'INTERFACE':  '#aa44ff',
@@ -95,9 +95,9 @@ const CAMPOS_API = [
     },
 ];
 
-/* ==========================================================================
+/*
    2. ESTADO GLOBAL DO SISTEMA
-   ========================================================================== */
+ */
 const estado = {
     pagina: 0,
     tema: '',
@@ -148,9 +148,9 @@ const estado = {
     terminalCmdIdx: -1,
 };
 
-/* ==========================================================================
+/*
    3. INICIALIZAÇÃO E BRIDGE (QWEBCHANNEL)
-   ========================================================================== */
+ */
 const scriptQWebChannel = document.createElement('script');
 scriptQWebChannel.src = 'qrc:///qtwebchannel/qwebchannel.js';
 document.head.appendChild(scriptQWebChannel);
@@ -261,9 +261,9 @@ function iniciarApp() {
     _injetarEstilosGlobais();
 }
 
-/* ==========================================================================
+/*
    4. SISTEMA DE LOGS E EVENTOS GERAIS
-   ========================================================================== */
+ */
 function enviarComando(cmd) {
     if (!window.jarvis) { 
         toast('Bridge não conectada.', 'erro'); 
@@ -296,9 +296,9 @@ function _renderizarLog() {
     `).join('');
 }
 
-/* ==========================================================================
+/*
    5. INJEÇÃO DE CSS VIA JS
-   ========================================================================== */
+ */
 function _injetarEstilosGlobais() {
     const style = document.createElement('style');
     style.textContent = /*css*/`
@@ -514,9 +514,9 @@ function _injetarEstilosGlobais() {
     document.head.appendChild(style);
 }
 
-/* ==========================================================================
+/*
    6. NAVEGAÇÃO E UI PRINCIPAL
-   ========================================================================== */
+ */
 function _construirNav() {
     const nav = document.getElementById('botoesNav');
     PAGINAS.forEach((p, i) => {
@@ -591,13 +591,13 @@ function _simularMetricas() {
     setInterval(tick, 800);
 }
 
-/* ==========================================================================
+/*
    7. PÁGINAS E COMPONENTES ESPECÍFICOS
-   ========================================================================== */
+ */
 
-// ─────────────────────────────────────────────────────────────
+
 // DIAGNÓSTICO
-// ─────────────────────────────────────────────────────────────
+
 function pgDiagnostico() {
     const area = document.getElementById('conteudo-principal');
     const m = estado.metricas;
@@ -787,9 +787,9 @@ function atualizarMetricas() {
     s('v-uptime', `${_zp(h)}:${_zp(min)}:${_zp(sc2)}`);
 }
 
-// ─────────────────────────────────────────────────────────────
+
 // HOLO-BIBLIO
-// ─────────────────────────────────────────────────────────────
+
 function pgBiblio() {
     const area = document.getElementById('conteudo-principal');
     const cats = [...new Set(estado.comandosDoBanco.map(c => c.cat))].sort();
@@ -870,9 +870,9 @@ function executarBiblio(handler) {
     enviarComando(handler.trim());
 }
 
-// ─────────────────────────────────────────────────────────────
+
 // TERMINAL
-// ─────────────────────────────────────────────────────────────
+
 function pgTerminal() {
     const area = document.getElementById('conteudo-principal');
     const atalhos = [
@@ -959,9 +959,9 @@ function _termOutput(html) {
     s.scrollTop = s.scrollHeight;
 }
 
-// ─────────────────────────────────────────────────────────────
+
 // CHAT NEURAL
-// ─────────────────────────────────────────────────────────────
+
 function pgChat() {
     const area = document.getElementById('conteudo-principal');
     
@@ -1017,9 +1017,9 @@ function _chatMsg(role, txt) {
     box.scrollTop = box.scrollHeight;
 }
 
-// ─────────────────────────────────────────────────────────────
+
 // REDE E CONEXÕES
-// ─────────────────────────────────────────────────────────────
+
 function pgRede() {
     const area = document.getElementById('conteudo-principal');
     const ifaces = [
@@ -1094,9 +1094,9 @@ function dispararPing() {
     }, 380 + Math.random() * 420);
 }
 
-// ─────────────────────────────────────────────────────────────
+
 // NOTAS TÁTICAS
-// ─────────────────────────────────────────────────────────────
+
 function pgNotas() {
     const area = document.getElementById('conteudo-principal');
     
@@ -1157,9 +1157,9 @@ function insertNota(t) {
     }
 }
 
-// ─────────────────────────────────────────────────────────────
+
 // API KEYS E INTELIGÊNCIA ARTIFICIAL
-// ─────────────────────────────────────────────────────────────
+
 function pgApi() {
     const area = document.getElementById('conteudo-principal');
     
@@ -1412,9 +1412,9 @@ function salvarApis() {
     toast('Credenciais gravadas no núcleo.');
 }
 
-// ─────────────────────────────────────────────────────────────
+
 // VISUAL E TEMAS
-// ─────────────────────────────────────────────────────────────
+
 function pgTemas() {
     const area = document.getElementById('conteudo-principal');
     const temas = estado.temasDoPython;
@@ -1459,14 +1459,28 @@ function _aplicarTema(id) {
     if (!t) return;
     
     const r = document.documentElement;
-    r.style.setProperty('--destaque', t.accent    || t.grad_a || '#00ff88');
-    r.style.setProperty('--verde',    t.secondary || t.grad_b || '#00aa55');
-    r.style.setProperty('--fundo',    t.bg        || '#030a05');
-    r.style.setProperty('--cartao',   t.card      || '#060e08');
-    r.style.setProperty('--borda',    t.border    || '#0d2210');
-    r.style.setProperty('--texto',    t.text_pri  || '#ccffdd');
-    r.style.setProperty('--texto2',   t.text_sec  || '#336644');
-    r.style.setProperty('--vermelho', t.danger    || '#ff0044');
+    
+    // 1. Aplica as cores base definidas no theme.py
+    r.style.setProperty('--destaque', t.accent);
+    r.style.setProperty('--verde', t.secondary);
+    r.style.setProperty('--fundo', t.bg);
+    r.style.setProperty('--cartao', t.card);
+    r.style.setProperty('--borda', t.border);
+    
+    // 2. Aplica a nova cor "surface" (ou usa o card como alternativa se não existir)
+    r.style.setProperty('--superficie', t.surface || t.card);
+    r.style.setProperty('--borda2', t.border);
+
+
+    const degradeFundo = `radial-gradient(circle at 50% -10%, color-mix(in srgb, ${t.accent} 15%, ${t.bg}), ${t.bg} 80%)`;
+    document.body.style.background = degradeFundo;
+    
+    const painelLateral = document.getElementById('barra-lateral');
+    if (painelLateral) {
+        const corTopo = t.surface || t.card;
+        const degradeLateral = `linear-gradient(180deg, ${corTopo} 0%, color-mix(in srgb, ${t.bg} 85%, ${t.accent} 15%) 100%)`;
+        painelLateral.style.background = degradeLateral;
+    }
 }
 
 function aplicarTema(id) {
@@ -1483,9 +1497,9 @@ function aplicarTema(id) {
     toast('Tema ' + id + ' ativado.');
 }
 
-// ─────────────────────────────────────────────────────────────
+
 // FERRAMENTAS E UTILITÁRIOS INTERNOS
-// ─────────────────────────────────────────────────────────────
+
 function pgFerramentas() {
     const area = document.getElementById('conteudo-principal');
     const toggleKeys = ['maiusculas', 'minusculas', 'numeros', 'especiais'];
@@ -1643,9 +1657,9 @@ function b64(enc) {
     }
 }
 
-/* ==========================================================================
+/*
    8. FUNÇÕES AUXILIARES E GLOBAIS
-   ========================================================================== */
+ */
 function confirmarDesligamento() {
     const alerta = document.getElementById('alertaSistema');
     if (alerta) {
@@ -1688,9 +1702,10 @@ function _escAttr(s) {
         .replace(/'/g, '&#39;');
 }
 
-/* ==========================================================================
+/*
    9. EASTER EGG (KONAMI CODE)
-   ========================================================================== */
+ */
+
 const _KONAMI = [
     'ArrowUp', 'ArrowUp', 
     'ArrowDown', 'ArrowDown', 
@@ -1727,7 +1742,7 @@ function _candyMode() {
     }, 8000);
 }
 
-/* ==========================================================================
+/*
    10. BOOT DA INTERFACE
-   ========================================================================== */
+ */
 window.addEventListener('DOMContentLoaded', iniciarApp);

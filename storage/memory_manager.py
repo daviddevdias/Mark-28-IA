@@ -39,8 +39,8 @@ MEMORY_PATH: Path = _base_dir() / "api" / "long_term.json"
 
 def _default() -> dict:
     return {
-        "identity": {"mestre": {"value": "David"}},
-        "preferences": {"cidade": {"value": "Esteio"}},
+        "identity": {"mestre": {"value": ""}},
+        "preferences": {"cidade": {"value": ""}},
         "projects": {},
         "relationships": {},
         "wishes": {},
@@ -115,7 +115,7 @@ def invalidate_cache() -> None:
 
 
 def get_nome() -> str:
-    return load_memory().get("identity", {}).get("mestre", {}).get("value", "David")
+    return load_memory().get("identity", {}).get("mestre", {}).get("value", "")
 
 
 
@@ -123,7 +123,7 @@ def get_nome() -> str:
 
 
 def get_cidade() -> str:
-    return load_memory().get("preferences", {}).get("cidade", {}).get("value", "Esteio")
+    return load_memory().get("preferences", {}).get("cidade", {}).get("value", "")
 
 
 

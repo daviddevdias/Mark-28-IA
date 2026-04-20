@@ -198,7 +198,7 @@ TOOL_DECLARATIONS = [
                 "properties": {
                     "city": {
                         "type": "string",
-                        "description": "Nome da cidade. Padrão: Esteio.",
+                        "description": "Nome da cidade. ",
                     },
                     "forecast": {
                         "type": "string",

@@ -167,7 +167,7 @@ FIELD_MAP: Final[tuple[FieldSpec, ...]] = (
         mem_path=("preferences", "cidade"),
         config_attr="cidade_mestre",
         coerce=lambda v: coerce_str(v, max_len=128),
-        default="Esteio",
+        default="",
     ),
 )
 

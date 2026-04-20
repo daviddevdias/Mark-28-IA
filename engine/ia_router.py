@@ -177,9 +177,9 @@ class IARRouter:
         self.modo = modo
         log.info("Modo IA alterado para: %s", modo)
         try:
-            config.update_memory("api/config_core.json", {"ia_mode": modo})
+            config.update_memory("api/config_jarvis.json", {"ia_mode": modo})
         except Exception as e:
-            log.error("Erro ao salvar no config_core.json: %s", e)
+            log.error("Erro ao salvar no config_jarvis.json: %s", e)
         return modo
 
 
