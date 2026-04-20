@@ -1,0 +1,110 @@
+
+# VIRTUAL ENV / PYTHON CACHE
+
+venv/
+.venv/
+__pycache__/
+.cache/
+.cache-*/
+.cache*/
+*.pyc
+*.pyo
+*.pyd
+
+
+
+# SEGREDOS / CHAVES / CONFIGURAÇÕES SENSÍVEIS
+
+.env
+.env.*
+*.key
+*.pem
+secrets/
+config/secrets.json
+config/config_private.json
+
+
+
+# CONFIGURAÇÕES DO PROJETO (evitar vazamento de tokens)
+
+api/config_smart.json
+api/*config*.json
+
+
+
+# API (ignorar tudo exceto cache específico)
+
+api/**
+
+!api/.spotify_cache/
+!api/.spotify_cache/**
+
+
+
+# MODELOS DE IA PESADOS
+
+*.gguf
+*.bin
+*.pt
+*.safetensors
+*.onnx
+
+
+
+# ÁUDIO / VOZ / MÍDIA
+
+*.mp3
+*.wav
+*.flac
+*.ogg
+
+
+
+# LOGS
+
+*.log
+logs/
+debug.log
+
+
+
+# SISTEMA OPERACIONAL
+
+.DS_Store
+Thumbs.db
+
+
+
+# EDITORES / IDE
+
+.vscode/
+.idea/
+
+
+
+# PLAYWRIGHT / BROWSERS
+
+playwright/.cache/
+
+
+
+# NODE / FRONT (se um dia tiver UI web)
+
+node_modules/
+dist/
+build/
+
+
+
+# SPOTIFY / CACHE LOCAL
+
+api/.spotify_cache/
+**/.spotify_cache/
+
+
+
+# BACKUPS / TEMP
+
+*.bak
+*.tmp
+temp/

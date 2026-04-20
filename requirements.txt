@@ -1,0 +1,33 @@
+# Inteligência Artificial e APIs
+openai
+requests
+python-dotenv
+google-genai
+elevenlabs
+
+# Interface Gráfica
+PyQt6
+PyQt6-WebEngine
+customtkinter
+
+# Áudio e Reconhecimento de Voz
+SpeechRecognition
+pyttsx3
+edge-tts
+pygame
+PyAudio
+
+# Manipulação de Imagem e Tela
+mss
+pillow
+
+# Sistema e Automação
+psutil
+pyautogui
+pygetwindow
+playwright
+
+# Outras Integrações e Utilitários
+spotipy
+Send2Trash
+GPUtil
