@@ -1,87 +1,51 @@
+# theme.py
 TEMAS_CORE = {
     "PHANTOM": {
         "bg": "#030a05",
         "card": "#060e08",
-        "surface": "#060e08",  # Cor para a barra lateral e topo
+        "surface": "#060e08",
         "border": "#0d2210",
-        "accent": "#00ff88",
-        "secondary": "#00aa55",
+        "accent": "#00ff88",       # Verde Neon
+        "secondary": "#00aa55",    # Verde Médio
+        "terciaria": "#004422",    # Verde Escuro
         "danger": "#ff0044",
         "text_pri": "#ccffdd",
-        "text_sec": "#336644",
-        "grad_a": "#00ff88",
-        "grad_b": "#004422",
-        "grad_c": None,
+        "text_sec": "#336644"
     },
     "ABYSSAL": {
         "bg": "#00050f",
         "card": "#000810",
         "surface": "#000810",
         "border": "#001535",
-        "accent": "#00aaff",
-        "secondary": "#0055cc",
+        "accent": "#00aaff",       # Azul Ciano
+        "secondary": "#0055cc",    # Azul Real
+        "terciaria": "#002244",    # Azul Profundo
         "danger": "#ff2244",
         "text_pri": "#cceeff",
-        "text_sec": "#224466",
-        "grad_a": "#00ccff",
-        "grad_b": "#0033aa",
-        "grad_c": None,
-    },
-    "CRIMSON": {
-        "bg": "#0a0002",
-        "card": "#0d0003",
-        "surface": "#0d0003",
-        "border": "#2a0008",
-        "accent": "#ff2244",
-        "secondary": "#aa0022",
-        "danger": "#ff6600",
-        "text_pri": "#ffccdd",
-        "text_sec": "#662233",
-        "grad_a": "#ff2244",
-        "grad_b": "#aa0033",
-        "grad_c": None,
-    },
-    "GOLD": {
-        "bg": "#080600",
-        "card": "#0c0900",
-        "surface": "#0c0900",
-        "border": "#221800",
-        "accent": "#ffcc00",
-        "secondary": "#cc9900",
-        "danger": "#ff2244",
-        "text_pri": "#fff3cc",
-        "text_sec": "#665522",
-        "grad_a": "#ffdd00",
-        "grad_b": "#ff6600",
-        "grad_c": None,
+        "text_sec": "#224466"
     },
     "VIOLETA": {
         "bg": "#06000f",
         "card": "#090012",
         "surface": "#090012",
         "border": "#1a0033",
-        "accent": "#aa44ff",
-        "secondary": "#7722cc",
+        "accent": "#aa44ff",       # Roxo Brilhante
+        "secondary": "#7722cc",    # Roxo Médio
+        "terciaria": "#440077",    # Roxo Escuro
         "danger": "#ff2244",
         "text_pri": "#eeddff",
-        "text_sec": "#553366",
-        "grad_a": "#cc44ff",
-        "grad_b": "#440077",
-        "grad_c": None,
+        "text_sec": "#553366"
     },
-    # --- NOVO TEMA PARA DEGRADÊS ---
     "CYBER_NEON": {
         "bg": "#020205",
         "card": "#05050f",
         "surface": "#07071a",
         "border": "#101035",
-        "accent": "#00d4ff",
-        "secondary": "#9944ff",
+        "accent": "#00d4ff",       # Cor 1: Ciano
+        "secondary": "#9944ff",    # Cor 2: Roxo
+        "terciaria": "#ff00aa",    # Cor 3: Rosa Choque
         "danger": "#ff2255",
         "text_pri": "#e0e0ff",
-        "text_sec": "#6060aa",
-        "grad_a": "#00d4ff",
-        "grad_b": "#9944ff",
-        "grad_c": None,
+        "text_sec": "#6060aa"
     }
 }

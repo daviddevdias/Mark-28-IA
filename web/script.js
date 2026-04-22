@@ -255,7 +255,7 @@ function iniciarApp() {
     
     document.addEventListener('keydown', _konami);
     
-    adicionarLog('ok', 'C.O.R.E inicializado com sucesso');
+    adicionarLog('ok', 'J.A.V.I.S inicializado com sucesso');
     adicionarLog('info', 'Bridge aguardando conexão...');
     
     _injetarEstilosGlobais();
@@ -538,7 +538,7 @@ function navegarPara(i) {
         }
     });
     
-    document.getElementById('tituloPagina').textContent = PAGINAS[i].rotulo + ' ◈ C.O.R.E';
+    document.getElementById('tituloPagina').textContent = PAGINAS[i].rotulo + ' ◈ J.A.V.I.S';
     renderizarPagina();
 }
 
@@ -895,11 +895,11 @@ function pgTerminal() {
                 <div class="terminal-dot" style="background:#ff2255;"></div>
                 <div class="terminal-dot" style="background:#ffcc00;"></div>
                 <div class="terminal-dot" style="background:#00ff88;"></div>
-                <span class="terminal-titulo">C.O.R.E ◈ SHELL</span>
+                <span class="terminal-titulo">J.A.V.I.S ◈ SHELL</span>
             </div>
             
             <div class="terminal-saida" id="termSaida">
-                <span style="color:var(--destaque);">C.O.R.E</span>
+                <span style="color:var(--destaque);">J.A.V.I.S</span>
                 <span style="color:var(--texto3);"> Neural Terminal — Digite um comando abaixo</span><br>
             </div>
             
@@ -974,13 +974,13 @@ function pgChat() {
         <div class="chat-box">
             <div class="chat-msgs" id="chatMsgs">
                 <div class="chat-msg core">
-                    <strong>C.O.R.E</strong>
+                    <strong>J.A.V.I.S</strong>
                     Sistemas online. Como posso ajudar, Chefe?
                 </div>
             </div>
             
             <div class="chat-input-row">
-                <input class="entrada full" id="chatInput" placeholder="Mensagem para o C.O.R.E..." onkeydown="if(event.key==='Enter') enviarChat()">
+                <input class="entrada full" id="chatInput" placeholder="Mensagem para o J.A.V.I.S..." onkeydown="if(event.key==='Enter') enviarChat()">
                 <button class="btn btn-destaque" onclick="enviarChat()">ENVIAR</button>
             </div>
         </div>
@@ -1010,7 +1010,7 @@ function _chatMsg(role, txt) {
     d.className = `chat-msg ${role}`;
     
     d.innerHTML = role === 'core'
-        ? `<strong>C.O.R.E</strong>${_escHtml(txt)}`
+        ? `<strong>J.A.V.I.S</strong>${_escHtml(txt)}`
         : _escHtml(txt);
         
     box.appendChild(d);
@@ -1460,27 +1460,48 @@ function _aplicarTema(id) {
     
     const r = document.documentElement;
     
-    // 1. Aplica as cores base definidas no theme.py
+    
     r.style.setProperty('--destaque', t.accent);
     r.style.setProperty('--verde', t.secondary);
     r.style.setProperty('--fundo', t.bg);
     r.style.setProperty('--cartao', t.card);
     r.style.setProperty('--borda', t.border);
-    
-    // 2. Aplica a nova cor "surface" (ou usa o card como alternativa se não existir)
-    r.style.setProperty('--superficie', t.surface || t.card);
     r.style.setProperty('--borda2', t.border);
+    r.style.setProperty('--texto', t.text_pri);
+    r.style.setProperty('--texto2', t.text_sec);
+    r.style.setProperty('--vermelho', t.danger);
+    
+    
+    r.style.setProperty('--superficie', t.surface || t.card);
 
+    
+    const c1 = t.accent;
+    const c2 = t.secondary;
+    const c3 = t.terciaria || t.secondary; 
 
-    const degradeFundo = `radial-gradient(circle at 50% -10%, color-mix(in srgb, ${t.accent} 15%, ${t.bg}), ${t.bg} 80%)`;
-    document.body.style.background = degradeFundo;
+    document.body.style.background = `
+        radial-gradient(
+            circle at 50% -20%, 
+            color-mix(in srgb, ${c1} 15%, ${t.bg}) 0%, 
+            color-mix(in srgb, ${c3} 10%, ${t.bg}) 45%, 
+            ${t.bg} 85%
+        )
+    `;
     
     const painelLateral = document.getElementById('barra-lateral');
     if (painelLateral) {
         const corTopo = t.surface || t.card;
-        const degradeLateral = `linear-gradient(180deg, ${corTopo} 0%, color-mix(in srgb, ${t.bg} 85%, ${t.accent} 15%) 100%)`;
-        painelLateral.style.background = degradeLateral;
+        painelLateral.style.background = `
+            linear-gradient(
+                180deg, 
+                ${corTopo} 0%, 
+                color-mix(in srgb, ${t.bg} 88%, ${c3} 12%) 50%, 
+                color-mix(in srgb, ${t.bg} 82%, ${c1} 18%) 100%
+            )
+        `;
     }
+    
+    console.log(`[THEME] Protocolo ${id} aplicado com sucesso.`);
 }
 
 function aplicarTema(id) {
@@ -1605,7 +1626,7 @@ function gerarSenha() {
     if (el) { 
         el.textContent = estado.senhaAtual; 
         el.classList.remove('nova'); 
-        void el.offsetWidth; // Reflow force hack to restart animation
+        void el.offsetWidth; 
         el.classList.add('nova'); 
     }
 }

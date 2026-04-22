@@ -4,7 +4,7 @@ import random
 WAKE_WORDS = {
     "jarvis", "core", "assistente", "acorda", "acorde",
     "modo escuta", "ativar sistema", "ei jarvis", "hey jarvis",
-    "olá jer", "olá je", "olá jar", "jar", "jers", "james", "olá jarvis", "Jefferson", "Germes", "Jabes"
+    "olá jer", "olá je", "olá jar", "jar", "jers", "james", "olá jarvis", "Jefferson", "Germes", "Jabes", "germe", "Chaves" ,"chave"
 }
 
 RESPOSTAS_ATIVACAO = [

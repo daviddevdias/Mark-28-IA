@@ -9,6 +9,7 @@ _APP_ALIASES = {
     "whatsapp": {"Windows": "WhatsApp", "Darwin": "WhatsApp", "Linux": "whatsapp"},
     "chrome": {"Windows": "chrome", "Darwin": "Google Chrome", "Linux": "google-chrome"},
     "google chrome": {"Windows": "chrome", "Darwin": "Google Chrome", "Linux": "google-chrome"},
+    "google": {"Windows": "chrome", "Darwin": "Google Chrome", "Linux": "google-chrome"},
     "firefox": {"Windows": "firefox", "Darwin": "Firefox", "Linux": "firefox"},
     "spotify": {"Windows": "Spotify", "Darwin": "Spotify", "Linux": "spotify"},
     "vscode": {"Windows": "code", "Darwin": "Visual Studio Code", "Linux": "code"},
@@ -45,96 +46,88 @@ _APP_ALIASES = {
 }
 
 
-
-
 def _normalize(raw: str) -> str:
     system = platform.system()
     key = raw.lower().strip()
-
     if key in _APP_ALIASES:
         return _APP_ALIASES[key].get(system, raw)
-
     for alias_key, os_map in _APP_ALIASES.items():
         if alias_key in key or key in alias_key:
             return os_map.get(system, raw)
-
     return raw
 
 
-
-
-def _launch_windows(app_name: str):
-    try:
-        if shutil.which(app_name):
-            subprocess.Popen([app_name], shell=True)
+def _launch_windows(app_name: str) -> bool:
+    # 1. Tenta pelo PATH
+    if shutil.which(app_name):
+        try:
+            subprocess.Popen([app_name], shell=False,
+                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return True
+        except Exception:
+            pass
 
+    # 2. Tenta via shell (chrome, msedge, calc.exe, ms-settings:, etc.)
+    try:
+        subprocess.Popen(app_name, shell=True,
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        return True
+    except Exception:
+        pass
+
+    # 3. Fallback: menu iniciar
+    try:
         import pyautogui
-
         pyautogui.press("win")
         time.sleep(0.6)
         pyautogui.write(app_name, interval=0.05)
         time.sleep(0.8)
         pyautogui.press("enter")
         return True
-
     except Exception:
         return False
 
 
-
-
-def _launch_macos(app_name: str):
+def _launch_macos(app_name: str) -> bool:
     try:
         res = subprocess.run(["open", "-a", app_name], capture_output=True, timeout=8)
         if res.returncode == 0:
             return True
-
         res = subprocess.run(["open", "-a", f"{app_name}.app"], capture_output=True, timeout=8)
         if res.returncode == 0:
             return True
-
         import pyautogui
-
         pyautogui.hotkey("command", "space")
         time.sleep(0.6)
         pyautogui.write(app_name, interval=0.05)
         time.sleep(0.8)
         pyautogui.press("enter")
         return True
-
     except Exception:
         return False
 
 
-
-
-def _launch_linux(app_name: str):
+def _launch_linux(app_name: str) -> bool:
     binary = shutil.which(app_name) or shutil.which(app_name.lower())
-
     if binary:
         try:
             subprocess.Popen([binary], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return True
         except Exception:
             pass
-
     try:
         subprocess.run(["xdg-open", app_name], capture_output=True, timeout=5)
         return True
     except Exception:
         pass
-
     return False
-
-
 
 
 def open_app(parameters=None, **kwargs) -> str:
     app_name = (parameters or {}).get("app_name", "").strip()
 
     if not app_name:
-        return "Mestre David, qual aplicativo devo abrir?"
+        return "Qual aplicativo devo abrir, Chefe?"
 
     system = platform.system()
     normalized = _normalize(app_name)
@@ -146,19 +139,17 @@ def open_app(parameters=None, **kwargs) -> str:
     }
 
     launcher = launchers.get(system)
-
     if not launcher:
         return f"Sistema {system} não suportado."
 
-    print(f"[Mark XXV] 🚀 Executando diretriz: {app_name} -> {normalized}")
+    print(f"[Mark XXVIII]  Executando diretriz: {app_name} -> {normalized}")
 
     success = launcher(normalized)
-
     if not success and normalized != app_name:
         success = launcher(app_name)
 
     return (
-        f"Protocolo concluído para {app_name}."
+        f"Sucesso. O aplicativo {app_name} foi aberto."
         if success
-        else f"Não consegui localizar {app_name}."
+        else f"Falha. Não consegui localizar o executável para {app_name}."
     )

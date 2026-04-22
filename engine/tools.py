@@ -4,7 +4,7 @@ from .tools_mapper import EXECUTOR_FERRAMENTAS as DISPATCHER
 
 
 TOOL_DECLARATIONS = [
-    # ── SISTEMA ───────────────────────────────────────────────────────────────
+    #  SISTEMA 
     {
         "type": "function",
         "function": {
@@ -82,7 +82,7 @@ TOOL_DECLARATIONS = [
             },
         },
     },
-    # ── WEB & NAVEGADOR ───────────────────────────────────────────────────────
+    #  WEB & NAVEGADOR 
     {
         "type": "function",
         "function": {
@@ -152,7 +152,7 @@ TOOL_DECLARATIONS = [
             },
         },
     },
-    # ── MÍDIA / SPOTIFY ───────────────────────────────────────────────────────
+    #  MÍDIA / SPOTIFY 
     {
         "type": "function",
         "function": {
@@ -184,7 +184,7 @@ TOOL_DECLARATIONS = [
             },
         },
     },
-    # ── CLIMA ─────────────────────────────────────────────────────────────────
+    #  CLIMA 
     {
         "type": "function",
         "function": {
@@ -209,7 +209,7 @@ TOOL_DECLARATIONS = [
             },
         },
     },
-    # ── ALARMES & AGENDA ──────────────────────────────────────────────────────
+    #  ALARMES & AGENDA 
     {
         "type": "function",
         "function": {
@@ -239,7 +239,7 @@ TOOL_DECLARATIONS = [
             },
         },
     },
-    # ── SMART HOME ────────────────────────────────────────────────────────────
+    #  SMART HOME ─
     {
         "type": "function",
         "function": {
@@ -276,7 +276,7 @@ TOOL_DECLARATIONS = [
             },
         },
     },
-    # ── ARQUIVOS ──────────────────────────────────────────────────────────────
+    #  ARQUIVOS ─
     {
         "type": "function",
         "function": {
@@ -316,7 +316,7 @@ TOOL_DECLARATIONS = [
             },
         },
     },
-    # ── MEMÓRIA PERSISTENTE ───────────────────────────────────────────────────
+    #  MEMÓRIA PERSISTENTE ─
     {
         "type": "function",
         "function": {
@@ -345,7 +345,7 @@ TOOL_DECLARATIONS = [
             },
         },
     },
-    # ── PLANEJAMENTO ESTRATÉGICO ───────────────────────────────────────────────
+    #  PLANEJAMENTO ESTRATÉGICO ─
     {
         "type": "function",
         "function": {
@@ -372,7 +372,7 @@ TOOL_DECLARATIONS = [
             },
         },
     },
-    # ── CÓDIGO ────────────────────────────────────────────────────────────────
+    #  CÓDIGO ─
     {
         "type": "function",
         "function": {
@@ -405,7 +405,7 @@ TOOL_DECLARATIONS = [
             },
         },
     },
-    # ── VISÃO COMPUTACIONAL ───────────────────────────────────────────────────
+    #  VISÃO COMPUTACIONAL ─
     {
         "type": "function",
         "function": {
@@ -427,7 +427,7 @@ TOOL_DECLARATIONS = [
             },
         },
     },
-    # ── ROTEAMENTO DE IA ──────────────────────────────────────────────────────
+    #  ROTEAMENTO DE IA 
     {
         "type": "function",
         "function": {

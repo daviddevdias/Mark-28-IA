@@ -14,32 +14,12 @@ SHUTDOWN_EVENT = asyncio.Event()
 Handler = Callable[[str], Awaitable[Optional[str]]]
 
 
-
-
-
-
-
-
-
-
-
 def get_shutdown_event() -> asyncio.Event:
     return SHUTDOWN_EVENT
 
 
-
-
-
-
-
-
 def normalizar(texto: str) -> str:
     return re.sub(r"\s+", " ", texto.lower()).strip()
-
-
-
-
-
 
 
 def extrair_numero(texto: str) -> Optional[int]:
@@ -49,20 +29,10 @@ def extrair_numero(texto: str) -> Optional[int]:
     return None
 
 
-
-
-
-
-
 async def encerrar(cmd: str) -> str:
     await falar("Desligando sistema.")
     SHUTDOWN_EVENT.set()
     return ""
-
-
-
-
-
 
 
 async def silencio(cmd: str) -> str:
@@ -70,19 +40,9 @@ async def silencio(cmd: str) -> str:
     return ""
 
 
-
-
-
-
-
 async def bloquear(cmd: str) -> str:
     bloquear_tela()
     return "Bloqueado"
-
-
-
-
-
 
 
 async def minimizar(cmd: str) -> str:
@@ -90,19 +50,9 @@ async def minimizar(cmd: str) -> str:
     return "Minimizado"
 
 
-
-
-
-
-
 async def fechar(cmd: str) -> str:
     fechar_janela()
     return "Fechado"
-
-
-
-
-
 
 
 async def comando_print(cmd: str) -> str:
@@ -110,19 +60,9 @@ async def comando_print(cmd: str) -> str:
     return "Screenshot"
 
 
-
-
-
-
-
 async def limpar_lixo(cmd: str) -> str:
     limpar_lixeira()
     return "Lixeira limpa"
-
-
-
-
-
 
 
 async def modo_trabalho(cmd: str) -> str:
@@ -131,27 +71,12 @@ async def modo_trabalho(cmd: str) -> str:
     return "Modo trabalho ativado"
 
 
-
-
-
-
-
 async def tv_ligar(cmd: str) -> str:
     return "TV ligada" if ligar_tv() else "Falha TV"
 
 
-
-
-
-
-
 async def tv_desligar(cmd: str) -> str:
     return "TV desligada" if enviar_comando_tv("off", "switch") else "Erro TV"
-
-
-
-
-
 
 
 async def tv_volume(cmd: str) -> str:
@@ -163,11 +88,6 @@ async def tv_volume(cmd: str) -> str:
     return f"Volume {nivel}" if ok else "Erro volume"
 
 
-
-
-
-
-
 async def musica(cmd: str) -> str:
     termo = normalizar(cmd).replace("musica", "").replace("tocar", "").strip()
     if not termo:
@@ -175,28 +95,13 @@ async def musica(cmd: str) -> str:
     return spotify_stark.abrir_e_buscar(termo)
 
 
-
-
-
-
-
 async def playlist(cmd: str) -> str:
     termo = normalizar(cmd).replace("playlist", "").strip()
     return spotify_stark.listar_e_tocar_playlist(termo)
 
 
-
-
-
-
-
 async def favoritas(cmd: str) -> str:
     return spotify_stark.tocar_minhas_favoritas()
-
-
-
-
-
 
 
 async def pausar(cmd: str) -> str:
@@ -204,19 +109,9 @@ async def pausar(cmd: str) -> str:
     return ""
 
 
-
-
-
-
-
 async def continuar(cmd: str) -> str:
     spotify_stark.controlar_reproducao("play")
     return ""
-
-
-
-
-
 
 
 async def proxima(cmd: str) -> str:
@@ -224,19 +119,9 @@ async def proxima(cmd: str) -> str:
     return ""
 
 
-
-
-
-
-
 async def anterior(cmd: str) -> str:
     spotify_stark.controlar_reproducao("anterior")
     return ""
-
-
-
-
-
 
 
 async def youtube(cmd: str) -> str:
@@ -245,20 +130,35 @@ async def youtube(cmd: str) -> str:
     return _jarvis_web.run(_jarvis_web.tocar_youtube(termo))
 
 
-
-
-
-
-
 async def pesquisa(cmd: str) -> str:
     from tasks.browser import _jarvis_web
     termo = normalizar(cmd).replace("pesquisar", "").replace("pesquisa", "").strip()
     return _jarvis_web.run(_jarvis_web.smart_search(termo))
 
 
+# FIX: comandos de monitor existiam no core.py mas nunca chegavam aqui
+async def monitorar_tela(cmd: str) -> str:
+    from engine.core import ligar_monitoramento
+    await ligar_monitoramento(cmd)
+    return ""
 
 
+async def desligar_monitor(cmd: str) -> str:
+    from engine.core import desligar_monitoramento
+    await desligar_monitoramento()
+    return ""
 
+
+async def status_monitor(cmd: str) -> str:
+    from engine.core import status_do_sistema
+    await status_do_sistema()
+    return ""
+
+
+async def olha_tela(cmd: str) -> str:
+    from engine.core import analisar_tela_agora
+    await analisar_tela_agora()
+    return ""
 
 
 COMMANDS: Dict[str, Handler] = {
@@ -287,24 +187,24 @@ COMMANDS: Dict[str, Handler] = {
     "youtube": youtube,
     "pesquisa": pesquisa,
     "pesquisar": pesquisa,
+    # FIX: monitor commands were defined in core.py but never wired to COMMANDS
+    "monitorar tela": monitorar_tela,
+    "monitorar": monitorar_tela,
+    "desligar monitor": desligar_monitor,
+    "desativar monitor": desligar_monitor,
+    "monitor status": status_monitor,
+    "olha a tela": olha_tela,
+    "analisa a tela": olha_tela,
 }
 
 
-
-
-
-
-
 def buscar_comando(cmd: str) -> Optional[str]:
-    for key in COMMANDS:
+    # Prioriza chaves maiores (mais específicas) para evitar match errado
+    # Ex: "tv ligar" deve bater antes de "tv"
+    for key in sorted(COMMANDS, key=len, reverse=True):
         if key in cmd:
             return key
     return None
-
-
-
-
-
 
 
 async def processar_diretriz(texto: str) -> Optional[str]:

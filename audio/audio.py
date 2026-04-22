@@ -127,7 +127,7 @@ async def falar(texto: str) -> None:
         if not texto:
             return
 
-        print(f"Core: {texto}")
+        print(f"Jarvis: {texto}")
 
         arquivo = os.path.join(config.ASSETS_DIR, "output.mp3")
 

@@ -2,22 +2,12 @@ import json
 from pathlib import Path
 
 
-
-
-
-
-
 BASE_DIR = Path(__file__).resolve().parent
 API_DIR = BASE_DIR / "api"
 ASSETS_DIR = BASE_DIR / "assets"
 
 API_DIR.mkdir(exist_ok=True)
 ASSETS_DIR.mkdir(exist_ok=True)
-
-
-
-
-
 
 
 CONFIG_FILES = {
@@ -31,11 +21,6 @@ CONFIG_SMART_PATH = API_DIR / "config_smart.json"
 
 F_MAIN = "Orbitron"
 F_DATA = "Consolas"
-
-
-
-
-
 
 
 def _carregar_json(caminho: Path) -> dict:
@@ -56,31 +41,22 @@ def load_memory() -> dict:
     return memoria
 
 
-def update_memory(nome_arquivo: str, dados: dict) -> None:
+def update_memory(nome_arquivo: str, dados: dict) -> bool:
+    """Salva dados no arquivo JSON. Retorna True em sucesso, False em falha."""
     caminho = API_DIR / nome_arquivo
     dados_existentes = _carregar_json(caminho)
     if isinstance(dados_existentes, dict) and isinstance(dados, dict):
         dados_existentes.update(dados)
-
-
     else:
-
-
-        
         dados_existentes = dados
     try:
-
-
         with open(caminho, "w", encoding="utf-8") as f:
             json.dump(dados_existentes, f, indent=4, ensure_ascii=False)
         print(f"> [MEMÓRIA] {nome_arquivo} salvo em {caminho}")
+        return True  # FIX: estava retornando None, gerenciador_memoria checava o retorno
     except Exception as e:
         print(f"[ERRO] Falha ao salvar {nome_arquivo}: {e}")
-
-
-
-
-
+        return False
 
 
 _dados = load_memory()
@@ -104,23 +80,6 @@ DEVICE_INDEX = _dados.get("device_index", 0)
 modo_silencioso = _dados.get("modo_silencioso", False)
 tema_ativo = _dados.get("tema_ativo", "default")
 notas = _dados.get("notas", "// ÁREA DE NOTAS TÁTICAS\n")
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 COMANDOS_JARVIS = {
@@ -236,13 +195,13 @@ COMANDOS_JARVIS = {
     },
     # ── TERMINAL ──────────────────────────────────────────────────────────────
     "jarvis, terminal [tarefa]": {
-        "desc": "Gemini converte a ordem em comando CMD/PowerShell e executa.",
+        "desc": "Ollama converte a ordem em comando CMD/PowerShell e executa.",
         "cat": "TERMINAL",
         "poder": "⚡⚡⚡",
         "handler": "terminal",
         "passos": [
             'Dizer: "jarvis, terminal [sua tarefa em português]"',
-            "Gemini interpreta a tarefa e gera o comando",
+            "IA interpreta a tarefa e gera o comando",
             "Comando é exibido no console",
             "Executado automaticamente e resultado lido em voz",
         ],
@@ -408,13 +367,13 @@ COMANDOS_JARVIS = {
     },
     # ── CLIMA ─────────────────────────────────────────────────────────────────
     "jarvis, clima": {
-        "desc": "Consulta temperatura, umidade e condição atual em .",
+        "desc": "Consulta temperatura, umidade e condição atual.",
         "cat": "CLIMA",
         "poder": "⚡",
         "handler": "clima",
         "passos": [
             'Dizer: "jarvis, clima"',
-            "API climática é consultada para /RS",
+            "API climática é consultada",
             "Temperatura, umidade e condição coletados",
             "Resumo é lido em voz alta",
         ],
