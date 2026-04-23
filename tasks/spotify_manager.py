@@ -22,6 +22,7 @@ class SpotifyManager:
             return
 
         self.nome_janela: str = "Spotify"
+        self.sp = None
 
         scope = (
             "user-read-playback-state user-modify-playback-state "
@@ -41,16 +42,15 @@ class SpotifyManager:
                     cache_path=config.BASE_DIR / "api" / ".spotify_cache",
                 )
             )
-        except Exception:
-            pass
+        except Exception as e:
+            print(f"[SPOTIFY] Falha ao inicializar API: {e}")
 
         self._inicializado: bool = True
 
     def _focar_spotify(self) -> bool:
         try:
             janelas = [
-                w
-                for w in gw.getAllWindows()
+                w for w in gw.getAllWindows()
                 if self.nome_janela.lower() in w.title.lower()
             ]
             if not janelas:
@@ -62,12 +62,12 @@ class SpotifyManager:
             win.activate()
             return True
         except Exception as e:
-            print(f"[ERRO WINDOW MANAGER]: {e}")
+            print(f"[SPOTIFY] Erro window manager: {e}")
             return False
 
     def listar_e_tocar_playlist(self, nome_busca: str = "") -> str:
         if not self.sp:
-            return print(" API do Spotify não configurada no Painel.")
+            return "API do Spotify não configurada no Painel."
 
         try:
             playlists = self.sp.current_user_playlists(limit=50)
@@ -85,9 +85,8 @@ class SpotifyManager:
                 self.sp.start_playback(context_uri=uri_escolhida)
                 return f"Executando {nome_exibicao}, Chefe."
             except Exception:
-                print("[LOG] Player offline ou sem foco. Forçando via Shell...")
+                print("[SPOTIFY] Player offline. Forcando via Shell...")
                 os.system(f"start {uri_escolhida}")
-
                 time.sleep(7)
 
                 if self._focar_spotify():
@@ -96,13 +95,12 @@ class SpotifyManager:
                     pyautogui.press("playpause")
                     time.sleep(0.5)
                     pyautogui.press("space")
-
-                    return f" Spotify despertado. {nome_exibicao} em execução."
-                return " Spotify aberto, mas o foco da janela falhou."
+                    return f"Spotify despertado. {nome_exibicao} em execucao."
+                return "Spotify aberto, mas o foco da janela falhou."
 
         except Exception as e:
-            print(f"[ERRO CRÍTICO SPOTIFY]: {e}")
-            return " Erro nos protocolos de áudio."
+            print(f"[SPOTIFY] Erro critico: {e}")
+            return "Erro nos protocolos de audio."
 
     def abrir_e_buscar(self, termo: str) -> str:
         termo_formatado = termo.replace(" ", "%20")
@@ -111,8 +109,8 @@ class SpotifyManager:
         if self._focar_spotify():
             pyautogui.press("tab", presses=2, interval=0.2)
             pyautogui.press("enter")
-            return f" Busca por {termo} concluída no player."
-        return ""
+            return f"Busca por {termo} concluida no player."
+        return "Spotify aberto. Busca pode precisar de interacao manual."
 
     def tocar_minhas_favoritas(self) -> str:
         os.system("start spotify:collection:tracks")
@@ -120,12 +118,10 @@ class SpotifyManager:
         if self._focar_spotify():
             pyautogui.press("tab", presses=3, interval=0.1)
             pyautogui.press("enter")
-            return " Playlist de elite em execução."
-        return ""
+            return "Playlist de favoritas em execucao."
+        return "Spotify aberto com favoritas."
 
     def controlar_reproducao(self, acao: str = "playpause") -> str:
-        if not self.sp:
-            return ""
         mapa_teclado = {
             "proxima": "nexttrack",
             "anterior": "prevtrack",
@@ -135,36 +131,39 @@ class SpotifyManager:
             "continuar": "playpause",
         }
 
-        try:
-            acao_lower = acao.lower()
-            if acao_lower in ["proxima", "proximo"]:
-                self.sp.next_track()
-            elif acao_lower in ["anterior", "voltar"]:
-                self.sp.previous_track()
-            elif acao_lower in ["pause", "pausar"]:
-                self.sp.pause_playback()
-            elif acao_lower in ["continuar", "play", "retomar"]:
-                self.sp.start_playback()
-            else:
-                atual = self.sp.current_playback()
-                if atual and atual["is_playing"]:
+        if self.sp:
+            try:
+                acao_lower = acao.lower()
+                if acao_lower in ["proxima", "proximo"]:
+                    self.sp.next_track()
+                elif acao_lower in ["anterior", "voltar"]:
+                    self.sp.previous_track()
+                elif acao_lower in ["pause", "pausar"]:
                     self.sp.pause_playback()
-                else:
+                elif acao_lower in ["continuar", "play", "retomar"]:
                     self.sp.start_playback()
-            return ""
-        except Exception:
-            tecla = mapa_teclado.get(acao.lower(), "playpause")
-            if acao.lower() == "anterior":
-                pyautogui.press(tecla)
-                time.sleep(0.2)
-                pyautogui.press(tecla)
-            else:
-                pyautogui.press(tecla)
-            return ""
+                else:
+                    atual = self.sp.current_playback()
+                    if atual and atual["is_playing"]:
+                        self.sp.pause_playback()
+                    else:
+                        self.sp.start_playback()
+                return ""
+            except Exception:
+                pass
+
+        tecla = mapa_teclado.get(acao.lower(), "playpause")
+        if acao.lower() == "anterior":
+            pyautogui.press(tecla)
+            time.sleep(0.2)
+            pyautogui.press(tecla)
+        else:
+            pyautogui.press(tecla)
+        return ""
 
     def adicionar_aos_favoritos(self) -> str:
         if not self.sp:
-            return ""
+            return "API do Spotify nao configurada."
         try:
             atual = self.sp.current_playback()
             if atual and atual["item"]:
@@ -172,12 +171,12 @@ class SpotifyManager:
                 track_name = atual["item"]["name"]
                 check = self.sp.current_user_saved_tracks_contains(track_id)
                 if check[0]:
-                    return f" A faixa '{track_name}' já consta na base de dados."
+                    return f"A faixa '{track_name}' ja consta na base de dados."
                 self.sp.current_user_saved_tracks_add(track_id)
                 return f"'{track_name}' adicionada aos favoritos."
             return ""
         except Exception as e:
-            print(f"[ERRO API FAVORITOS]: {e}")
+            print(f"[SPOTIFY] Erro favoritos: {e}")
             return ""
 
 

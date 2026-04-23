@@ -5,10 +5,6 @@ import shutil
 from playwright.async_api import async_playwright
 
 
-
-
-
-
 class JarvisWeb:
     def __init__(self):
         self.loop = None
@@ -18,61 +14,34 @@ class JarvisWeb:
         self.page = None
         self.pw = None
 
-
-
-
-
-
     def start_system(self):
         if self.browser_thread and self.browser_thread.is_alive():
             return
-
-        self.browser_thread = threading.Thread(
-            target=self._run_loop,
-            daemon=True
-        )
-
+        self.browser_thread = threading.Thread(target=self._run_loop, daemon=True)
         self.browser_thread.start()
         self.ready.wait(timeout=15)
-
-
-
-
-
 
     def _run_loop(self):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
-
         try:
             self.loop.run_until_complete(self._boot_sequence())
             self.ready.set()
             self.loop.run_forever()
-
         except Exception as e:
-            print(f"Erro Loop: {e}")
+            print(f"[BROWSER] Erro no loop: {e}")
             self.ready.set()
-
-
-
-
-
 
     def run(self, coro):
         self.start_system()
-
+        if not self.loop or not self.loop.is_running():
+            return "Erro: navegador nao inicializado."
         try:
-            return asyncio.run_coroutine_threadsafe(
-                coro, self.loop
-            ).result(timeout=60)
-
+            return asyncio.run_coroutine_threadsafe(coro, self.loop).result(timeout=30)
+        except TimeoutError:
+            return "Timeout: navegador nao respondeu em 30s."
         except Exception as e:
-            return f"Erro execução: {e}"
-
-
-
-
-
+            return f"Erro execucao: {e}"
 
     async def _boot_sequence(self):
         if not self.pw:
@@ -92,49 +61,29 @@ class JarvisWeb:
                 executable_path=chrome_path,
                 headless=False,
                 no_viewport=True,
-                args=[
-                    "--start-maximized"
-                ],
+                args=["--start-maximized"],
             )
-
             self.page = (
-                self.ctx.pages[0]
-                if self.ctx.pages
-                else await self.ctx.new_page()
+                self.ctx.pages[0] if self.ctx.pages else await self.ctx.new_page()
             )
-
-        except Exception:
+        except Exception as e:
+            print(f"[BROWSER] Falha ao iniciar contexto: {e}")
             if self.pw:
                 await self.pw.stop()
                 self.pw = None
-
-
-
-
-
 
     async def _ensure_page_alive(self):
         if not self.ctx:
             await self._boot_sequence()
             return
-
         try:
             if not self.page or self.page.is_closed():
                 self.page = (
-                    self.ctx.pages[-1]
-                    if self.ctx.pages
-                    else await self.ctx.new_page()
+                    self.ctx.pages[-1] if self.ctx.pages else await self.ctx.new_page()
                 )
-
             await self.page.bring_to_front()
-
         except Exception:
             await self._boot_sequence()
-
-
-
-
-
 
     async def smart_search(self, termo, private=False):
         await self._ensure_page_alive()
@@ -149,88 +98,46 @@ class JarvisWeb:
 
         try:
             await page.goto("https://www.google.com", timeout=15000)
-
-            search = page.get_by_role("combobox").or_(
-                page.get_by_role("searchbox")
-            )
-
+            search = page.get_by_role("combobox").or_(page.get_by_role("searchbox"))
             await search.fill(termo)
             await page.keyboard.press("Enter")
-
             await page.wait_for_load_state("domcontentloaded")
-
             return await self._extract_google_result(page)
-
         except Exception as e:
-            return f"Erro rede: {e}"
-
-
-
-
-
+            return f"Erro na busca: {e}"
 
     async def _extract_google_result(self, page):
         try:
             rhs = page.locator("#rhs")
-
             if await rhs.count() > 0:
                 return (await rhs.inner_text())[:400]
-
             return (await page.inner_text("body"))[:500]
-
         except Exception:
             return "Sem resultado"
 
-
-
-
-
-
     async def tocar_youtube(self, termo):
         await self._ensure_page_alive()
-
         try:
             await self.page.goto(
                 f"https://www.youtube.com/results?search_query={termo}",
-                timeout=15000
+                timeout=15000,
             )
-
-            video = self.page.locator(
-                "a#video-title, ytd-video-renderer a#thumbnail"
-            ).first
-
+            video = self.page.locator("a#video-title, ytd-video-renderer a#thumbnail").first
             await video.click()
-
             return f"Tocando: {termo}"
-
         except Exception as e:
             return f"Erro YouTube: {e}"
-
-
-
-
-
 
     async def fechar_aba(self):
         if self.page and not self.page.is_closed():
             await self.page.close()
-
             if self.ctx.pages:
                 self.page = self.ctx.pages[-1]
                 return "Aba fechada"
-
         return "Nenhuma aba ativa"
 
 
-
-
-
-
 _jarvis_web = JarvisWeb()
-
-
-
-
 
 
 async def web_controller(command: str):
@@ -241,13 +148,11 @@ async def web_controller(command: str):
 
     if cmd.startswith("pesquisa") or cmd.startswith("busca"):
         termo = cmd.replace("pesquisa", "", 1).replace("busca", "", 1).strip()
-
         if termo:
             return _jarvis_web.run(_jarvis_web.smart_search(termo))
 
     if "youtube" in cmd:
         termo = cmd.replace("youtube", "").replace("tocar", "").strip()
-
         if termo:
             return _jarvis_web.run(_jarvis_web.tocar_youtube(termo))
 

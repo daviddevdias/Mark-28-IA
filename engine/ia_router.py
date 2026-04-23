@@ -1,84 +1,91 @@
 from __future__ import annotations
 
+import asyncio
+import base64
 import json
 import logging
+import os
 import time
 from collections import deque
 from typing import Any, Optional
 
 import aiohttp
 
-from engine.tools import TOOL_DECLARATIONS, DISPATCHER
+from engine.tools import TOOL_DECLARATIONS
 import config
-from vision.capture import iniciar_monitor as ligar_monitor
-from vision.capture import parar_monitor as desligar_monitor
-from vision.capture import status_monitor as info_monitor
+from vision.capture import iniciar_monitor as ligar_monitor          # noqa: F401
+from vision.capture import parar_monitor  as desligar_monitor        # noqa: F401
+from vision.capture import status_monitor as info_monitor            # noqa: F401
 
 log = logging.getLogger("engine.ia_router")
 
-URL_OLLAMA    = "http://127.0.0.1:11434/api/chat"
-MODELO_OLLAMA = "qwen2.5"
-TIMEOUT_S     = 30.0
-MAX_HISTORICO = 20
-MAX_TOOL_ITER = 5
+_URL         = "http://127.0.0.1:11434/api/chat"
+_MODELO      = ""               # detectado automaticamente no primeiro ping
+_TIMEOUT     = 30.0
+_MAX_RETRIES = 1
+_MAX_HIST    = 20
+_MAX_TOOLS   = 5
+_CHECK_COOL  = 10.0
 
-BASE_SISTEMA = (
-    "Você é Jarvis, assistente pessoal do sistema. "
+_OPTIONS = {
+    "num_predict": 256,
+    "temperature": 0.7,
+}
+
+_MODELOS_PREFERIDOS = [
+    "qwen2.5", "qwen2", "llama3.1", "llama3", "llama2",
+    "mistral", "gemma2", "gemma", "phi3", "phi",
+]
+
+_SYSTEM = (
+    "Você é Jarvis, assistente pessoal. "
     "Responda SEMPRE em português, de forma técnica e concisa. "
-    "Contexto do mestre: {memoria}. "
-    "REGRAS OBRIGATÓRIAS:\n"
-    "1. Para QUALQUER ação real (abrir app, pesquisar, clima, spotify, etc) "
-    "você DEVE chamar a ferramenta correspondente via tool_call.\n"
-    "2. NUNCA simule, invente ou afirme que executou algo sem chamar a ferramenta.\n"
-    "3. NUNCA retorne JSON bruto como resposta ao usuário.\n"
-    "4. Após receber o resultado da ferramenta, responda de forma direta e curta.\n"
-    "5. Se não souber qual ferramenta usar, responda em texto normalmente."
+    "Contexto: {ctx}. "
+    "REGRAS:\n"
+    "1. Para ações reais (app, busca, clima, spotify) use tool_call.\n"
+    "2. NUNCA simule execução sem chamar a ferramenta.\n"
+    "3. NUNCA retorne JSON cru ao usuário.\n"
+    "4. Após resultado da ferramenta, responda curto e direto.\n"
+    "5. Sem ferramenta disponível? Responda em texto normalmente."
 )
 
 
-def _build_system(memoria: str) -> str:
-    mem_limpa = memoria[:300] if memoria else "Nenhuma"
-    return BASE_SISTEMA.format(memoria=mem_limpa)
-
-
-def _tool_declarations_ollama() -> list[dict]:
-    return TOOL_DECLARATIONS
+def _system_msg(ctx: str) -> str:
+    return _SYSTEM.format(ctx=ctx[:300] if ctx else "Nenhum")
 
 
 class Historico:
-    def __init__(self, max_turns: int = MAX_HISTORICO):
-        self._turns: deque[dict] = deque(maxlen=max_turns)
+    def __init__(self) -> None:
+        self._turns: deque[dict] = deque(maxlen=_MAX_HIST)
 
-    def adicionar(self, role: str, content: Any) -> None:
+    def add(self, role: str, content: Any) -> None:
         self._turns.append({"role": role, "content": content})
 
-    def adicionar_tool_result(self, tool_call_id: str, nome: str, resultado: str) -> None:
+    def add_tool(self, call_id: str, name: str, result: str) -> None:
         self._turns.append({
             "role": "tool",
-            "tool_call_id": tool_call_id,
-            "name": nome,
-            "content": resultado,
+            "tool_call_id": call_id,
+            "name": name,
+            "content": result,
         })
 
-    def para_ollama(self) -> list[dict]:
+    def messages(self) -> list[dict]:
         return list(self._turns)
 
-    def limpar(self) -> None:
-        self._turns.clear()
+    def pop_last(self) -> None:
+        if self._turns:
+            self._turns.pop()
 
-    def __len__(self) -> int:
-        return len(self._turns)
+    def clear(self) -> None:
+        self._turns.clear()
 
 
 class IARRouter:
 
-    def __init__(self):
-        self.ollama_disponivel: Optional[bool] = None
-        self.ultimo_check: float = 0.0
-        self.intervalo_check: float = 15.0
+    def __init__(self) -> None:
+        self._disponivel: Optional[bool] = None
+        self._ultimo_check: float = 0.0
         self.historico = Historico()
-
-    # ── status ──────────────────────────────────────────────────────────────
 
     @property
     def modo_atual(self) -> str:
@@ -86,97 +93,119 @@ class IARRouter:
 
     @property
     def status(self) -> dict:
-        return {
-            "modo": "ollama",
-            "modelo": MODELO_OLLAMA,
-            "ollama": self.ollama_disponivel,
-        }
-
-    # ── compatibilidade com painel.py ────────────────────────────────────────
+        return {"modo": "ollama", "modelo": _MODELO, "ollama": self._disponivel}
 
     def definir_modo(self, modo: str) -> str:
-        """Painel.py chama isso ao clicar em trocar IA. Só Ollama disponível."""
         if modo.lower() == "ollama":
-            return f"Modo Ollama ativo. Modelo: {MODELO_OLLAMA}."
-        # FIX: antes retornava mensagem confusa quando Gemini era pedido
-        return (
-            f"Modo '{modo}' não disponível nesta build. "
-            f"Usando Ollama ({MODELO_OLLAMA}). "
-            "Para ativar Gemini, configure a GEMINI_API_KEY e adicione o módulo."
-        )
+            return f"Modo Ollama ativo. Modelo: {_MODELO}."
+        return f"Modo '{modo}' indisponível. Usando Ollama ({_MODELO})."
 
     def carregar_modo_salvo(self) -> None:
         pass
 
     def resetar_conversa(self) -> str:
-        self.historico.limpar()
+        self.historico.clear()
         return "Conversa resetada."
 
-    # ── verificação de saúde ─────────────────────────────────────────────────
-
-    async def _check_ollama(self) -> bool:
+    async def _ping(self) -> bool:
+        global _MODELO
         try:
             async with aiohttp.ClientSession() as s:
                 async with s.get(
                     "http://127.0.0.1:11434/api/tags",
-                    timeout=aiohttp.ClientTimeout(total=3),
+                    timeout=aiohttp.ClientTimeout(total=4),
                 ) as r:
-                    return r.status == 200
-        except Exception:
+                    if r.status != 200:
+                        return False
+                    data = await r.json()
+                    modelos = [m["name"] for m in data.get("models", [])]
+                    if not modelos:
+                        log.warning("Ollama online mas sem modelos instalados.")
+                        return False
+
+                    if _MODELO and any(m.startswith(_MODELO.split(":")[0]) for m in modelos):
+                        log.info("Ollama online. Modelo atual: %s", _MODELO)
+                        return True
+
+                    for preferido in _MODELOS_PREFERIDOS:
+                        match = next((m for m in modelos if m.startswith(preferido)), None)
+                        if match:
+                            _MODELO = match
+                            log.info("Modelo selecionado: %s | Disponíveis: %s", _MODELO, modelos)
+                            return True
+
+                    _MODELO = modelos[0]
+                    log.info("Usando primeiro modelo disponível: %s", _MODELO)
+                    return True
+
+        except Exception as e:
+            log.warning("Ping falhou: %s", e)
             return False
 
-    async def _update_status(self) -> None:
+    async def _check(self, force: bool = False) -> None:
         now = time.time()
-        if now - self.ultimo_check < self.intervalo_check:
+        if not force and (now - self._ultimo_check) < _CHECK_COOL:
             return
-        self.ultimo_check = now
-        self.ollama_disponivel = await self._check_ollama()
+        self._ultimo_check = now
+        self._disponivel = await self._ping()
+        if not self._disponivel:
+            log.warning("Ollama offline (health-check).")
 
-    # ── despacho de ferramenta ───────────────────────────────────────────────
-
-    async def _despachar_tool(self, nome: str, args: dict) -> str:
-        try:
-            from engine.tools_mapper import despachar
-            resultado = await despachar(nome, args)
-            return str(resultado)
-        except Exception as e:
-            log.error("Erro ao despachar tool '%s': %s", nome, e)
-            return f"Erro na ferramenta '{nome}': {e}"
-
-    # ── envio ao Ollama ──────────────────────────────────────────────────────
-
-    async def _chat(self, mensagens: list[dict]) -> dict | None:
+    async def _chat(self, messages: list[dict], usar_tools: bool = True) -> dict | None:
         payload = {
-            "model": MODELO_OLLAMA,
-            "messages": mensagens,
-            "tools": _tool_declarations_ollama(),
+            "model": _MODELO,
+            "messages": messages,
             "stream": False,
+            "options": _OPTIONS,
         }
+        if usar_tools:
+            payload["tools"] = TOOL_DECLARATIONS
+
         try:
             async with aiohttp.ClientSession() as s:
                 async with s.post(
-                    URL_OLLAMA,
+                    _URL,
                     json=payload,
-                    timeout=aiohttp.ClientTimeout(total=TIMEOUT_S),
+                    timeout=aiohttp.ClientTimeout(total=_TIMEOUT),
                 ) as r:
                     if r.status != 200:
-                        texto = await r.text()
-                        log.error("Ollama HTTP %d: %s", r.status, texto[:200])
+                        body = await r.text()
+                        log.error("Ollama HTTP %d: %s", r.status, body[:200])
                         return None
                     data = await r.json()
                     return data.get("message")
-        except aiohttp.ClientConnectorError:
-            log.error("Ollama não está rodando em %s", URL_OLLAMA)
-            self.ollama_disponivel = False
-            self.ultimo_check = 0.0
-            return None
-        except Exception as e:
-            log.error("Exceção ao chamar Ollama: %s", e)
-            self.ollama_disponivel = False
-            self.ultimo_check = 0.0
+
+        except asyncio.TimeoutError:
+            log.warning("Ollama timeout %ds.", int(_TIMEOUT))
+            self._disponivel = False
+            self._ultimo_check = 0.0
             return None
 
-    # ── loop principal com tool-use ──────────────────────────────────────────
+        except aiohttp.ClientConnectorError as e:
+            log.error("Ollama inacessível: %s", e)
+            self._disponivel = False
+            self._ultimo_check = 0.0
+            return None
+
+        except aiohttp.ServerDisconnectedError:
+            log.error("Ollama desconectou.")
+            self._disponivel = False
+            self._ultimo_check = 0.0
+            return None
+
+        except Exception as e:
+            log.error("Erro inesperado Ollama — %s: %s", type(e).__name__, e)
+            self._disponivel = False
+            self._ultimo_check = 0.0
+            return None
+
+    async def _dispatch_tool(self, name: str, args: dict) -> str:
+        try:
+            from engine.tools_mapper import despachar
+            return str(await despachar(name, args))
+        except Exception as e:
+            log.error("Tool '%s' falhou: %s", name, e)
+            return f"Erro na ferramenta '{name}': {e}"
 
     async def responder(
         self,
@@ -185,118 +214,99 @@ class IARRouter:
         memoria: str = "",
         imagem: Any = None,
     ) -> str:
-        await self._update_status()
+        await self._check()
 
-        if not self.ollama_disponivel:
-            return "Ollama offline. Inicie com 'ollama serve'."
+        if not self._disponivel:
+            await self._check(force=True)
 
-        system = _build_system(memoria)
+        if not self._disponivel:
+            return (
+                f"Ollama offline. Execute 'ollama serve' e confirme com "
+                f"'ollama list' que '{_MODELO}' está disponível."
+            )
 
-        # FIX: imagem era recebida mas nunca incluída no payload
-        # Se vier imagem (base64 ou caminho), adiciona como conteúdo multimodal
-        if imagem is not None:
-            user_content = self._montar_conteudo_com_imagem(pergunta, imagem)
-        else:
-            user_content = pergunta
+        content = self._build_content(pergunta, imagem)
+        self.historico.add("user", content)
+        msgs = [{"role": "system", "content": _system_msg(memoria)}] + self.historico.messages()
 
-        self.historico.adicionar("user", user_content)
-        mensagens = [{"role": "system", "content": system}] + self.historico.para_ollama()
-
-        for iteracao in range(MAX_TOOL_ITER):
-            msg = await self._chat(mensagens)
+        for i in range(_MAX_TOOLS):
+            msg = await self._chat(msgs, usar_tools=(i == 0))
 
             if msg is None:
-                self.historico._turns.pop()
-                return "Ollama não respondeu. Verifique se o serviço está ativo."
+                if i == 0:
+                    log.warning("Falha com tools, tentando sem tools...")
+                    msg = await self._chat(msgs, usar_tools=False)
+
+                if msg is None:
+                    self.historico.pop_last()
+                    return "Ollama não respondeu. Verifique se o serviço está ativo."
 
             tool_calls: list = msg.get("tool_calls") or []
 
             if not tool_calls:
-                resposta = (msg.get("content") or "").strip()
-                if not resposta:
-                    resposta = "Concluído."
-                self.historico.adicionar("assistant", resposta)
-                return resposta
+                reply = (msg.get("content") or "").strip() or "Concluído."
+                self.historico.add("assistant", reply)
+                return reply
 
-            mensagens.append({
+            msgs.append({
                 "role": "assistant",
                 "content": msg.get("content") or "",
                 "tool_calls": tool_calls,
             })
-            self.historico.adicionar("assistant", msg.get("content") or "")
+            self.historico.add("assistant", msg.get("content") or "")
 
             for tc in tool_calls:
-                tc_id    = tc.get("id", f"call_{iteracao}")
-                fn       = tc.get("function", {})
-                nome_fn  = fn.get("name", "")
-                args_raw = fn.get("arguments", {})
+                call_id = tc.get("id", f"call_{i}")
+                fn      = tc.get("function", {})
+                fn_name = fn.get("name", "")
+                raw     = fn.get("arguments", {})
 
-                if isinstance(args_raw, str):
-                    try:
-                        args = json.loads(args_raw)
-                    except Exception:
-                        args = {}
-                else:
-                    args = args_raw or {}
+                args = json.loads(raw) if isinstance(raw, str) else (raw or {})
 
-                log.info("Tool call [%d]: %s(%s)", iteracao, nome_fn, args)
-                resultado = await self._despachar_tool(nome_fn, args)
-                log.info("Tool result: %.120s", resultado)
+                log.info("Tool [%d]: %s(%s)", i, fn_name, args)
+                result = await self._dispatch_tool(fn_name, args)
+                log.info("Tool result: %.120s", result)
 
-                tool_result_msg = {
+                tool_msg = {
                     "role": "tool",
-                    "tool_call_id": tc_id,
-                    "name": nome_fn,
-                    "content": resultado,
+                    "tool_call_id": call_id,
+                    "name": fn_name,
+                    "content": result,
                 }
-                mensagens.append(tool_result_msg)
-                self.historico.adicionar_tool_result(tc_id, nome_fn, resultado)
+                msgs.append(tool_msg)
+                self.historico.add_tool(call_id, fn_name, result)
 
-        log.warning("Limite de iterações de tool-use atingido.")
-        return "Operação concluída (limite de chamadas de ferramenta atingido)."
+        log.warning("Limite de tool iterations atingido.")
+        return "Operação concluída."
 
-    # ── suporte a imagem ─────────────────────────────────────────────────────
+    def _build_content(self, text: str, imagem: Any) -> Any:
+        if imagem is None:
+            return text
 
-    def _montar_conteudo_com_imagem(self, pergunta: str, imagem: Any) -> Any:
-        """
-        Monta conteúdo multimodal para o Ollama.
-        imagem pode ser: caminho de arquivo (str), bytes ou base64 (str com prefixo data:).
-        """
-        import base64, os
+        img_url = None
 
-        # Se for caminho de arquivo
         if isinstance(imagem, str) and os.path.isfile(imagem):
             try:
                 with open(imagem, "rb") as f:
-                    img_b64 = base64.b64encode(f.read()).decode()
-                return [
-                    {"type": "text", "text": pergunta},
-                    {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}},
-                ]
+                    img_url = f"data:image/png;base64,{base64.b64encode(f.read()).decode()}"
             except Exception as e:
-                log.warning("Falha ao carregar imagem '%s': %s", imagem, e)
-                return pergunta
+                log.warning("Falha ao ler imagem '%s': %s", imagem, e)
 
-        # Se vier como bytes
-        if isinstance(imagem, bytes):
-            img_b64 = base64.b64encode(imagem).decode()
+        elif isinstance(imagem, bytes):
+            img_url = f"data:image/png;base64,{base64.b64encode(imagem).decode()}"
+
+        elif isinstance(imagem, str) and imagem.startswith("data:"):
+            img_url = imagem
+
+        if img_url:
             return [
-                {"type": "text", "text": pergunta},
-                {"type": "image_url", "image_url": {"url": f"data:image/png;base64,{img_b64}"}},
+                {"type": "text", "text": text},
+                {"type": "image_url", "image_url": {"url": img_url}},
             ]
 
-        # Se já vier como base64 string (data:image/...)
-        if isinstance(imagem, str) and imagem.startswith("data:"):
-            return [
-                {"type": "text", "text": pergunta},
-                {"type": "image_url", "image_url": {"url": imagem}},
-            ]
-
-        # Fallback: ignora imagem inválida
-        log.warning("Imagem em formato não reconhecido: %s", type(imagem))
-        return pergunta
+        log.warning("Formato de imagem não reconhecido: %s", type(imagem))
+        return text
 
 
-# instância global
 router = IARRouter()
 router.carregar_modo_salvo()

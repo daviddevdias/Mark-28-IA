@@ -34,7 +34,6 @@ def gerenciador_web(argumentos: dict) -> str:
     return _jarvis_web.run(_jarvis_web.smart_search(pesquisa)) or "Sem resultados na web."
 
 
-# FIX: browser_control estava declarado em tools.py mas não tinha executor aqui
 def gerenciador_browser(argumentos: dict) -> str:
     acao  = argumentos.get("action", "open").lower()
     url   = argumentos.get("url", "").strip()
@@ -111,8 +110,6 @@ def gerenciador_memoria(argumentos: dict) -> str:
     memoria = load_memory()
     secao   = memoria.get(categoria, {})
     secao[chave] = valor
-    # FIX: update_memory retornava None (void), então `sucesso` era sempre falsy
-    # Agora retorna bool — corrigido em config.py
     sucesso = update_memory(f"{categoria}.json", secao)
     return f"{categoria}/{chave} salvo." if sucesso else "Erro ao salvar memória."
 
@@ -142,10 +139,10 @@ def gerenciador_arquivos(argumentos: dict) -> str:
 
 def gerenciador_codigo(argumentos: dict) -> str:
     from engine.ia_router import router
-    descricao  = argumentos.get("description", "")
-    linguagem  = argumentos.get("language", "python")
+    descricao   = argumentos.get("description", "")
+    linguagem   = argumentos.get("language", "python")
     codigo_base = argumentos.get("code", "")
-    executar   = argumentos.get("execute", False)
+    executar    = argumentos.get("execute", False)
     if not descricao:
         return "Descrição do código ausente."
     comando_ia = f"Gere APENAS código {linguagem}: {descricao}. {codigo_base}"
@@ -248,7 +245,7 @@ EXECUTOR_FERRAMENTAS: dict[str, Callable[[dict], str]] = {
     "open_app":         open_app,
     "computer_control": gerenciador_computador,
     "web_search":       gerenciador_web,
-    "browser_control":  gerenciador_browser,   # FIX: estava faltando
+    "browser_control":  gerenciador_browser,
     "youtube_video":    gerenciador_youtube,
     "spotify_control":  gerenciador_spotify,
     "weather_report":   gerenciador_clima,

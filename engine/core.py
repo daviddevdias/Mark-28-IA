@@ -8,21 +8,15 @@ from engine.ia_router import (
     router,
     ligar_monitor as iniciar_hardware_monitor,
     desligar_monitor as parar_hardware_monitor,
-    info_monitor as obter_status_hardware
+    info_monitor as obter_status_hardware,
 )
-
 from engine.controller import processar_diretriz
 
-VOZ_LOCK = asyncio.Lock()
 AGUARDANDO_CONFIRMACAO = False
 ULTIMA_ANALISE = ""
 ULTIMA_SUGESTAO = 0
 
 KEYWORDS_PROBLEMA = ["erro", "falha", "crash", "exception", "não responde", "travou", "problema"]
-
-
-
-
 
 
 def contexto() -> str:
@@ -34,29 +28,12 @@ def contexto() -> str:
     return ctx
 
 
-
-
-
-
-async def falar_seguro(texto: str):
-    async with VOZ_LOCK:
-        await falar(texto)
-
-
-
-
-
-
 async def analisar_tela_agora():
-    await falar_seguro("Iniciando varredura óptica manual.")
+    await falar("Iniciando varredura óptica manual.")
     resposta = await router.responder("Analise a tela agora e me dê um resumo técnico.", imagem="screenshot")
     if resposta:
         print(f"\n[Jarvis - VISÃO]: {resposta}\n")
-        await falar_seguro(resposta)
-
-
-
-
+        await falar(resposta)
 
 
 async def ligar_monitoramento(comando: str):
@@ -65,26 +42,17 @@ async def ligar_monitoramento(comando: str):
         if token.isdigit():
             intervalo = max(5.0, float(token))
             break
-    
     iniciar_hardware_monitor(
-        intervalo_s=intervalo, 
-        callback=loop_monitoramento_automatico
+        intervalo_s=intervalo,
+        callback=loop_monitoramento_automatico,
     )
-    await falar_seguro(f"Monitoramento ativo com intervalo de {int(intervalo)} segundos.")
-
-
-
-
+    await falar(f"Monitoramento ativo com intervalo de {int(intervalo)} segundos.")
 
 
 async def desligar_monitoramento():
     stats = parar_hardware_monitor()
-    await falar_seguro("Monitoramento suspenso para poupar recursos da API.")
+    await falar("Monitoramento suspenso para poupar recursos da API.")
     print(f"[SISTEMA]: Monitor desligado. Chamadas economizadas: {stats.get('frames_economizados', 0)}")
-
-
-
-
 
 
 async def status_do_sistema():
@@ -93,11 +61,7 @@ async def status_do_sistema():
         msg = f"Sistema operacional. Monitor ativo. {s['chamadas_api']} consultas realizadas."
     else:
         msg = "Sistema em repouso. Monitoramento automático desligado."
-    await falar_seguro(msg)
-
-
-
-
+    await falar(msg)
 
 
 async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) -> bool:
@@ -111,46 +75,39 @@ async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) 
             AGUARDANDO_CONFIRMACAO = False
             pergunta = f"Sugira uma solução técnica para este problema que você viu na tela: {ULTIMA_ANALISE}"
             resposta = await router.responder(pergunta, memoria=contexto())
-            await falar_seguro(resposta)
+            await falar(resposta)
             return True
         if "não" in comando.lower():
             AGUARDANDO_CONFIRMACAO = False
-            await falar_seguro("Entendido, monitoramento continua.")
+            await falar("Entendido, monitoramento continua.")
             return True
 
-
     resultado_local = await processar_diretriz(comando)
-    
-
 
     if resultado_local is not None:
-        if resultado_local != "": 
+        if resultado_local != "":
             print(f"\n[Jarvis - LOCAL]: {resultado_local}\n")
-            await falar_seguro(resultado_local)
+            await falar(resultado_local)
         return True
 
     resposta = await router.responder(
         pergunta=comando,
         nome=get_nome(),
         memoria=contexto(),
-        imagem=imagem_monitor
+        imagem=imagem_monitor,
     )
 
     if resposta:
         print(f"\n[Jarvis - IA]: {resposta}\n")
-        await falar_seguro(resposta)
+        await falar(resposta)
         asyncio.create_task(process_memory_logic(comando, resposta))
 
     return True
 
 
-
-
-
-
 async def loop_monitoramento_automatico(analise: str):
     global AGUARDANDO_CONFIRMACAO, ULTIMA_ANALISE, ULTIMA_SUGESTAO
-    
+
     if AGUARDANDO_CONFIRMACAO:
         return
 
@@ -162,4 +119,4 @@ async def loop_monitoramento_automatico(analise: str):
         ULTIMA_ANALISE = analise
         AGUARDANDO_CONFIRMACAO = True
         ULTIMA_SUGESTAO = agora
-        await falar_seguro("Detectei uma anomalia na tela. Deseja que eu analise uma solução?")
+        await falar("Detectei uma anomalia na tela. Deseja que eu analise uma solução?")

@@ -1,25 +1,20 @@
 import winsound
 import time
 import threading
-import asyncio
 import json
 import os
 from datetime import datetime
-
-
-
-
-
-
 
 DB_ALARMES = "logs/alarmes.json"
 _lock = threading.Lock()
 _BEEP_PATTERN = [(1800, 200), (1200, 200), (1600, 300)]
 
+_falar_callback = None
 
 
-
-
+def registrar_falar_alarme(fn):
+    global _falar_callback
+    _falar_callback = fn
 
 
 def carregar_alarmes() -> list:
@@ -29,13 +24,8 @@ def carregar_alarmes() -> list:
         try:
             with open(DB_ALARMES, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception :
+        except Exception:
             return []
-
-
-
-
-
 
 
 def salvar_alarmes(alarmes: list) -> None:
@@ -43,11 +33,6 @@ def salvar_alarmes(alarmes: list) -> None:
     with _lock:
         with open(DB_ALARMES, "w", encoding="utf-8") as f:
             json.dump(alarmes, f, indent=2, ensure_ascii=False)
-
-
-
-
-
 
 
 def adicionar_alarme(hora: str, missao: str, repetir: bool = False) -> str:
@@ -61,11 +46,6 @@ def adicionar_alarme(hora: str, missao: str, repetir: bool = False) -> str:
     return f"Alarme '{missao}' configurado para {hora}."
 
 
-
-
-
-
-
 def remover_alarme(hora: str, missao: str) -> str:
     alarmes = carregar_alarmes()
     antes = len(alarmes)
@@ -76,21 +56,8 @@ def remover_alarme(hora: str, missao: str) -> str:
     return "Alarme não encontrado."
 
 
-
-
-
-
-
-def listar_alarmes() -> str:
-    alarmes = [a for a in carregar_alarmes() if a["status"] == "pendente"]
-    if not alarmes:
-        return "Nenhum alarme pendente."
-    return "\n".join(f"• {a['hora']} — {a['missao']}" for a in alarmes)
-
-
-
-
-
+def listar_alarmes() -> list:
+    return [a for a in carregar_alarmes() if a["status"] == "pendente"]
 
 
 def _som_alarme() -> None:
@@ -101,21 +68,16 @@ def _som_alarme() -> None:
             pass
 
 
-
-
-
-
-
 def disparar_alarme(missao: str) -> None:
-    from audio.audio import falar
-
     _som_alarme()
-    asyncio.run(falar(f"Chefe, protocolo '{missao}' deve ser iniciado agora."))
-
-
-
-
-
+    texto = f"Chefe, protocolo '{missao}' deve ser iniciado agora."
+    if _falar_callback:
+        try:
+            _falar_callback(texto)
+        except Exception as e:
+            print(f"[ALARME] Voz indisponivel: {e}")
+    else:
+        print(f"[ALARME] {texto}")
 
 
 def verificar_agenda_loop() -> None:
@@ -132,14 +94,12 @@ def verificar_agenda_loop() -> None:
                 alarme["status"] = "concluido"
                 alterou = True
                 if alarme.get("repetir"):
-                    pendentes.append(
-                        {
-                            "hora": alarme["hora"],
-                            "missao": alarme["missao"],
-                            "status": "pendente",
-                            "repetir": True,
-                        }
-                    )
+                    pendentes.append({
+                        "hora": alarme["hora"],
+                        "missao": alarme["missao"],
+                        "status": "pendente",
+                        "repetir": True,
+                    })
             elif alarme["status"] == "pendente":
                 pendentes.append(alarme)
 
@@ -147,11 +107,6 @@ def verificar_agenda_loop() -> None:
             salvar_alarmes(pendentes)
 
         time.sleep(30)
-
-
-
-
-
 
 
 def iniciar_sistema_alarmes() -> None:

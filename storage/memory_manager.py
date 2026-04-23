@@ -11,7 +11,6 @@ from threading import RLock
 from typing import Any
 
 import config
-from google import genai
 
 log = logging.getLogger("memory")
 
@@ -26,15 +25,7 @@ def _base_dir() -> Path:
     return Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
 
 
-
-
-
-
 MEMORY_PATH: Path = _base_dir() / "api" / "long_term.json"
-
-
-
-
 
 
 def _default() -> dict:
@@ -46,10 +37,6 @@ def _default() -> dict:
         "wishes": {},
         "notes": {},
     }
-
-
-
-
 
 
 def load_memory(force: bool = False) -> dict:
@@ -71,7 +58,6 @@ def load_memory(force: bool = False) -> dict:
                 return _cache
 
             base = _default()
-
             for k, v in base.items():
                 data.setdefault(k, v)
 
@@ -81,10 +67,6 @@ def load_memory(force: bool = False) -> dict:
         except Exception:
             _cache = _default()
             return _cache
-
-
-
-
 
 
 def save_memory(memory: dict) -> None:
@@ -99,35 +81,18 @@ def save_memory(memory: dict) -> None:
         _cache = memory
 
 
-
-
-
-
 def invalidate_cache() -> None:
     global _cache
-
     with _lock:
         _cache = None
-
-
-
-
 
 
 def get_nome() -> str:
     return load_memory().get("identity", {}).get("mestre", {}).get("value", "")
 
 
-
-
-
-
 def get_cidade() -> str:
     return load_memory().get("preferences", {}).get("cidade", {}).get("value", "")
-
-
-
-
 
 
 def get_value(category: str, key: str, default: Any = None) -> Any:
@@ -137,10 +102,6 @@ def get_value(category: str, key: str, default: Any = None) -> Any:
     return node or default
 
 
-
-
-
-
 def format_memory_for_prompt() -> str:
     mem = load_memory()
     out = ["[MEMORIA DO USUARIO]"]
@@ -148,18 +109,12 @@ def format_memory_for_prompt() -> str:
     for cat, items in mem.items():
         if not isinstance(items, dict):
             continue
-
         out.append(f"\n{cat.upper()}:")
-
         for k, v in items.items():
             val = v.get("value") if isinstance(v, dict) else v
             out.append(f"  - {k}: {val}")
 
     return "\n".join(out)
-
-
-
-
 
 
 def _merge(target: dict, updates: dict) -> bool:
@@ -174,11 +129,9 @@ def _merge(target: dict, updates: dict) -> bool:
             target.setdefault(key, {})
             if _merge(target[key], value):
                 changed = True
-
         else:
             raw = value.get("value") if isinstance(value, dict) else value
             new = str(raw)[:MAX_VALUE_LEN].strip()
-
             old = target.get(key, {}).get("value") if isinstance(target.get(key), dict) else None
 
             if old != new:
@@ -188,34 +141,19 @@ def _merge(target: dict, updates: dict) -> bool:
     return changed
 
 
-
-
-
-
 def update_memory(patch: dict) -> dict:
     if not isinstance(patch, dict) or not patch:
         return load_memory()
 
     with _lock:
         mem = load_memory()
-
         if _merge(mem, patch):
             save_memory(mem)
-
         return mem
 
 
-
-
-
-
 _CATEGORIES = "identity, preferences, projects, relationships, wishes, notes"
-
 _PROMPT = "Extraia fatos da conversa e retorne apenas JSON:\n"
-
-
-
-
 
 
 def _parse_json(raw: str) -> dict | None:
@@ -231,16 +169,11 @@ def _parse_json(raw: str) -> dict | None:
     return None
 
 
-
-
-
-
 async def process_memory_logic(user_text: str, core_text: str) -> None:
     try:
         from engine.ia_router import router
 
         prompt = f"{_PROMPT}{_CATEGORIES}\n\n{user_text}\n{core_text}"
-
         resposta = await router.responder(prompt)
         patch = _parse_json(resposta)
 
