@@ -12,22 +12,10 @@ _reconhecedor.non_speaking_duration = 0.2
 _reconhecedor.energy_threshold = 250
 _reconhecedor.dynamic_energy_threshold = False
 
-_INTERRUPT_WORDS = {
-    "para",
-    "chega",
-    "silencio",
-    "silêncio",
-    "para de falar",
-    "cala",
-    "stop",
-    "ei jarvis",
-    "hey jarvis",
-}
-
 _falando = False
 _interrompido = False
 _mic_lock = threading.Lock()
-_fala_thread_lock = threading.Lock()
+_sleep_event = threading.Event()
 
 
 def esta_falando() -> bool:
@@ -37,6 +25,7 @@ def esta_falando() -> bool:
 def interromper_voz() -> None:
     global _interrompido
     _interrompido = True
+    _sleep_event.set()
     try:
         if pygame.mixer.get_init() and pygame.mixer.music.get_busy():
             pygame.mixer.music.stop()
@@ -56,12 +45,14 @@ def _reproduzir_sync(arquivo: str) -> None:
 
         _falando = True
         _interrompido = False
+        _sleep_event.clear()
         pygame.mixer.music.play()
 
         while pygame.mixer.music.get_busy():
             if _interrompido:
                 break
-            threading.Event().wait(0.03)
+            _sleep_event.wait(timeout=0.05)
+            _sleep_event.clear()
 
         pygame.mixer.music.stop()
         try:

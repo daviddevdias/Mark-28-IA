@@ -46,7 +46,7 @@ _APP_ALIASES = {
 }
 
 
-def _normalize(raw: str) -> str:
+def normalize(raw: str) -> str:
     system = platform.system()
     key = raw.lower().strip()
     if key in _APP_ALIASES:
@@ -57,7 +57,7 @@ def _normalize(raw: str) -> str:
     return raw
 
 
-def _launch_windows(app_name: str) -> bool:
+def launch_windows(app_name: str) -> bool:
     # 1. Tenta pelo PATH
     if shutil.which(app_name):
         try:
@@ -88,7 +88,7 @@ def _launch_windows(app_name: str) -> bool:
         return False
 
 
-def _launch_macos(app_name: str) -> bool:
+def launch_macos(app_name: str) -> bool:
     try:
         res = subprocess.run(["open", "-a", app_name], capture_output=True, timeout=8)
         if res.returncode == 0:
@@ -107,7 +107,7 @@ def _launch_macos(app_name: str) -> bool:
         return False
 
 
-def _launch_linux(app_name: str) -> bool:
+def launch_linux(app_name: str) -> bool:
     binary = shutil.which(app_name) or shutil.which(app_name.lower())
     if binary:
         try:
@@ -130,12 +130,12 @@ def open_app(parameters=None, **kwargs) -> str:
         return "Qual aplicativo devo abrir, Chefe?"
 
     system = platform.system()
-    normalized = _normalize(app_name)
+    normalized = normalize(app_name)
 
     launchers = {
-        "Windows": _launch_windows,
-        "Darwin": _launch_macos,
-        "Linux": _launch_linux,
+        "Windows": launch_windows,
+        "Darwin": launch_macos,
+        "Linux": launch_linux,
     }
 
     launcher = launchers.get(system)

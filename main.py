@@ -8,14 +8,17 @@ from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 
 from painel import PainelCore, set_loop
-from audio.audio import ouvir_comando, falar
-from engine.core import processar_comando
+from audio.audio import ouvir_comando, falar, interromper_voz
+from engine.core import processar_comando, inicializar_ia
 from engine.controller import get_shutdown_event
 from storage.memory_bridge import sincronizar_config
 from tasks.monitor import iniciar_sentinela, registrar_falar
 from tasks.alarm import iniciar_sistema_alarmes, registrar_falar_alarme
 from app_ul.interface import JarvisUI
 from storage.wake import processar_wake, RESPOSTAS_ATIVACAO
+from integrations.telegram_bridge import iniciar_telegram
+
+
 
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -27,6 +30,8 @@ os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-logging"
 QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
 app = QApplication(sys.argv)
 
+_processando = False
+
 
 def _iniciar_subsistemas():
     sincronizar_config()
@@ -34,7 +39,21 @@ def _iniciar_subsistemas():
     iniciar_sistema_alarmes()
 
 
+async def _executar_comando(resultado: str, ui: PainelCore) -> None:
+    global _processando
+    try:
+        processou = await processar_comando(resultado)
+        if processou:
+            ui.bridge.dados_para_ui.emit(json.dumps({"resposta": "Comando processado."}))
+    except Exception as e:
+        print(f"[CORE] Erro ao processar: {e}")
+    finally:
+        _processando = False
+
+
 async def engine_core_async(ui: PainelCore):
+    global _processando
+
     loop = asyncio.get_running_loop()
     set_loop(loop)
 
@@ -43,6 +62,8 @@ async def engine_core_async(ui: PainelCore):
         await loop.run_in_executor(None, iniciar_ollama)
     except Exception as e:
         print(f"[OLLAMA] Falha ao iniciar: {e}")
+
+    await inicializar_ia()
 
     _iniciar_subsistemas()
 
@@ -57,7 +78,6 @@ async def engine_core_async(ui: PainelCore):
             frase_bruta = await asyncio.wait_for(ouvir_comando(), timeout=8)
 
             if not frase_bruta:
-                await asyncio.sleep(0.1)
                 continue
 
             ativado, resultado = processar_wake(frase_bruta)
@@ -67,21 +87,26 @@ async def engine_core_async(ui: PainelCore):
 
             if resultado in RESPOSTAS_ATIVACAO:
                 asyncio.create_task(falar(resultado))
-                ui.bridge.dados_para_ui.emit(
-                    json.dumps({"resposta": resultado})
-                )
-            else:
-                processou = await processar_comando(resultado)
-                if processou:
-                    ui.bridge.dados_para_ui.emit(
-                        json.dumps({"resposta": "Comando processado."})
-                    )
+                ui.bridge.dados_para_ui.emit(json.dumps({"resposta": resultado}))
+                continue
+
+            if frase_bruta.strip().lower() in ("para", "chega", "silencio", "silêncio", "stop"):
+                interromper_voz()
+                _processando = False
+                continue
+
+            if _processando:
+                print("[CORE] Comando ignorado — ainda processando anterior.")
+                continue
+
+            _processando = True
+            asyncio.create_task(_executar_comando(resultado, ui))
 
         except asyncio.TimeoutError:
             continue
-
-        except Exception:
-            await asyncio.sleep(0.5)
+        except Exception as e:
+            print(f"[LOOP] Erro: {e}")
+            await asyncio.sleep(0.3)
 
 
 def engine_core_wrapper(ui: PainelCore):
@@ -96,6 +121,7 @@ def engine_core_wrapper(ui: PainelCore):
 def iniciar_sistema():
     try:
         ui = PainelCore()
+        ui.show()
 
         def ocultar_painel(event):
             event.ignore()
@@ -128,9 +154,11 @@ def iniciar_sistema():
 
         sys.exit(app.exec())
 
-    except Exception:
+    except Exception as e:
+        print(f"[SISTEMA] Erro fatal: {e}")
         sys.exit(1)
 
 
 if __name__ == "__main__":
     iniciar_sistema()
+    iniciar_telegram()

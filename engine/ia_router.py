@@ -13,45 +13,129 @@ import aiohttp
 
 from engine.tools import TOOL_DECLARATIONS
 import config
-from vision.capture import iniciar_monitor as ligar_monitor          # noqa: F401
-from vision.capture import parar_monitor  as desligar_monitor        # noqa: F401
-from vision.capture import status_monitor as info_monitor            # noqa: F401
+from vision.capture import iniciar_monitor as _iniciar_monitor_raw
+from vision.capture import parar_monitor   as desligar_monitor
+from vision.capture import status_monitor  as info_monitor
+from vision.capture import MonitorConfig
 
 log = logging.getLogger("engine.ia_router")
 
-_URL         = "http://127.0.0.1:11434/api/chat"
-_MODELO      = ""               # detectado automaticamente no primeiro ping
-_TIMEOUT     = 30.0
-_MAX_RETRIES = 1
-_MAX_HIST    = 20
-_MAX_TOOLS   = 5
-_CHECK_COOL  = 10.0
+_URL        = "http://127.0.0.1:11434/api/chat"
+_TIMEOUT    = 25.0
+_MAX_HIST   = 20
+_MAX_TOOLS  = 5
+_CHECK_COOL = 30.0
 
-_OPTIONS = {
-    "num_predict": 256,
-    "temperature": 0.7,
-}
+_OPTIONS = {"num_predict": 300, "temperature": 0.7}
 
-_MODELOS_PREFERIDOS = [
-    "qwen2.5", "qwen2", "llama3.1", "llama3", "llama2",
-    "mistral", "gemma2", "gemma", "phi3", "phi",
+_MODELO_DETECTADO: str = ""
+_DISPONIVEL: bool = False
+_ULTIMO_CHECK: float = 0.0
+
+_PREFERIDOS = [
+    "llama3.2", "llama3.1", "llama3", "qwen2.5", "qwen2",
+    "mistral", "gemma2", "gemma", "phi3", "phi", "tinyllama",
 ]
 
 _SYSTEM = (
-    "Você é Jarvis, assistente pessoal. "
-    "Responda SEMPRE em português, de forma técnica e concisa. "
-    "Contexto: {ctx}. "
+    "Voce e Jarvis, assistente pessoal inteligente. "
+    "Responda SEMPRE em portugues brasileiro, de forma direta e concisa. "
+    "Contexto do usuario: {ctx}. "
     "REGRAS:\n"
-    "1. Para ações reais (app, busca, clima, spotify) use tool_call.\n"
-    "2. NUNCA simule execução sem chamar a ferramenta.\n"
-    "3. NUNCA retorne JSON cru ao usuário.\n"
-    "4. Após resultado da ferramenta, responda curto e direto.\n"
-    "5. Sem ferramenta disponível? Responda em texto normalmente."
+    "1. Para acoes reais (abrir app, buscar, clima, spotify, youtube) use tool_call.\n"
+    "2. NUNCA escreva JSON cru ou nome de ferramenta como texto de resposta.\n"
+    "3. NUNCA simule execucao sem chamar a ferramenta.\n"
+    "4. Apos resultado de ferramenta, responda em linguagem natural, curto.\n"
+    "5. Sem ferramenta disponivel? Responda normalmente em texto."
 )
 
 
 def _system_msg(ctx: str) -> str:
-    return _SYSTEM.format(ctx=ctx[:300] if ctx else "Nenhum")
+    return _SYSTEM.format(ctx=ctx[:300] if ctx else "Sem contexto")
+
+
+# =========================
+# 🔥 NOVO: DETECTOR DE TOOLS
+# =========================
+def _modelo_suporta_tools(modelo: str) -> bool:
+
+
+
+
+    if not modelo:
+        return False
+
+
+
+
+    modelo = modelo.lower()
+
+
+
+
+    suportados = [
+        "qwen",
+        "phi3",
+        "mixtral",
+        "mistral",
+    ]
+
+
+
+
+    return any(m in modelo for m in suportados)
+
+
+def ligar_monitor(intervalo_s: float = 10.0, callback=None) -> None:
+    cfg = MonitorConfig(intervalo_s=intervalo_s, callback=callback)
+    try:
+        loop = asyncio.get_event_loop()
+        asyncio.run_coroutine_threadsafe(_iniciar_monitor_raw(cfg), loop)
+    except Exception as e:
+        log.error("Erro ao ligar monitor: %s", e)
+
+
+async def _detectar_modelo() -> bool:
+    global _MODELO_DETECTADO, _DISPONIVEL, _ULTIMO_CHECK
+    try:
+        async with aiohttp.ClientSession() as s:
+            async with s.get(
+                "http://127.0.0.1:11434/api/tags",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as r:
+                if r.status != 200:
+                    _DISPONIVEL = False
+                    return False
+                data = await r.json()
+                modelos = [m["name"] for m in data.get("models", [])]
+                if not modelos:
+                    log.warning("Ollama online mas sem modelos. Rode: ollama pull llama3.2")
+                    _DISPONIVEL = False
+                    return False
+                for p in _PREFERIDOS:
+                    match = next((m for m in modelos if m.startswith(p)), None)
+                    if match:
+                        _MODELO_DETECTADO = match
+                        break
+                if not _MODELO_DETECTADO:
+                    _MODELO_DETECTADO = modelos[0]
+                _DISPONIVEL = True
+                _ULTIMO_CHECK = time.time()
+                log.info("[OLLAMA] Modelo: %s | Todos: %s", _MODELO_DETECTADO, modelos)
+                print(f"[OLLAMA] Modelo detectado: {_MODELO_DETECTADO}")
+                return True
+    except Exception as e:
+        log.warning("Ping Ollama falhou: %s", e)
+        _DISPONIVEL = False
+        return False
+
+
+async def _check_if_needed(force: bool = False) -> None:
+    global _ULTIMO_CHECK, _DISPONIVEL
+    agora = time.time()
+    if not force and _DISPONIVEL and (agora - _ULTIMO_CHECK) < _CHECK_COOL:
+        return
+    await _detectar_modelo()
 
 
 class Historico:
@@ -83,8 +167,6 @@ class Historico:
 class IARRouter:
 
     def __init__(self) -> None:
-        self._disponivel: Optional[bool] = None
-        self._ultimo_check: float = 0.0
         self.historico = Historico()
 
     @property
@@ -93,12 +175,10 @@ class IARRouter:
 
     @property
     def status(self) -> dict:
-        return {"modo": "ollama", "modelo": _MODELO, "ollama": self._disponivel}
+        return {"modo": "ollama", "modelo": _MODELO_DETECTADO, "ollama": _DISPONIVEL}
 
     def definir_modo(self, modo: str) -> str:
-        if modo.lower() == "ollama":
-            return f"Modo Ollama ativo. Modelo: {_MODELO}."
-        return f"Modo '{modo}' indisponível. Usando Ollama ({_MODELO})."
+        return f"Modo Ollama ativo. Modelo: {_MODELO_DETECTADO or 'nenhum detectado'}."
 
     def carregar_modo_salvo(self) -> None:
         pass
@@ -107,58 +187,19 @@ class IARRouter:
         self.historico.clear()
         return "Conversa resetada."
 
-    async def _ping(self) -> bool:
-        global _MODELO
-        try:
-            async with aiohttp.ClientSession() as s:
-                async with s.get(
-                    "http://127.0.0.1:11434/api/tags",
-                    timeout=aiohttp.ClientTimeout(total=4),
-                ) as r:
-                    if r.status != 200:
-                        return False
-                    data = await r.json()
-                    modelos = [m["name"] for m in data.get("models", [])]
-                    if not modelos:
-                        log.warning("Ollama online mas sem modelos instalados.")
-                        return False
-
-                    if _MODELO and any(m.startswith(_MODELO.split(":")[0]) for m in modelos):
-                        log.info("Ollama online. Modelo atual: %s", _MODELO)
-                        return True
-
-                    for preferido in _MODELOS_PREFERIDOS:
-                        match = next((m for m in modelos if m.startswith(preferido)), None)
-                        if match:
-                            _MODELO = match
-                            log.info("Modelo selecionado: %s | Disponíveis: %s", _MODELO, modelos)
-                            return True
-
-                    _MODELO = modelos[0]
-                    log.info("Usando primeiro modelo disponível: %s", _MODELO)
-                    return True
-
-        except Exception as e:
-            log.warning("Ping falhou: %s", e)
-            return False
-
-    async def _check(self, force: bool = False) -> None:
-        now = time.time()
-        if not force and (now - self._ultimo_check) < _CHECK_COOL:
-            return
-        self._ultimo_check = now
-        self._disponivel = await self._ping()
-        if not self._disponivel:
-            log.warning("Ollama offline (health-check).")
-
     async def _chat(self, messages: list[dict], usar_tools: bool = True) -> dict | None:
-        payload = {
-            "model": _MODELO,
+        if not _MODELO_DETECTADO:
+            return None
+
+        payload: dict = {
+            "model": _MODELO_DETECTADO,
             "messages": messages,
             "stream": False,
             "options": _OPTIONS,
         }
-        if usar_tools:
+
+        # 🔥 CORREÇÃO AQUI
+        if usar_tools and _modelo_suporta_tools(_MODELO_DETECTADO):
             payload["tools"] = TOOL_DECLARATIONS
 
         try:
@@ -169,34 +210,22 @@ class IARRouter:
                     timeout=aiohttp.ClientTimeout(total=_TIMEOUT),
                 ) as r:
                     if r.status != 200:
-                        body = await r.text()
-                        log.error("Ollama HTTP %d: %s", r.status, body[:200])
+                        log.error("Ollama HTTP %d: %s", r.status, (await r.text())[:200])
                         return None
                     data = await r.json()
                     return data.get("message")
 
         except asyncio.TimeoutError:
-            log.warning("Ollama timeout %ds.", int(_TIMEOUT))
-            self._disponivel = False
-            self._ultimo_check = 0.0
+            log.warning("Timeout %ds modelo '%s'.", int(_TIMEOUT), _MODELO_DETECTADO)
             return None
-
-        except aiohttp.ClientConnectorError as e:
-            log.error("Ollama inacessível: %s", e)
-            self._disponivel = False
-            self._ultimo_check = 0.0
+        except aiohttp.ClientConnectorError:
+            log.error("Ollama inacessivel.")
             return None
-
         except aiohttp.ServerDisconnectedError:
             log.error("Ollama desconectou.")
-            self._disponivel = False
-            self._ultimo_check = 0.0
             return None
-
         except Exception as e:
-            log.error("Erro inesperado Ollama — %s: %s", type(e).__name__, e)
-            self._disponivel = False
-            self._ultimo_check = 0.0
+            log.error("Erro Ollama %s: %s", type(e).__name__, e)
             return None
 
     async def _dispatch_tool(self, name: str, args: dict) -> str:
@@ -207,6 +236,14 @@ class IARRouter:
             log.error("Tool '%s' falhou: %s", name, e)
             return f"Erro na ferramenta '{name}': {e}"
 
+    def _e_json_cru(self, texto: str) -> bool:
+        t = texto.strip()
+        if t.startswith("{") and t.endswith("}"):
+            return True
+        if len(t) < 150 and ('"query"' in t or '"action"' in t or '"app_name"' in t):
+            return True
+        return False
+
     async def responder(
         self,
         pergunta: str,
@@ -214,37 +251,44 @@ class IARRouter:
         memoria: str = "",
         imagem: Any = None,
     ) -> str:
-        await self._check()
+        await _check_if_needed()
 
-        if not self._disponivel:
-            await self._check(force=True)
+        if not _DISPONIVEL:
+            await _check_if_needed(force=True)
 
-        if not self._disponivel:
-            return (
-                f"Ollama offline. Execute 'ollama serve' e confirme com "
-                f"'ollama list' que '{_MODELO}' está disponível."
-            )
+        if not _DISPONIVEL:
+            return "Ollama offline. Rode 'ollama serve' no terminal."
+
+        if not _MODELO_DETECTADO:
+            return "Nenhum modelo instalado. Rode: ollama pull llama3.2"
 
         content = self._build_content(pergunta, imagem)
         self.historico.add("user", content)
         msgs = [{"role": "system", "content": _system_msg(memoria)}] + self.historico.messages()
 
         for i in range(_MAX_TOOLS):
-            msg = await self._chat(msgs, usar_tools=(i == 0))
+
+            # 🔥 CORREÇÃO AQUI TAMBÉM
+            usar_tools = _modelo_suporta_tools(_MODELO_DETECTADO)
+
+            msg = await self._chat(msgs, usar_tools=usar_tools)
 
             if msg is None:
-                if i == 0:
-                    log.warning("Falha com tools, tentando sem tools...")
-                    msg = await self._chat(msgs, usar_tools=False)
+                msg = await self._chat(msgs, usar_tools=False)
 
-                if msg is None:
-                    self.historico.pop_last()
-                    return "Ollama não respondeu. Verifique se o serviço está ativo."
+            if msg is None:
+                self.historico.pop_last()
+                return "Nao consegui resposta do Ollama. Tente novamente."
 
             tool_calls: list = msg.get("tool_calls") or []
 
             if not tool_calls:
-                reply = (msg.get("content") or "").strip() or "Concluído."
+                reply = (msg.get("content") or "").strip()
+                if reply and self._e_json_cru(reply):
+                    log.warning("JSON cru detectado, descartando: %s", reply[:80])
+                    reply = "Feito."
+                if not reply:
+                    reply = "Concluido."
                 self.historico.add("assistant", reply)
                 return reply
 
@@ -260,51 +304,41 @@ class IARRouter:
                 fn      = tc.get("function", {})
                 fn_name = fn.get("name", "")
                 raw     = fn.get("arguments", {})
-
-                args = json.loads(raw) if isinstance(raw, str) else (raw or {})
+                args    = json.loads(raw) if isinstance(raw, str) else (raw or {})
 
                 log.info("Tool [%d]: %s(%s)", i, fn_name, args)
                 result = await self._dispatch_tool(fn_name, args)
                 log.info("Tool result: %.120s", result)
 
-                tool_msg = {
+                msgs.append({
                     "role": "tool",
                     "tool_call_id": call_id,
                     "name": fn_name,
                     "content": result,
-                }
-                msgs.append(tool_msg)
+                })
                 self.historico.add_tool(call_id, fn_name, result)
 
-        log.warning("Limite de tool iterations atingido.")
-        return "Operação concluída."
+        return "Operacao concluida."
 
     def _build_content(self, text: str, imagem: Any) -> Any:
         if imagem is None:
             return text
-
         img_url = None
-
         if isinstance(imagem, str) and os.path.isfile(imagem):
             try:
                 with open(imagem, "rb") as f:
                     img_url = f"data:image/png;base64,{base64.b64encode(f.read()).decode()}"
             except Exception as e:
-                log.warning("Falha ao ler imagem '%s': %s", imagem, e)
-
+                log.warning("Falha ao ler imagem: %s", e)
         elif isinstance(imagem, bytes):
             img_url = f"data:image/png;base64,{base64.b64encode(imagem).decode()}"
-
         elif isinstance(imagem, str) and imagem.startswith("data:"):
             img_url = imagem
-
         if img_url:
             return [
                 {"type": "text", "text": text},
                 {"type": "image_url", "image_url": {"url": img_url}},
             ]
-
-        log.warning("Formato de imagem não reconhecido: %s", type(imagem))
         return text
 
 

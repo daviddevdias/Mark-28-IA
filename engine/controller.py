@@ -1,10 +1,4 @@
-"""
-controller.py — Despachante local de comandos de voz do Jarvis.
 
-Princípio: NENHUM comando desta tabela deve chegar ao Ollama.
-Matching por prefixo + substring garante tolerância a fala cortada.
-Ex: "bloque" → bate em "bloquear" | "deslig" → bate em "desligar"
-"""
 from __future__ import annotations
 
 import asyncio
@@ -72,7 +66,7 @@ _PREFIXOS_WEB = [
 ]
 
 
-def _extrair_termo(cmd: str, prefixos: list) -> str:
+def extrair_termo(cmd: str, prefixos: list) -> str:
     texto = cmd.strip()
     for p in sorted(prefixos, key=len, reverse=True):
         if texto.startswith(p):
@@ -153,14 +147,14 @@ async def tv_volume(cmd: str) -> str:
 async def musica_spotify(cmd: str) -> str:
     cmd_limpo = re.sub(r"\bspotify\b", "", cmd)
     cmd_limpo = re.sub(r"\s+", " ", cmd_limpo).strip()
-    termo = _extrair_termo(cmd_limpo, _PREFIXOS_SPOTIFY)
+    termo = extrair_termo(cmd_limpo, _PREFIXOS_SPOTIFY)
     if not termo:
         return "Informe o nome da música ou artista."
     return spotify_stark.abrir_e_buscar(termo)
 
 
 async def musica(cmd: str) -> str:
-    termo = _extrair_termo(cmd, _PREFIXOS_SPOTIFY)
+    termo = extrair_termo(cmd, _PREFIXOS_SPOTIFY)
     if not termo:
         return "Informe o nome da música ou artista."
     return spotify_stark.abrir_e_buscar(termo)
@@ -197,7 +191,7 @@ async def anterior(cmd: str) -> str:
 
 async def youtube(cmd: str) -> str:
     from tasks.browser import _jarvis_web
-    termo = _extrair_termo(cmd, _PREFIXOS_YOUTUBE)
+    termo = extrair_termo(cmd, _PREFIXOS_YOUTUBE)
     if not termo:
         return "Informe o que deseja ver no YouTube."
     return _jarvis_web.run(_jarvis_web.tocar_youtube(termo))
@@ -205,7 +199,7 @@ async def youtube(cmd: str) -> str:
 
 async def pesquisa(cmd: str) -> str:
     from tasks.browser import _jarvis_web
-    termo = _extrair_termo(cmd, _PREFIXOS_WEB)
+    termo = extrair_termo(cmd, _PREFIXOS_WEB)
     if not termo:
         return "Informe o termo de pesquisa."
     return _jarvis_web.run(_jarvis_web.smart_search(termo))
@@ -298,21 +292,17 @@ _ROUTES: list[tuple[tuple[str, ...], Handler]] = [
     (("analisa", "tela"),        olha_tela),
 ]
 
-# Mapa de prefixos para matching tolerante a fala cortada
-# Ex: "bloque" → "bloquear", "deslig" → "desligar"
+
 _PREFIXO_PARA_CHAVE: dict[str, str] = {}
 for _route in _ROUTES:
     for _kw in _route[0]:
-        # registra prefixos de 4+ chars
+
         for _n in range(4, len(_kw) + 1):
             _PREFIXO_PARA_CHAVE.setdefault(_kw[:_n], _kw)
 
 
-def _expandir(cmd: str) -> str:
-    """
-    Expande tokens do cmd que sejam prefixos de palavras-chave conhecidas.
-    Ex: "bloque" → "bloquear", "deslig" → "desligar"
-    """
+def expandir(cmd: str) -> str:
+
     tokens = cmd.split()
     expandido = []
     for tok in tokens:
@@ -321,12 +311,9 @@ def _expandir(cmd: str) -> str:
 
 
 def buscar_comando(cmd: str) -> Optional[Handler]:
-    """
-    Retorna o handler para o cmd normalizado+expandido.
-    Testa as rotas na ordem — a primeira que bater em todas as keywords vence.
-    Rotas com mais keywords têm prioridade (mais específicas primeiro na lista).
-    """
-    cmd_exp = _expandir(cmd)
+   
+   
+    cmd_exp = expandir(cmd)
     for keywords, handler in _ROUTES:
         if all(kw in cmd_exp for kw in keywords):
             return handler

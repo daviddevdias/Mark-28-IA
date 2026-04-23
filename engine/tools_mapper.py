@@ -10,7 +10,6 @@ from tasks.spotify_manager import spotify_stark
 from tasks.open_app import open_app
 from tasks.weather import obter_previsao_hoje, verificar_chuva_amanha
 from tasks.alarm import adicionar_alarme, listar_alarmes, remover_alarme
-from tasks.file_controller import file_controller
 from tasks.computer_control import computer_settings
 from storage.memory_manager import load_memory, update_memory
 from engine.cmd_security import avaliar_comando, executar_seguro, CmdCategoria
@@ -128,13 +127,7 @@ def gerenciador_computador(argumentos: dict) -> str:
     return computer_settings(argumentos)
 
 
-def gerenciador_arquivos(argumentos: dict) -> str:
-    try:
-        resultado = file_controller(argumentos)
-        return str(resultado) if resultado is not None else "Arquivo processado."
-    except Exception as e:
-        log.error("Erro file_controller: %s", e)
-        return f"Erro ao processar arquivo: {e}"
+
 
 
 def gerenciador_codigo(argumentos: dict) -> str:
@@ -250,7 +243,6 @@ EXECUTOR_FERRAMENTAS: dict[str, Callable[[dict], str]] = {
     "spotify_control":  gerenciador_spotify,
     "weather_report":   gerenciador_clima,
     "set_reminder":     gerenciador_alarme,
-    "file_controller":  gerenciador_arquivos,
     "save_memory":      gerenciador_memoria,
     "agent_task":       gerenciador_plano,
     "code_helper":      gerenciador_codigo,

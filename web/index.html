@@ -3,73 +3,81 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>C.O.R.E ◈ MARK XXIX ◈ INTERFACE NEURAL</title>
+    <title>J.A.R.V.I.S ◈ MARK XXVII</title>
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-<div id="aplicativo">
+<div id="app">
 
-    <nav id="barra-lateral">
-        <div class="lateral-logo">
-            <h1>C.O.R.E</h1>
-            <p>MARK XXIX ◈ NEURAL OS</p>
-            <small>by David</small>
+    <nav id="sidebar">
+        <div class="sidebar-header">
+            <div class="logo-ring">
+                <div class="logo-inner">
+                    <span class="logo-icon">◈</span>
+                </div>
+            </div>
+            <h1 class="logo-title">J.A.R.V.I.S</h1>
+            <p class="logo-sub">MARK XXVII · NEURAL OS</p>
         </div>
 
-        <div class="lateral-divisor"></div>
-        <div class="lateral-navegacao" id="botoesNav"></div>
+        <div class="sidebar-sep"></div>
 
-        <div class="lateral-rodape">
-            <div class="lateral-servidor">
-                HOST <span id="lateralServidor">CORE-SYSTEM</span><br>
-                STATUS <span style="color:var(--verde)">ONLINE</span>
+        <nav class="sidebar-nav" id="navBtns"></nav>
+
+        <div class="sidebar-footer">
+            <div class="sys-status">
+                <span class="status-dot"></span>
+                <span class="status-txt">SISTEMA ONLINE</span>
             </div>
-            <button class="btn-desligar" onclick="confirmarDesligamento()">⏻  ENCERRAR SISTEMA</button>
+            <div class="sidebar-meta" id="sidebarMeta">HOST · CORE-SYSTEM</div>
+            <button class="btn-power" onclick="confirmarDesligamento()">
+                <span>⏻</span> ENCERRAR
+            </button>
         </div>
     </nav>
 
-    <div id="principal">
-        <div class="barra-superior">
-            <span class="titulo-barra-superior" id="tituloPagina">DIAGNÓSTICO DO NÚCLEO</span>
-
-            <div class="status-barra-superior">
-                <span class="ponto-status">SISTEMA OPERACIONAL</span>
-
-                <div id="iaBadge"
-                     onclick="navegarPara(6)"
-                     title="Modelo de IA ativo — clique para trocar">
-                </div>
-
-                <span id="relogio">00:00:00</span>
+    <main id="main">
+        <header class="topbar">
+            <span class="topbar-title" id="pageTitle">PAINEL CENTRAL</span>
+            <div class="topbar-right">
+                <div id="iaBadge" onclick="navegarPara(5)" title="Modelo ativo — clique para trocar"></div>
+                <div class="topbar-sep"></div>
+                <span id="clock">00:00:00</span>
             </div>
-        </div>
+        </header>
 
-        <div class="conteudo" id="conteudo-principal"></div>
-    </div>
+        <div class="content" id="content"></div>
+    </main>
 
 </div>
 
 <div id="toast"></div>
 
-<div class="alerta-sistema" id="alertaSistema">
-    <div class="caixa-alerta">
-        <h3>⚠ CONFIRMAR SHUTDOWN</h3>
-        <p>Isso encerrará o painel C.O.R.E. Tem certeza?</p>
-        <div class="btns-alerta">
-            <button class="btn btn-perigo"
-                    onclick="window.close(); document.getElementById('alertaSistema').classList.remove('mostrar')">
-                ENCERRAR
-            </button>
-            <button class="btn btn-destaque"
-                    onclick="document.getElementById('alertaSistema').classList.remove('mostrar')">
-                CANCELAR
-            </button>
+<div class="modal-overlay" id="modalShutdown">
+    <div class="modal-box danger">
+        <div class="modal-icon">⏻</div>
+        <h3>ENCERRAR J.A.R.V.I.S</h3>
+        <p>Confirmar desligamento completo do sistema?</p>
+        <div class="modal-btns">
+            <button class="btn btn-danger" onclick="desligarJarvis()">DESLIGAR</button>
+            <button class="btn btn-ghost" onclick="fecharModal('modalShutdown')">CANCELAR</button>
+        </div>
+    </div>
+</div>
+
+<div class="modal-overlay" id="modalClose">
+    <div class="modal-box warn">
+        <div class="modal-icon">◉</div>
+        <h3>FECHAR INTERFACE</h3>
+        <p>Apenas ocultar o painel?</p>
+        <div class="modal-btns">
+            <button class="btn btn-warn" onclick="fecharPainel()">FECHAR</button>
+            <button class="btn btn-ghost" onclick="fecharModal('modalClose')">CANCELAR</button>
         </div>
     </div>
 </div>
 
 <script src="script.js"></script>
-
 </body>
 </html>

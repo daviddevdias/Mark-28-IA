@@ -47,7 +47,7 @@ class SpotifyManager:
 
         self._inicializado: bool = True
 
-    def _focar_spotify(self) -> bool:
+    def focar_spotify(self) -> bool:
         try:
             janelas = [
                 w for w in gw.getAllWindows()

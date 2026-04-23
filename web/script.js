@@ -1,1769 +1,1193 @@
-/*
-   1. CONSTANTES E CONFIGURAÇÕES
- */
-const CORES_CAT = {
-    'SISTEMA':    '#ff2255',
-    'INTERFACE':  '#aa44ff',
-    'TERMINAL':   '#00d4ff',
-    'WEB':        '#00ff88',
-    'MÍDIA':      '#ff8c00',
-    'SMART HOME': '#ff6600',
-    'CLIMA':      '#00ddff',
-    'UTILIDADES': '#7788aa',
-    'MONITOR':    '#00ff88',
-    'GERAL':      '#44556f',
-};
+'use strict';
 
-const PAGINAS = [
-    { 
-        id: 'home',     
-        rotulo: 'DIAGNÓSTICO',    
-        icone: '◉' 
-    },
-    { 
-        id: 'biblio',   
-        rotulo: 'HOLO-BIBLIO',    
-        icone: '◈' 
-    },
-    { 
-        id: 'terminal', 
-        rotulo: 'TERMINAL',       
-        icone: '▶' 
-    },
-    { 
-        id: 'chat',     
-        rotulo: 'CHAT NEURAL',    
-        icone: '◎' 
-    },
-    { 
-        id: 'rede',     
-        rotulo: 'REDE',           
-        icone: '◐' 
-    },
-    { 
-        id: 'notas',    
-        rotulo: 'NOTAS',          
-        icone: '◑' 
-    },
-    { 
-        id: 'api',      
-        rotulo: 'API KEYS',       
-        icone: '◒' 
-    },
-    { 
-        id: 'temas',    
-        rotulo: 'VISUAL',         
-        icone: '◓' 
-    },
-    { 
-        id: 'tools',    
-        rotulo: 'FERRAMENTAS',    
-        icone: '⬡' 
-    },
+const PAGES = [
+    { id: 'weather',  label: 'CLIMA',       icon: '◎' },
+    { id: 'dash',     label: 'DIAGNÓSTICO', icon: '◉' },
+    { id: 'terminal', label: 'TERMINAL',    icon: '▶' },
+    { id: 'chat',     label: 'CHAT IA',     icon: '◈' },
+    { id: 'notas',    label: 'NOTAS',       icon: '◑' },
+    { id: 'ia',       label: 'MODELO IA',   icon: '◒' },
+    { id: 'config',   label: 'CONFIG',      icon: '⊙' },
+    { id: 'temas',    label: 'VISUAL',      icon: '◓' },
 ];
 
-const CAMPOS_API = [
-    { 
-        chave: 'gemini',       
-        rotulo: 'GEMINI AI',    
-        emoji: '✦', 
-        cor: '#4285F4' 
-    },
-    { 
-        chave: 'qwen',         
-        rotulo: 'QWEN COG',     
-        emoji: '◈', 
-        cor: '#ff6a00' 
-    },
-    { 
-        chave: 'smartthings',  
-        rotulo: 'SMARTTHINGS',  
-        emoji: '⌂', 
-        cor: '#1abcfe' 
-    },
-    { 
-        chave: 'spotify_id',   
-        rotulo: 'SPOTIFY ID',   
-        emoji: '♪', 
-        cor: '#1db954' 
-    },
-    { 
-        chave: 'spotify_sec',  
-        rotulo: 'SPOTIFY SEC',  
-        emoji: '♫', 
-        cor: '#1db954' 
-    },
-];
+const state = {
+    page: 0,
+    theme: '',
+    themes: {},
+    notas: '// NOTAS TÁTICAS\n',
+    apis: { gemini: '', qwen: '', smartthings: '', spotify_id: '', spotify_sec: '', nome_mestre: '' },
+    ia: { modo: 'ollama', modelo: '', ollama: false },
+    configEdit: false, // Controle de edição das chaves
 
-/*
-   2. ESTADO GLOBAL DO SISTEMA
- */
-const estado = {
-    pagina: 0,
-    tema: '',
-    temasDoPython: {},
-    notas: '// ÁREA DE NOTAS TÁTICAS\n',
-    apis: { 
-        gemini: '', 
-        qwen: '', 
-        smartthings: '', 
-        spotify_id: '', 
-        spotify_sec: '' 
-    },
-    apisDesbloqueadas: {},
-    senhaAtual: '',
-    tamanhoSenha: 24,
-    opcoesSenha: { 
-        maiusculas: true, 
-        minusculas: true, 
-        numeros: true, 
-        especiais: true 
-    },
-    konami: [],
-    comandosDoBanco: [],
-    ia: { 
-        modo: 'gemini', 
-        gemini_disponivel: true, 
-        ollama_disponivel: false 
-    },
     metricas: {
-        cpu: 0, 
-        ram: 0, 
-        gpu: 0,
-        net_in: 0, 
-        net_out: 0, 
-        ping: 0, 
-        disco: 0,
-        freq: 2400, 
-        uptime: 0,
-        ram_usada: 0, 
-        ram_total: 16,
-        disco_livre: 250, 
-        gpu_temp: 0,
+        cpu: 28, ram: 42, gpu: 15, disco: 55,
+        net_in: 0.4, net_out: 0.1, ping: 24,
+        freq: 3400, gpu_temp: 48, ram_usada: 6.7, ram_total: 16, disco_livre: 225,
+        uptime_start: Date.now(),
+        _cpu_raw: 28, _ram_raw: 42, _gpu_raw: 15,
     },
-    logEntradas: [],
-    terminalHistorico: [],
-    chatHistorico: [],
-    terminalCmds: [],
-    terminalCmdIdx: -1,
+
+    logs: [],
+    termHist: [],
+    termIdx: -1,
+    _termEntries: [],
+    chatHist: [],
+
+    weather: {
+        city: 'São Paulo',
+        temp: null, desc: null, icon: '🌤',
+        feels: null, humidity: null, wind: null,
+        uv: null, pressure: null, vis: null,
+        loading: true, error: null, forecast: [],
+    },
+
+    konami: [],
+    _bridgeReady: false,
 };
 
-/*
-   3. INICIALIZAÇÃO E BRIDGE (QWEBCHANNEL)
- */
-const scriptQWebChannel = document.createElement('script');
-scriptQWebChannel.src = 'qrc:///qtwebchannel/qwebchannel.js';
-document.head.appendChild(scriptQWebChannel);
+const WX_ICONS = {
+    'Clear': '☀️', 'Sunny': '☀️',
+    'Clouds': '☁️', 'Overcast': '⛅',
+    'Rain': '🌧️', 'Drizzle': '🌦️',
+    'Thunderstorm': '⛈️',
+    'Snow': '❄️', 'Sleet': '🌨️',
+    'Mist': '🌫️', 'Fog': '🌫️', 'Haze': '🌫️',
+    'Tornado': '🌪️',
+    'Partly cloudy': '⛅',
+    'Blizzard': '🌨️',
+    'default': '🌡️',
+};
 
-scriptQWebChannel.onload = () => {
-    new QWebChannel(qt.webChannelTransport, ch => {
-        window.jarvis = ch.objects.jarvis;
-        window.jarvis.dados_para_ui.connect(raw => {
-            receberDoJarvis(JSON.parse(raw));
+function wxIcon(desc) {
+    if (!desc) return '🌡️';
+    const d = desc.toLowerCase();
+    for (const [k, v] of Object.entries(WX_ICONS)) {
+        if (d.includes(k.toLowerCase())) return v;
+    }
+    return WX_ICONS.default;
+}
+
+const _qwcScript = document.createElement('script');
+_qwcScript.src = 'qrc:///qtwebchannel/qwebchannel.js';
+document.head.appendChild(_qwcScript);
+
+_qwcScript.onload = () => {
+    try {
+        new QWebChannel(qt.webChannelTransport, ch => {
+            window.jarvis = ch.objects.jarvis;
+            state._bridgeReady = true;
+            window.jarvis.dados_para_ui.connect(raw => {
+                try { receberDoJarvis(JSON.parse(raw)); }
+                catch(e) { console.error('[BRIDGE] Parse error:', e); }
+            });
+            _loadData();
         });
-        _carregarDados();
-    });
+    } catch(e) {
+        addLog('warn', 'Modo demonstração ativo — bridge Qt não detectada');
+    }
 };
 
-async function _carregarDados() {
-    const [temas, configs, biblioteca, temaAtivo, iaStatusRaw] = await Promise.all([
-        _bridge('obter_temas_sistema'),
-        _bridge('obter_configuracoes_atuais'),
-        _bridge('obter_biblioteca_comandos'),
-        _bridge('obter_tema_ativo'),
-        _bridge('obter_ia_status'),
-    ]);
+async function _loadData() {
+    try {
+        const [temas, cfg, iaRaw] = await Promise.all([
+            _bridge('obter_temas_sistema'),
+            _bridge('obter_configuracoes_atuais'),
+            _bridge('obter_ia_status'),
+        ]);
 
-    estado.temasDoPython = JSON.parse(temas || '{}');
-    estado.comandosDoBanco = JSON.parse(biblioteca || '[]');
+        if (temas)  state.themes = JSON.parse(temas);
+        if (cfg) {
+            const c = JSON.parse(cfg);
+            Object.assign(state.apis, c);
+            if (c.notas) state.notas = c.notas;
+        }
+        if (iaRaw) {
+            const ia = JSON.parse(iaRaw);
+            state.ia = { modo: ia.modo || 'ollama', modelo: ia.modelo || '', ollama: !!ia.ollama };
+            _updateIABadge();
+        }
 
-    const cfg = JSON.parse(configs || '{}');
-    Object.assign(estado.apis, cfg);
-    
-    if (cfg.notas) {
-        estado.notas = cfg.notas;
+        const temaAtivo = await _bridge('obter_tema_ativo');
+        const ta = temaAtivo?.replace(/^"|"$/g, '') || '';
+        if (ta && state.themes[ta]) {
+            state.theme = ta;
+            _applyTheme(ta);
+        }
+    } catch(e) {
+        addLog('warn', 'Dados do sistema indisponíveis — usando padrões');
     }
-
-    const iaStatus = JSON.parse(iaStatusRaw || '{}');
-    estado.ia = {
-        modo: iaStatus.modo || 'gemini',
-        gemini_disponivel: iaStatus.gemini_disponivel !== false,
-        ollama_disponivel: iaStatus.ollama_disponivel === true,
-    };
-
-    const ta = temaAtivo ? temaAtivo.replace(/^"|"$/g, '') : '';
-    if (ta && estado.temasDoPython[ta]) {
-        estado.tema = ta;
-        _aplicarTema(ta);
-    }
-
-    renderizarPagina();
-    _atualizarToggleIA();
+    renderPage();
 }
 
-function _bridge(metodo) {
+function _bridge(method) {
     return new Promise(res => {
-        if (!window.jarvis || !window.jarvis[metodo]) {
-            return res(null);
-        }
-        window.jarvis[metodo](r => res(r));
+        if (!window.jarvis || typeof window.jarvis[method] !== 'function') return res(null);
+        try { window.jarvis[method](r => res(r)); }
+        catch(e) { res(null); }
     });
 }
 
-function receberDoJarvis(dados) {
-    if (dados.cpu !== undefined) {
-        estado.metricas.cpu = dados.cpu;
-        estado.metricas.ram = dados.ram;
-        if (estado.pagina === 0) {
-            atualizarMetricas();
+function _bridgeCall(method, arg) {
+    return new Promise(res => {
+        if (!window.jarvis || typeof window.jarvis[method] !== 'function') return res(null);
+        try { window.jarvis[method](arg, r => res(r)); }
+        catch(e) { res(null); }
+    });
+}
+
+function receberDoJarvis(data) {
+    if (data.cpu !== undefined) {
+        state.metricas._cpu_raw = data.cpu;
+        state.metricas._ram_raw = data.ram;
+        if (state.page === 1) _updateMetrics();
+    }
+
+    if (data.resposta) {
+        const s = String(data.resposta).slice(0, 120);
+        addLog('ok', s);
+        toast(s.slice(0, 90));
+        if (state.chatHist.length && state.chatHist[state.chatHist.length - 1]?.role === 'user') {
+            const typing = document.getElementById('typingIndicator');
+            if (typing) typing.remove();
+            state.chatHist.push({ role: 'jarvis', text: s });
+            if (state.page === 3) _renderChat();
         }
     }
 
-    if (dados.resposta !== undefined && dados.resposta !== null) {
-        const respStr = typeof dados.resposta === 'string'
-            ? dados.resposta
-            : JSON.stringify(dados.resposta);
-            
-        adicionarLog('ok', respStr.slice(0, 80));
-        toast(respStr.slice(0, 90));
+    if (data.erro) {
+        const s = String(data.erro).slice(0, 120);
+        addLog('err', s);
+        toast(s.slice(0, 90), 'err');
     }
 
-    if (dados.erro !== undefined && dados.erro !== null) {
-        const erroStr = typeof dados.erro === 'string'
-            ? dados.erro
-            : JSON.stringify(dados.erro);
-            
-        adicionarLog('err', erroStr.slice(0, 80));
-        toast(erroStr.slice(0, 90), 'erro');
-    }
-
-    if (dados.ia_status) {
-        estado.ia = {
-            modo: dados.ia_status.modo,
-            gemini_disponivel: dados.ia_status.gemini_disponivel,
-            ollama_disponivel: dados.ia_status.ollama_disponivel,
+    if (data.ia_status) {
+        state.ia = {
+            modo: data.ia_status.modo || state.ia.modo,
+            modelo: data.ia_status.modelo || '',
+            ollama: !!data.ia_status.ollama,
         };
-        _atualizarToggleIA();
+        _updateIABadge();
+        if (state.page === 5) renderPage();
     }
 }
 
-function iniciarApp() {
-    _construirNav();
-    _relogio();
-    _simularMetricas();
+function boot() {
+    _buildNav();
+    _startClock();
+    _startMetricSimulation();
     navegarPara(0);
-    
-    document.addEventListener('keydown', _konami);
-    
-    adicionarLog('ok', 'J.A.V.I.S inicializado com sucesso');
-    adicionarLog('info', 'Bridge aguardando conexão...');
-    
-    _injetarEstilosGlobais();
+    document.addEventListener('keydown', _konamiHandler);
+    addLog('ok', 'J.A.R.V.I.S MARK XXVII inicializado');
+    addLog('info', 'Aguardando bridge Qt...');
 }
 
-/*
-   4. SISTEMA DE LOGS E EVENTOS GERAIS
- */
-function enviarComando(cmd) {
-    if (!window.jarvis) { 
-        toast('Bridge não conectada.', 'erro'); 
-        return; 
-    }
-    window.jarvis.executar_comando(cmd);
-    toast('▶ ' + cmd.toUpperCase().slice(0, 50));
-    adicionarLog('info', 'Executando: ' + cmd);
-}
-
-function adicionarLog(tipo, msg) {
-    const ts = new Date().toTimeString().slice(0, 8);
-    estado.logEntradas.unshift({ tipo, msg, ts });
-    
-    if (estado.logEntradas.length > 60) {
-        estado.logEntradas.pop();
-    }
-    _renderizarLog();
-}
-
-function _renderizarLog() {
-    const el = document.getElementById('logStream');
-    if (!el) return;
-    
-    el.innerHTML = estado.logEntradas.slice(0, 20).map(e => /*html*/`
-        <div class="log-linha">
-            <span class="log-ts">${e.ts}</span>
-            <span class="log-${e.tipo}">${_escHtml(e.msg)}</span>
-        </div>
-    `).join('');
-}
-
-/*
-   5. INJEÇÃO DE CSS VIA JS
- */
-function _injetarEstilosGlobais() {
-    const style = document.createElement('style');
-    style.textContent = /*css*/`
-        .cabecalho-pagina { 
-            text-align: center; 
-            margin-bottom: 18px; 
-        }
-        .cabecalho-pagina h2 { 
-            font-size: 26px !important; 
-            font-weight: 700 !important; 
-            letter-spacing: 6px; 
-            text-align: center; 
-            margin-bottom: 8px; 
-        }
-        body, input, textarea, button, select { 
-            font-weight: 600 !important; 
-        }
-        .label-secao { 
-            font-size: 13px !important; 
-            font-weight: 700 !important; 
-            letter-spacing: 3px; 
-        }
-        .rotulo-metrica { 
-            font-size: 12px !important; 
-            font-weight: 700 !important; 
-            letter-spacing: 2px; 
-        }
-        .valor-metrica { 
-            font-size: 28px !important; 
-            font-weight: 700 !important; 
-        }
-        .chave-rede { 
-            font-size: 11px !important; 
-            font-weight: 700 !important; 
-        }
-        .valor-rede { 
-            font-size: 16px !important; 
-            font-weight: 700 !important; 
-        }
-        .biblio-cmd { 
-            font-size: 15px !important; 
-            font-weight: 700 !important; 
-            color: #aabbcc !important; 
-            letter-spacing: 1px; 
-        }
-        .biblio-desc { 
-            font-size: 12px !important; 
-            font-weight: 600 !important; 
-        }
-        .biblio-label { 
-            font-size: 11px !important; 
-            font-weight: 700 !important; 
-        }
-        .nome-tema { 
-            font-size: 16px !important; 
-            font-weight: 700 !important; 
-            letter-spacing: 2px; 
-        }
-        .btn-tema { 
-            font-size: 12px !important; 
-            font-weight: 700 !important; 
-        }
-        .btn-nav { 
-            font-size: 12px !important; 
-            font-weight: 700 !important; 
-            letter-spacing: 1px; 
-        }
-        .log-linha { 
-            font-size: 12px !important; 
-            font-weight: 600 !important; 
-        }
-        .log-ts { 
-            font-size: 11px !important; 
-            font-weight: 600 !important; 
-        }
-        .chave-espec { 
-            font-size: 11px !important; 
-            font-weight: 700 !important; 
-        }
-        .val-espec { 
-            font-size: 12px !important; 
-            font-weight: 600 !important; 
-        }
-        .terminal-input, .entrada, .biblio-busca, .entrada-api { 
-            font-size: 14px !important; 
-            font-weight: 600 !important; 
-        }
-        .terminal-saida { 
-            font-size: 13px !important; 
-            font-weight: 600 !important; 
-        }
-        .terminal-prompt { 
-            font-size: 13px !important; 
-            font-weight: 700 !important; 
-        }
-        .chat-msg { 
-            font-size: 14px !important; 
-            font-weight: 600 !important; 
-        }
-        .btn { 
-            font-size: 13px !important; 
-            font-weight: 700 !important; 
-            letter-spacing: 2px; 
-        }
-        .secao-titulo span { 
-            font-size: 15px !important; 
-            font-weight: 700 !important; 
-            letter-spacing: 3px; 
-        }
-        #tituloPagina { 
-            font-size: 20px !important; 
-            font-weight: 700 !important; 
-            letter-spacing: 4px; 
-        }
-        #relogio { 
-            font-size: 18px !important; 
-            font-weight: 700 !important; 
-        }
-        .sub-metrica { 
-            font-size: 12px !important; 
-            font-weight: 600 !important; 
-        }
-        .rotulo-api-label { 
-            font-size: 14px !important; 
-            font-weight: 700 !important; 
-        }
-        .distintivo { 
-            font-size: 11px !important; 
-            font-weight: 700 !important; 
-        }
-        .etiqueta { 
-            font-size: 12px !important; 
-            font-weight: 700 !important; 
-        }
-
-        #iaBadge {
-            display: flex; 
-            align-items: center; 
-            gap: 5px;
-            padding: 3px 10px; 
-            border-radius: 4px;
-            border: 1px solid var(--borda2);
-            cursor: pointer; 
-            transition: border-color .2s, box-shadow .2s;
-            user-select: none;
-        }
-        #iaBadge:hover { 
-            box-shadow: 0 0 8px rgba(0,212,255,.18); 
-        }
-
-        .ia-btn-modo {
-            flex: 1; 
-            padding: 11px 8px; 
-            border-radius: 6px;
-            cursor: pointer; 
-            transition: all .2s; 
-            text-align: center;
-            background: transparent; 
-            border: 1px solid var(--borda2);
-            color: var(--texto2);
-        }
-        .ia-btn-modo:hover { 
-            color: var(--texto); 
-        }
-        .ia-btn-modo .ia-label { 
-            font-family: var(--orb); 
-            font-size: 11px; 
-            font-weight: 700; 
-            letter-spacing: 1px; 
-            margin-bottom: 3px; 
-        }
-        .ia-btn-modo .ia-sub { 
-            font-family: var(--mono); 
-            font-size: 9px; 
-            opacity: .65; 
-        }
-        .ia-btn-modo .ia-ativo { 
-            font-family: var(--mono); 
-            font-size: 8px; 
-            margin-top: 4px; 
-            letter-spacing: 1px; 
-        }
-
-        .ia-dot {
-            width: 7px; 
-            height: 7px; 
-            border-radius: 50%;
-            display: inline-block; 
-            transition: background .4s;
-        }
-        .ia-provider {
-            display: flex; 
-            align-items: center; 
-            gap: 7px;
-            font-family: var(--mono); 
-            font-size: 10px; 
-            color: var(--texto2); 
-            font-weight: 700;
-        }
-        .ia-provider small { 
-            font-size: 9px; 
-            color: var(--texto3); 
-        }
-        .ia-dica {
-            margin-top: 10px; 
-            font-family: var(--mono); 
-            font-size: 10px;
-            color: var(--texto3); 
-            line-height: 1.7; 
-            font-weight: 600;
-        }
-    `;
-    document.head.appendChild(style);
-}
-
-/*
-   6. NAVEGAÇÃO E UI PRINCIPAL
- */
-function _construirNav() {
-    const nav = document.getElementById('botoesNav');
-    PAGINAS.forEach((p, i) => {
+function _buildNav() {
+    const nav = document.getElementById('navBtns');
+    if (!nav) return;
+    PAGES.forEach((p, i) => {
         const btn = document.createElement('button');
-        btn.className = 'btn-nav' + (i === 0 ? ' ativo' : '');
-        btn.innerHTML = `<span class="icone">${p.icone}</span>${p.rotulo}`;
+        btn.className = 'nav-btn' + (i === 0 ? ' active' : '');
+        btn.id = `nb${i}`;
+        btn.innerHTML = `<span class="nav-icon">${p.icon}</span>${p.label}`;
         btn.onclick = () => navegarPara(i);
-        btn.id = `bnav${i}`;
+        btn.style.animation = `navIn .3s var(--ease) ${i * 0.04}s both`;
         nav.appendChild(btn);
     });
 }
 
 function navegarPara(i) {
-    estado.pagina = i;
-    PAGINAS.forEach((_, j) => {
-        const b = document.getElementById(`bnav${j}`);
-        if (b) {
-            b.classList.toggle('ativo', j === i);
-        }
-    });
-    
-    document.getElementById('tituloPagina').textContent = PAGINAS[i].rotulo + ' ◈ J.A.V.I.S';
-    renderizarPagina();
-}
+    if (i < 0 || i >= PAGES.length) return;
+    state.page = i;
 
-function renderizarPagina() {
-    const area = document.getElementById('conteudo-principal');
-    const fns = [
-        pgDiagnostico, 
-        pgBiblio, 
-        pgTerminal, 
-        pgChat,
-        pgRede, 
-        pgNotas, 
-        pgApi, 
-        pgTemas, 
-        pgFerramentas,
-    ];
-    
-    area.innerHTML = '';
-    fns[estado.pagina]();
-}
+    PAGES.forEach((_, j) => document.getElementById(`nb${j}`)?.classList.toggle('active', j === i));
 
-function _relogio() {
-    const upd = () => {
-        document.getElementById('relogio').textContent = new Date().toTimeString().slice(0, 8);
-    };
-    upd(); 
-    setInterval(upd, 1000);
-}
-
-function _simularMetricas() {
-    estado.metricas.uptime = Date.now();
-    const tick = () => {
-        const m = estado.metricas;
-        m.cpu = _clamp(m.cpu + (Math.random() - .47) * 7, 3, 94);
-        m.ram = _clamp(m.ram + (Math.random() - .49) * 2.5, 20, 90);
-        m.gpu = _clamp(m.gpu + (Math.random() - .47) * 9, 0, 88);
-        m.net_in = Math.max(0, +(Math.random() * 2.2).toFixed(2));
-        m.net_out = Math.max(0, +(Math.random() * .55).toFixed(2));
-        m.ping = Math.floor(18 + Math.random() * 65);
-        m.disco = _clamp(m.disco + (Math.random() - .499) * .4, 28, 82);
-        m.freq = Math.floor(2200 + Math.random() * 1300);
-        m.gpu_temp = Math.floor(38 + m.gpu * .42);
-        m.ram_usada = +((m.ram / 100) * m.ram_total).toFixed(1);
-        
-        if (estado.pagina === 0) {
-            atualizarMetricas();
-        }
-    };
-    tick(); 
-    setInterval(tick, 800);
-}
-
-/*
-   7. PÁGINAS E COMPONENTES ESPECÍFICOS
- */
-
-
-// DIAGNÓSTICO
-
-function pgDiagnostico() {
-    const area = document.getElementById('conteudo-principal');
-    const m = estado.metricas;
-    
-    area.innerHTML = /*html*/`
-        <div class="cabecalho-pagina animar">
-            <h2>DIAGNÓSTICO DO NÚCLEO</h2>
-            <div class="linha-destaque"></div>
-        </div>
-
-        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:10px;">
-            ${_cartaoMetrica('PROCESSADOR', 'v-cpu', 'p-cpu', Math.round(m.cpu) + '%', m.cpu, 'var(--destaque)', '')}
-            ${_cartaoMetrica('MEMÓRIA RAM', 'v-ram', 'p-ram', Math.round(m.ram) + '%', m.ram, 'var(--destaque)', '')}
-            ${_cartaoGpu(m)}
-        </div>
-
-        <div style="display:grid; grid-template-columns:1.6fr 1fr; gap:10px; margin-bottom:10px;">
-            <div class="cartao">
-                <div class="barra-topo" style="background:linear-gradient(90deg,#00aaff,#00ff88);"></div>
-                <div class="grade-rede">
-                    <div class="item-rede">
-                        <div class="chave-rede">DOWNLOAD</div>
-                        <div class="valor-rede" id="v-net-in" style="color:var(--verde);">${m.net_in} MB/s</div>
-                    </div>
-                    <div class="item-rede">
-                        <div class="chave-rede">UPLOAD</div>
-                        <div class="valor-rede" id="v-net-out" style="color:var(--verde);">${m.net_out} MB/s</div>
-                    </div>
-                    <div class="item-rede">
-                        <div class="chave-rede">LATÊNCIA</div>
-                        <div class="valor-rede" id="v-ping" style="color:var(--verde);">${m.ping} ms</div>
-                    </div>
-                </div>
-            </div>
-            
-            <div class="cartao" style="display:flex; flex-direction:column; justify-content:center; padding:12px 14px; gap:6px;">
-                <div class="label-secao">ARMAZENAMENTO</div>
-                <div style="font-family:var(--orb); font-size:22px; font-weight:700; color:var(--amarelo);" id="v-disco">
-                    ${Math.round(m.disco)}%
-                </div>
-                <div class="trilha">
-                    <div class="barra" id="p-disco" style="width:${m.disco}%; background:linear-gradient(90deg,var(--amarelo),#ff8c00);"></div>
-                </div>
-                <div class="sub-metrica" id="v-disco-livre">${m.disco_livre} GB livre</div>
-            </div>
-        </div>
-
-        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px;">
-            <div class="cartao">
-                <div class="barra-topo" style="background:linear-gradient(90deg,var(--destaque),transparent);"></div>
-                <div style="padding:10px 14px; display:flex; flex-direction:column; gap:5px;">
-                    <div class="label-secao">ESPECIFICAÇÕES DO SISTEMA</div>
-                    ${_espec('PLATAFORMA',  'Windows 10 x64')}
-                    ${_espec('ARQUITETURA', 'AMD64')}
-                    ${_espec('NÚCLEOS',     '8 / 16')}
-                    ${_espec('FREQUÊNCIA',  `<span id="v-freq">${m.freq} MHz</span>`)}
-                    ${_espec('RAM EM USO',  `<span id="v-ram-det">${m.ram_usada} / ${m.ram_total} GB</span>`)}
-                    ${_espec('TEMPO ATIVO', `<span id="v-uptime">00:00:00</span>`)}
-                    ${_espec('GPU TEMP',    `<span id="v-gputemp">${m.gpu_temp}°C</span>`)}
-                </div>
-            </div>
-            
-            <div class="cartao">
-                <div class="barra-topo" style="background:linear-gradient(90deg,var(--verde),transparent);"></div>
-                <div style="padding:10px 12px;">
-                    <div class="label-secao" style="margin-bottom:7px;">LOG DE ATIVIDADE</div>
-                    <div class="log-stream" id="logStream"></div>
-                </div>
-            </div>
-        </div>
-
-        <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; margin-bottom:20px;">
-            ${_cartaoAcaoRapida('BLOQUEAR TELA',  '⊡', 'bloquear',       'var(--roxo)')}
-            ${_cartaoAcaoRapida('CAPTURA TELA',   '⊟', 'captura',        'var(--destaque)')}
-            ${_cartaoAcaoRapida('LIMPAR LIXEIRA', '⊠', 'limpar lixeira', 'var(--vermelho)')}
-        </div>
-    `;
-    
-    _renderizarLog();
-    atualizarMetricas();
-}
-
-function _cartaoMetrica(lbl, idV, idP, val, pct, cor, extra) {
-    return /*html*/`
-        <div class="cartao cartao-metrica">
-            <div class="barra-topo" style="background:linear-gradient(90deg,${cor},var(--verde));"></div>
-            <div class="metrica-interna">
-                <div class="rotulo-metrica">${lbl}</div>
-                <div class="valor-metrica" id="${idV}" style="color:${cor};">${val}</div>
-                <div class="trilha">
-                    <div class="barra" id="${idP}" style="width:${pct}%; background:linear-gradient(90deg,${cor},var(--verde));"></div>
-                </div>
-                ${extra}
-            </div>
-        </div>`;
-}
-
-function _cartaoGpu(m) {
-    return /*html*/`
-        <div class="cartao cartao-metrica">
-            <div class="barra-topo" style="background:linear-gradient(90deg,var(--laranja),#ff4400);"></div>
-            <div class="metrica-interna">
-                <div class="rotulo-metrica">PROCESSADOR GRÁFICO</div>
-                <div class="valor-metrica" id="v-gpu" style="color:var(--laranja);">${Math.round(m.gpu)}%</div>
-                <div class="trilha">
-                    <div class="barra" id="p-gpu" style="width:${m.gpu}%; background:linear-gradient(90deg,var(--laranja),#ff4400);"></div>
-                </div>
-                <div class="sub-metrica" id="v-gputemp2">${m.gpu_temp}°C</div>
-            </div>
-        </div>`;
-}
-
-function _cartaoAcaoRapida(label, icone, handler, cor) {
-    return /*html*/`
-        <div class="cartao" 
-             onclick="enviarComando('${handler}')"
-             style="cursor:pointer; padding:14px 16px; display:flex; align-items:center; gap:12px; transition:border-color .2s;"
-             onmouseover="this.style.borderColor='${cor}'"
-             onmouseout="this.style.borderColor=''">
-            <span style="font-size:22px; color:${cor};">${icone}</span>
-            <div>
-                <div style="font-family:var(--mono); font-size:11px; color:var(--texto3); letter-spacing:2px; font-weight:700;">AÇÃO RÁPIDA</div>
-                <div style="font-family:var(--orb); font-size:13px; font-weight:700; color:${cor};">${label}</div>
-            </div>
-        </div>`;
-}
-
-function _espec(chave, valor) {
-    return /*html*/`
-        <div class="linha-espec">
-            <div class="chave-espec">${chave}</div>
-            <div class="val-espec">${valor}</div>
-        </div>`;
-}
-
-function atualizarMetricas() {
-    const m = estado.metricas;
-    const s = (id, v) => { 
-        const el = document.getElementById(id); 
-        if (el) el.textContent = v; 
-    };
-    const sc = (id, c) => { 
-        const el = document.getElementById(id); 
-        if (el) el.style.color = c; 
-    };
-    const sw = (id, p) => { 
-        const el = document.getElementById(id); 
-        if (el) el.style.width = p + '%'; 
-    };
-
-    const cCpu = m.cpu > 85 ? 'var(--vermelho)' : m.cpu > 60 ? 'var(--laranja)' : 'var(--destaque)';
-    s('v-cpu', Math.round(m.cpu) + '%'); 
-    sw('p-cpu', m.cpu); 
-    sc('v-cpu', cCpu);
-
-    const cRam = m.ram > 85 ? 'var(--vermelho)' : 'var(--destaque)';
-    s('v-ram', Math.round(m.ram) + '%'); 
-    sw('p-ram', m.ram); 
-    sc('v-ram', cRam);
-
-    const cGpu = m.gpu > 85 ? 'var(--vermelho)' : 'var(--laranja)';
-    s('v-gpu', Math.round(m.gpu) + '%'); 
-    sw('p-gpu', m.gpu); 
-    sc('v-gpu', cGpu);
-    s('v-gputemp2', m.gpu_temp + '°C');
-
-    s('v-net-in',  m.net_in  + ' MB/s');
-    s('v-net-out', m.net_out + ' MB/s');
-
-    const cPing = m.ping > 150 ? 'var(--vermelho)' : m.ping < 50 ? 'var(--verde)' : 'var(--amarelo)';
-    s('v-ping', m.ping + ' ms'); 
-    sc('v-ping', cPing);
-
-    s('v-disco', Math.round(m.disco) + '%'); 
-    sw('p-disco', m.disco);
-    s('v-disco-livre', m.disco_livre + ' GB livre');
-
-    s('v-freq',    m.freq     + ' MHz');
-    s('v-ram-det', m.ram_usada + ' / ' + m.ram_total + ' GB');
-    s('v-gputemp', m.gpu_temp  + '°C');
-
-    const seg = Math.floor((Date.now() - m.uptime) / 1000);
-    const h   = Math.floor(seg / 3600);
-    const min = Math.floor((seg % 3600) / 60);
-    const sc2 = seg % 60;
-    
-    s('v-uptime', `${_zp(h)}:${_zp(min)}:${_zp(sc2)}`);
-}
-
-
-// HOLO-BIBLIO
-
-function pgBiblio() {
-    const area = document.getElementById('conteudo-principal');
-    const cats = [...new Set(estado.comandosDoBanco.map(c => c.cat))].sort();
-
-    area.innerHTML = /*html*/`
-        <div class="cabecalho-pagina animar">
-            <h2>HOLO-BIBLIO</h2>
-            <div class="linha-destaque"></div>
-        </div>
-        
-        <div class="biblio-filtros">
-            <select id="bCat" class="biblio-select" onchange="_filtrarBiblio()">
-                <option value="">TODAS AS CATEGORIAS</option>
-                ${cats.map(c => `<option value="${c}">${c}</option>`).join('')}
-            </select>
-            <input id="bBusca" class="biblio-busca" placeholder="Pesquisar comando..." oninput="_filtrarBiblio()">
-            <span class="biblio-hint">CLIQUE PARA EXECUTAR</span>
-        </div>
-        
-        <div class="grade-biblio" id="gradeBiblio"></div>
-    `;
-
-    window._cmdsCache = estado.comandosDoBanco;
-    _filtrarBiblio();
-}
-
-function _filtrarBiblio() {
-    const busca = (document.getElementById('bBusca')?.value || '').toLowerCase();
-    const cat = document.getElementById('bCat')?.value || '';
-    
-    const lista = (window._cmdsCache || []).filter(c =>
-        (!cat || c.cat === cat) &&
-        (!busca || c.cmd.toLowerCase().includes(busca) || c.desc.toLowerCase().includes(busca))
-    );
-
-    const grade = document.getElementById('gradeBiblio');
-    if (!grade) return;
-
-    if (!lista.length) {
-        grade.innerHTML = /*html*/`
-            <div style="grid-column:1/-1; text-align:center; padding:40px; color:var(--texto3); font-family:var(--mono); font-size:13px; font-weight:700;">
-                Nenhum comando encontrado.
-            </div>`;
-        return;
+    const titleEl = document.getElementById('pageTitle');
+    if (titleEl) {
+        titleEl.style.opacity = '0';
+        titleEl.style.transform = 'translateY(-6px)';
+        setTimeout(() => {
+            titleEl.textContent = PAGES[i].label + ' ◈ J.A.R.V.I.S';
+            titleEl.style.transition = 'opacity .2s, transform .2s';
+            titleEl.style.opacity = '1';
+            titleEl.style.transform = 'translateY(0)';
+        }, 90);
     }
 
-    grade.innerHTML = lista.map((cmd, i) => {
-        const cor = CORES_CAT[cmd.cat] || '#44556f';
-        const he  = (cmd.handler || '').replace(/'/g, "\\'");
-        
-        return /*html*/`
-            <div class="cartao-biblio animar" 
-                 style="animation-delay:${i * .02}s"
-                 onmouseover="this.style.borderColor='${cor}'; this.style.transform='translateY(-2px)'"
-                 onmouseout="this.style.borderColor=''; this.style.transform=''"
-                 onclick="executarBiblio('${he}')">
-                <div class="biblio-topo" style="background:${cor};"></div>
-                <div class="biblio-corpo">
-                    <div class="biblio-linha1">
-                        <div class="biblio-cmd">${_escHtml(cmd.cmd)}</div>
-                        <span class="biblio-poder">${cmd.poder || '⚡'}</span>
-                    </div>
-                    <div class="biblio-desc">${_escHtml(cmd.desc)}</div>
+    renderPage();
+}
+
+function renderPage() {
+    const area = document.getElementById('content');
+    if (!area) return;
+    area.innerHTML = '';
+    const wrap = document.createElement('div');
+    wrap.className = 'pg-enter';
+    area.appendChild(wrap);
+    const fns = [pgWeather, pgDash, pgTerminal, pgChat, pgNotas, pgIA, pgConfig, pgTemas];
+    (fns[state.page] || pgWeather)(wrap);
+}
+
+async function pgWeather(wrap) {
+    const searchRow = document.createElement('div');
+    searchRow.className = 'weather-search-row';
+    searchRow.innerHTML = `
+        <input class="input" id="wxCity" placeholder="Buscar cidade..."
+               value="${esc(state.weather.city)}" style="max-width:320px;">
+        <button class="btn btn-accent" onclick="buscarClima()">BUSCAR</button>
+        <button class="btn btn-ghost" onclick="atualizarClima()">↺ ATUALIZAR</button>
+    `;
+    wrap.appendChild(searchRow);
+
+    document.getElementById('wxCity')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') buscarClima();
+    });
+
+    const wxWrap = document.createElement('div');
+    wxWrap.id = 'wxWrap';
+    wrap.appendChild(wxWrap);
+
+    if (state.weather.loading || state.weather.temp === null) {
+        await _fetchWeather(state.weather.city);
+    } else {
+        _renderWeather(wxWrap);
+    }
+}
+
+async function buscarClima() {
+    const input = document.getElementById('wxCity');
+    const city = (input?.value || '').trim();
+    if (!city) return;
+    state.weather.city = city;
+    state.weather.loading = true;
+    state.weather.error = null;
+    await _fetchWeather(city);
+}
+
+async function atualizarClima() {
+    state.weather.loading = true;
+    state.weather.error = null;
+    await _fetchWeather(state.weather.city);
+}
+
+async function _fetchWeather(city) {
+    const wxWrap = document.getElementById('wxWrap');
+    if (!wxWrap) return;
+
+    wxWrap.innerHTML = `
+        <div style="display:flex;align-items:center;justify-content:center;height:280px;gap:12px;
+                    color:var(--text3);font-family:var(--mono);font-size:13px;letter-spacing:2px;">
+            <span style="animation:rotateSlow .8s linear infinite;display:inline-block;">◈</span>
+            CARREGANDO DADOS ATMOSFÉRICOS...
+        </div>`;
+
+    try {
+        const url = `https://wttr.in/${encodeURIComponent(city)}?format=j1`;
+        const res = await fetch(url, { signal: AbortSignal.timeout(9000) });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = await res.json();
+
+        const cur  = data.current_condition?.[0] || {};
+        const area = data.nearest_area?.[0];
+        const cityName = area?.areaName?.[0]?.value || city;
+        const country  = area?.country?.[0]?.value  || '';
+
+        state.weather = {
+            ...state.weather,
+            city:     cityName,
+            country,
+            temp:     parseInt(cur.temp_C     ?? 20),
+            feels:    parseInt(cur.FeelsLikeC ?? cur.temp_C ?? 20),
+            desc:     cur.weatherDesc?.[0]?.value || 'N/D',
+            icon:     wxIcon(cur.weatherDesc?.[0]?.value || ''),
+            humidity: parseInt(cur.humidity       ?? 50),
+            wind:     parseInt(cur.windspeedKmph  ?? 0),
+            uv:       parseInt(cur.uvIndex        ?? 0),
+            pressure: parseInt(cur.pressure       ?? 1013),
+            vis:      parseInt(cur.visibility     ?? 10),
+            loading:  false,
+            error:    null,
+            forecast: (data.weather || []).slice(0, 6).map(d => ({
+                date: d.date,
+                hi:   parseInt(d.maxtempC),
+                lo:   parseInt(d.mintempC),
+                desc: d.hourly?.[4]?.weatherDesc?.[0]?.value || '',
+            })),
+        };
+        _renderWeather(wxWrap);
+    } catch(e) {
+        state.weather.loading = false;
+        state.weather.error = 'Falha ao obter dados meteorológicos.';
+        wxWrap.innerHTML = `
+            <div class="weather-main" style="align-items:center;justify-content:center;
+                 min-height:200px;text-align:center;gap:18px;">
+                <div style="font-size:48px;">🌐</div>
+                <div style="font-family:var(--mono);font-size:14px;color:var(--red);
+                     letter-spacing:1.5px;font-weight:700;">${esc(state.weather.error)}</div>
+                <div style="font-size:14px;color:var(--text3);">
+                    Verifique a conexão ou o nome da cidade.
                 </div>
-                <div class="biblio-rodape">
-                    <div class="biblio-dot" style="background:${cor};"></div>
-                    <span class="biblio-label">EXECUTAR</span>
-                </div>
+                <button class="btn btn-accent" onclick="atualizarClima()">TENTAR NOVAMENTE</button>
+            </div>`;
+    }
+}
+
+function _renderWeather(wxWrap) {
+    const wx = state.weather;
+    if (!wxWrap) return;
+
+    const DOWS = ['DOM','SEG','TER','QUA','QUI','SEX','SÁB'];
+    const forecastHTML = wx.forecast.map((d, i) => {
+        const dt  = new Date(d.date + 'T12:00:00');
+        const dow = i === 0 ? 'HOJE' : DOWS[dt.getDay()];
+        return `
+            <div class="forecast-day" style="animation:pageEnter .3s var(--ease) ${i * 0.05}s both;">
+                <div class="forecast-dow">${dow}</div>
+                <div class="forecast-icon">${wxIcon(d.desc)}</div>
+                <div class="forecast-hi">${d.hi}°</div>
+                <div class="forecast-lo">${d.lo}°</div>
             </div>`;
     }).join('');
-}
 
-function executarBiblio(handler) {
-    if (!handler || !handler.trim()) { 
-        toast('Handler não definido.', 'aviso'); 
-        return; 
-    }
-    enviarComando(handler.trim());
-}
+    const tCol = wx.temp > 35 ? 'var(--red)' :
+                 wx.temp > 28 ? 'var(--orange)' :
+                 wx.temp > 18 ? 'var(--accent)' :
+                                'var(--purple)';
 
-
-// TERMINAL
-
-function pgTerminal() {
-    const area = document.getElementById('conteudo-principal');
-    const atalhos = [
-        'status sistema',
-        'clima',
-        'minha memória',
-        'monitorar tela',
-        'desligar monitor',
-        'monitor status'
-    ];
-
-    area.innerHTML = /*html*/`
-        <div class="cabecalho-pagina animar">
-            <h2>TERMINAL NEURAL</h2>
-            <div class="linha-destaque"></div>
-        </div>
-        
-        <div class="terminal-box">
-            <div class="terminal-topbar">
-                <div class="terminal-dot" style="background:#ff2255;"></div>
-                <div class="terminal-dot" style="background:#ffcc00;"></div>
-                <div class="terminal-dot" style="background:#00ff88;"></div>
-                <span class="terminal-titulo">J.A.V.I.S ◈ SHELL</span>
+    wxWrap.innerHTML = `
+        <div class="weather-hero">
+            <div class="weather-main" style="animation:pageEnter .35s var(--ease) .05s both;">
+                <div class="weather-icon-big">${wx.icon}</div>
+                <div class="weather-city">${esc(wx.city)}${wx.country ? ', ' + esc(wx.country) : ''}</div>
+                <div class="weather-temp" style="color:${tCol};">${wx.temp}<sup>°C</sup></div>
+                <div class="weather-desc">${esc(wx.desc)}</div>
+                <div class="weather-feels">Sensação térmica: ${wx.feels}°C</div>
             </div>
-            
-            <div class="terminal-saida" id="termSaida">
-                <span style="color:var(--destaque);">J.A.V.I.S</span>
-                <span style="color:var(--texto3);"> Neural Terminal — Digite um comando abaixo</span><br>
-            </div>
-            
-            <div class="terminal-input-row">
-                <span class="terminal-prompt">core@system:~$</span>
-                <input class="terminal-input" id="termInput" placeholder="execute um comando..." onkeydown="_termKeydown(event)">
+
+            <div class="weather-stats-grid" style="animation:pageEnter .35s var(--ease) .1s both;">
+                ${_wxStat('💧','UMIDADE',      wx.humidity + '%',    '',                    'var(--accent)')}
+                ${_wxStat('💨','VENTO',        wx.wind + ' km/h',    '',                    'var(--accent2)')}
+                ${_wxStat('🌡️','PRESSÃO',     wx.pressure + ' hPa', '',                    'var(--yellow)')}
+                ${_wxStat('☀️','ÍNDICE UV',   String(wx.uv),        _uvLabel(wx.uv),       _uvColor(wx.uv))}
+                ${_wxStat('👁️','VISIBILIDADE',wx.vis + ' km',       '',                    'var(--purple)')}
+                ${_wxStat('🌡️','SENSAÇÃO',    wx.feels + '°C',      '',                    tCol)}
             </div>
         </div>
-        
-        <div style="margin-top:10px; display:flex; gap:6px; flex-wrap:wrap;">
-            ${atalhos.map(c => `
-                <span class="etiqueta" onclick="_termAtalho('${c}')">${c}</span>
-            `).join('')}
+
+        <div class="weather-forecast" style="animation:pageEnter .35s var(--ease) .15s both;">
+            <div class="forecast-label">PREVISÃO — PRÓXIMOS 6 DIAS</div>
+            <div class="forecast-row">
+                ${forecastHTML || '<div style="color:var(--text3);font-family:var(--mono);font-size:13px;">Sem dados de previsão.</div>'}
+            </div>
+        </div>
+
+        <div style="display:flex;gap:12px;animation:pageEnter .35s var(--ease) .2s both;">
+            ${_wxAlerts(wx)}
         </div>
     `;
-    
-    document.getElementById('termInput')?.focus();
+}
+
+function _wxStat(icon, label, val, sub, col) {
+    return `
+        <div class="weather-stat">
+            <div class="stat-label">${icon} ${label}</div>
+            <div class="stat-val" style="color:${col};">${val}</div>
+            ${sub ? `<div class="stat-sub">${sub}</div>` : ''}
+        </div>`;
+}
+
+function _uvLabel(uv) {
+    if (uv <= 2) return 'BAIXO';
+    if (uv <= 5) return 'MODERADO';
+    if (uv <= 7) return 'ALTO';
+    return 'EXTREMO';
+}
+
+function _uvColor(uv) {
+    if (uv <= 2) return 'var(--accent2)';
+    if (uv <= 5) return 'var(--yellow)';
+    return 'var(--red)';
+}
+
+function _wxAlerts(wx) {
+    const tips = [];
+    if (wx.temp > 35)      tips.push({ icon:'🔥', msg:'Calor extremo — hidrate-se constantemente.',   col:'var(--red)'    });
+    if (wx.uv > 7)         tips.push({ icon:'☀️', msg:'UV alto — use protetor solar FPS 50+.',        col:'var(--orange)' });
+    if (wx.wind > 60)      tips.push({ icon:'💨', msg:'Vento forte — cuidado ao dirigir.',            col:'var(--yellow)' });
+    if (wx.humidity > 90)  tips.push({ icon:'💧', msg:'Alta umidade — sensação de calor amplificada.',col:'var(--accent)' });
+
+    if (!tips.length) return `
+        <div class="weather-stat" style="flex:1;">
+            <div class="stat-label">✅ CONDIÇÕES</div>
+            <div style="font-size:15px;color:var(--accent2);font-weight:700;margin-top:8px;">
+                Clima estável — sem alertas ativos.
+            </div>
+        </div>`;
+
+    return tips.map(t => `
+        <div class="weather-stat" style="flex:1;border-color:${t.col}33;">
+            <div class="stat-label">${t.icon} ALERTA</div>
+            <div style="font-size:13px;color:${t.col};font-weight:700;margin-top:6px;">${t.msg}</div>
+        </div>`).join('');
+}
+
+function pgDash(wrap) {
+    const m = state.metricas;
+
+    wrap.innerHTML = `
+        <div class="dash-grid">
+            ${_metricCard('CPU',        'v-cpu', 'p-cpu', Math.round(m.cpu) + '%', m.cpu, 'var(--accent)')}
+            ${_metricCard('MEMÓRIA RAM','v-ram', 'p-ram', Math.round(m.ram) + '%', m.ram, 'var(--accent)')}
+            ${_metricCard('GPU',        'v-gpu', 'p-gpu', Math.round(m.gpu) + '%', m.gpu, 'var(--orange)')}
+        </div>
+
+        <div class="dash-bottom">
+            <div class="card" style="padding:22px;">
+                <div class="card-accent" style="background:linear-gradient(90deg,var(--accent),var(--accent2));"></div>
+                <div style="margin-top:6px;">
+                    <div style="font-family:var(--mono);font-size:10px;font-weight:700;
+                         color:var(--text3);letter-spacing:3px;margin-bottom:18px;">
+                         ESPECIFICAÇÕES DO SISTEMA
+                    </div>
+                    <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;">
+                        ${_spec('DISCO USO',  Math.round(m.disco) + '%')}
+                        ${_spec('FREQ CPU',   m.freq + ' MHz')}
+                        ${_spec('RAM EM USO', m.ram_usada + ' / ' + m.ram_total + ' GB')}
+                        ${_spec('GPU TEMP',   m.gpu_temp + '°C')}
+                        ${_spec('LATÊNCIA',   m.ping + ' ms')}
+                        ${_spec('UPTIME',     _uptime())}
+                        ${_spec('DOWNLOAD',   m.net_in + ' MB/s')}
+                        ${_spec('UPLOAD',     m.net_out + ' MB/s')}
+                    </div>
+                </div>
+            </div>
+
+            <div class="card" style="padding:22px;">
+                <div class="card-accent" style="background:linear-gradient(90deg,var(--accent2),transparent);"></div>
+                <div style="font-family:var(--mono);font-size:10px;font-weight:700;
+                     color:var(--text3);letter-spacing:3px;margin-bottom:14px;margin-top:6px;">
+                     LOG DE ATIVIDADE
+                </div>
+                <div class="log-stream" id="logStream"></div>
+            </div>
+        </div>
+
+        <div class="quick-grid">
+            ${_quickBtn('🔒','BLOQUEAR TELA', 'bloquear',       'var(--purple)', 'rgba(136,85,255,.05)')}
+            ${_quickBtn('📸','CAPTURAR TELA', 'captura',        'var(--accent)', 'rgba(0,200,255,.05)')}
+            ${_quickBtn('🗑️','LIMPAR LIXEIRA','limpar lixeira', 'var(--red)',    'rgba(255,34,85,.05)')}
+            ${_quickBtn('🖥️','MINIMIZAR TUDO','minimizar',      'var(--accent2)','rgba(0,255,157,.05)')}
+            ${_quickBtn('❌','FECHAR JANELA', 'fechar',         'var(--orange)', 'rgba(255,122,0,.05)')}
+            ${_quickBtn('💼','MODO TRABALHO', 'trabalho',       'var(--yellow)', 'rgba(255,199,0,.05)')}
+        </div>
+    `;
+
+    _renderLog();
+    _updateMetrics();
+}
+
+function _metricCard(lbl, idV, idP, val, pct, cor) {
+    const col = pct > 85 ? 'var(--red)' : pct > 65 ? 'var(--orange)' : cor;
+    return `
+        <div class="metric-card">
+            <div class="card-accent" style="background:linear-gradient(90deg,${col},transparent);"></div>
+            <div class="metric-label" style="margin-top:6px;">${lbl}</div>
+            <div class="metric-val" id="${idV}" style="color:${col};">${val}</div>
+            <div class="metric-bar">
+                <div class="metric-fill" id="${idP}"
+                     style="width:${pct}%;background:linear-gradient(90deg,${col},${col}88);"></div>
+            </div>
+        </div>`;
+}
+
+function _spec(k, v) {
+    return `
+        <div class="spec-block">
+            <div class="spec-label">${k}</div>
+            <div class="spec-val">${v}</div>
+        </div>`;
+}
+
+function _quickBtn(icon, label, cmd, col, bg) {
+    return `
+        <div class="quick-btn" style="--hover-col:${bg};color:${col};border-color:var(--border);"
+             onclick="enviarComando('${cmd}')"
+             onmouseover="this.style.borderColor='${col}40'"
+             onmouseout="this.style.borderColor='var(--border)'">
+            <span class="quick-icon">${icon}</span>
+            <span class="quick-label" style="color:${col};">${label}</span>
+        </div>`;
+}
+
+function _uptime() {
+    const s = Math.floor((Date.now() - state.metricas.uptime_start) / 1000);
+    return `${_zp(Math.floor(s / 3600))}:${_zp(Math.floor((s % 3600) / 60))}:${_zp(s % 60)}`;
+}
+
+function _updateMetrics() {
+    const m = state.metricas;
+
+    const _set  = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
+    const _setW = (id, p) => { const e = document.getElementById(id); if (e) e.style.width = p + '%'; };
+    const _setC = (id, c) => { const e = document.getElementById(id); if (e) e.style.color = c; };
+
+    const cpuC = m.cpu > 85 ? 'var(--red)' : m.cpu > 65 ? 'var(--orange)' : 'var(--accent)';
+    _set('v-cpu', Math.round(m.cpu) + '%'); _setW('p-cpu', m.cpu); _setC('v-cpu', cpuC);
+
+    const ramC = m.ram > 85 ? 'var(--red)' : m.ram > 70 ? 'var(--orange)' : 'var(--accent)';
+    _set('v-ram', Math.round(m.ram) + '%'); _setW('p-ram', m.ram); _setC('v-ram', ramC);
+
+    const gpuC = m.gpu > 85 ? 'var(--red)' : m.gpu > 65 ? 'var(--orange)' : 'var(--orange)';
+    _set('v-gpu', Math.round(m.gpu) + '%'); _setW('p-gpu', m.gpu); _setC('v-gpu', gpuC);
+}
+
+function pgTerminal(wrap) {
+    wrap.innerHTML = `
+        <div class="terminal-wrap">
+            <div class="terminal-topbar">
+                <div class="terminal-dots">
+                    <div class="t-dot" style="background:#ff5f56;"></div>
+                    <div class="t-dot" style="background:#ffbd2e;"></div>
+                    <div class="t-dot" style="background:#27c93f;"></div>
+                </div>
+                <div style="font-family:var(--mono);font-size:11px;font-weight:700;
+                     color:var(--text3);letter-spacing:2.5px;">
+                     J.A.R.V.I.S · TERMINAL SEGURO
+                </div>
+                <button class="btn btn-ghost" style="font-size:12px;padding:6px 12px;"
+                        onclick="limparTerminal()">LIMPAR</button>
+            </div>
+            <div class="terminal-output" id="termOut"></div>
+            <div class="terminal-input-row">
+                <span class="terminal-prompt-sym">jarvis@mark27 ▶</span>
+                <input class="terminal-input" id="termIn"
+                       placeholder="Digite um comando..."
+                       autocomplete="off" autocorrect="off" spellcheck="false">
+            </div>
+        </div>`;
+
+    _renderTerminal();
+    const ti = document.getElementById('termIn');
+    ti?.addEventListener('keydown', _termKeydown);
+    ti?.focus();
 }
 
 function _termKeydown(e) {
-    const inp = e.target;
-    
     if (e.key === 'Enter') {
-        const cmd = inp.value.trim();
-        if (!cmd) return;
-        
-        estado.terminalCmds.unshift(cmd);
-        estado.terminalCmdIdx = -1;
-        
-        _termOutput(`<span style="color:var(--destaque);">$</span> ${_escHtml(cmd)}`);
-        enviarComando(cmd);
-        inp.value = '';
-        
+        const val = e.target.value.trim();
+        if (!val) return;
+        if (!state.termHist[0] || state.termHist[0] !== val) state.termHist.unshift(val);
+        if (state.termHist.length > 100) state.termHist.pop();
+        state.termIdx = -1;
+        e.target.value = '';
+        _runTermCmd(val);
     } else if (e.key === 'ArrowUp') {
-        estado.terminalCmdIdx = Math.min(estado.terminalCmdIdx + 1, estado.terminalCmds.length - 1);
-        inp.value = estado.terminalCmds[estado.terminalCmdIdx] || '';
         e.preventDefault();
-        
+        if (state.termIdx < state.termHist.length - 1) state.termIdx++;
+        e.target.value = state.termHist[state.termIdx] || '';
     } else if (e.key === 'ArrowDown') {
-        estado.terminalCmdIdx = Math.max(estado.terminalCmdIdx - 1, -1);
-        inp.value = estado.terminalCmds[estado.terminalCmdIdx] || '';
         e.preventDefault();
+        state.termIdx = Math.max(-1, state.termIdx - 1);
+        e.target.value = state.termIdx >= 0 ? state.termHist[state.termIdx] : '';
     }
 }
 
-function _termAtalho(cmd) {
-    const input = document.getElementById('termInput');
-    input.value = cmd;
-    input.focus();
+function _runTermCmd(cmd) {
+    const entry = { cmd, out: '', err: false, pending: true };
+    state._termEntries.push(entry);
+    if (state._termEntries.length > 120) state._termEntries.shift();
+    _renderTerminal();
+
+    if (window.jarvis) {
+        window.jarvis.executar_comando(`cmd_control:${cmd}`);
+        setTimeout(() => {
+            entry.out = '⚡ Comando enviado ao sistema.';
+            entry.pending = false;
+            _renderTerminal();
+        }, 320);
+    } else {
+        setTimeout(() => {
+            entry.out = '[MODO DEMO] Bridge não conectada — execute dentro do J.A.R.V.I.S.';
+            entry.err = true;
+            entry.pending = false;
+            _renderTerminal();
+        }, 200);
+    }
 }
 
-function _termOutput(html) {
-    const s = document.getElementById('termSaida');
-    if (!s) return;
-    
-    s.innerHTML += `<div style="line-height:1.7;">${html}</div>`;
-    s.scrollTop = s.scrollHeight;
+function _renderTerminal() {
+    const out = document.getElementById('termOut');
+    if (!out) return;
+    if (!state._termEntries.length) {
+        out.innerHTML = `<div class="t-out" style="color:var(--text3);">
+            Terminal seguro ativo. Digite um comando ou diretriz.</div>`;
+        return;
+    }
+    out.innerHTML = state._termEntries.map(e => `
+        <div class="t-line">
+            <span class="t-prompt">jarvis@mark27 ▶ <span class="t-cmd">${esc(e.cmd)}</span></span>
+            <span class="${e.err ? 't-err' : 't-out'} ${e.pending ? 'pending' : ''}">
+                ${e.pending ? '...' : esc(e.out)}
+            </span>
+        </div>`).join('');
+    out.scrollTop = out.scrollHeight;
 }
 
+function limparTerminal() {
+    state._termEntries = [];
+    _renderTerminal();
+}
 
-// CHAT NEURAL
-
-function pgChat() {
-    const area = document.getElementById('conteudo-principal');
-    
-    area.innerHTML = /*html*/`
-        <div class="cabecalho-pagina animar">
-            <h2>CHAT NEURAL</h2>
-            <div class="linha-destaque"></div>
-        </div>
-        
-        <div class="chat-box">
-            <div class="chat-msgs" id="chatMsgs">
-                <div class="chat-msg core">
-                    <strong>J.A.V.I.S</strong>
-                    Sistemas online. Como posso ajudar, Chefe?
-                </div>
-            </div>
-            
+function pgChat(wrap) {
+    wrap.innerHTML = `
+        <div class="chat-wrap">
+            <div class="chat-history" id="chatHistory"></div>
             <div class="chat-input-row">
-                <input class="entrada full" id="chatInput" placeholder="Mensagem para o J.A.V.I.S..." onkeydown="if(event.key==='Enter') enviarChat()">
-                <button class="btn btn-destaque" onclick="enviarChat()">ENVIAR</button>
+                <input class="input" id="chatIn"
+                       placeholder="Fale com J.A.R.V.I.S..." style="flex:1;">
+                <button class="btn btn-accent" onclick="enviarChat()">ENVIAR</button>
             </div>
-        </div>
-    `;
+        </div>`;
+
+    _renderChat();
+    const ci = document.getElementById('chatIn');
+    ci?.addEventListener('keydown', e => { if (e.key === 'Enter') enviarChat(); });
+    ci?.focus();
 }
 
 function enviarChat() {
-    const inp = document.getElementById('chatInput');
-    const msg = inp?.value?.trim();
-    
+    const ci = document.getElementById('chatIn');
+    const msg = ci?.value.trim();
     if (!msg) return;
-    
-    inp.value = '';
-    _chatMsg('user', msg);
-    enviarComando(msg);
-    
-    setTimeout(() => {
-        _chatMsg('core', '▸ Processando...');
-    }, 200);
+    ci.value = '';
+    state.chatHist.push({ role: 'user', text: msg });
+    _renderChat();
+    _showTyping();
+
+    if (window.jarvis) {
+        window.jarvis.executar_comando(msg);
+    } else {
+        const demoReplies = [
+            'Modo demonstração ativo. Bridge Qt não conectada.',
+            'Sistemas operacionais. Aguardando conexão com o núcleo.',
+            'Entendido, Chefe. Processando na fila de comandos.',
+        ];
+        setTimeout(() => {
+            const typing = document.getElementById('typingIndicator');
+            if (typing) typing.remove();
+            const reply = demoReplies[state.chatHist.length % demoReplies.length];
+            state.chatHist.push({ role: 'jarvis', text: reply });
+            _renderChat();
+        }, 1100 + Math.random() * 600);
+    }
 }
 
-function _chatMsg(role, txt) {
-    const box = document.getElementById('chatMsgs');
-    if (!box) return;
-    
+function _showTyping() {
+    const h = document.getElementById('chatHistory');
+    if (!h) return;
     const d = document.createElement('div');
-    d.className = `chat-msg ${role}`;
-    
-    d.innerHTML = role === 'core'
-        ? `<strong>J.A.V.I.S</strong>${_escHtml(txt)}`
-        : _escHtml(txt);
-        
-    box.appendChild(d);
-    box.scrollTop = box.scrollHeight;
+    d.id = 'typingIndicator';
+    d.className = 'msg jarvis';
+    d.innerHTML = `
+        <div class="msg-role">J.A.R.V.I.S</div>
+        <div class="msg-bubble">
+            <div class="typing-indicator">
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+                <div class="typing-dot"></div>
+            </div>
+        </div>`;
+    h.appendChild(d);
+    h.scrollTop = h.scrollHeight;
 }
 
-
-// REDE E CONEXÕES
-
-function pgRede() {
-    const area = document.getElementById('conteudo-principal');
-    const ifaces = [
-        { nome: 'Ethernet', ok: true,  ip: '192.168.0.10', v: '1000 Mbps' },
-        { nome: 'Wi-Fi',    ok: true,  ip: '192.168.0.11', v: '300 Mbps'  },
-        { nome: 'Loopback', ok: true,  ip: '127.0.0.1',    v: '—'         },
-        { nome: 'VPN0',     ok: false, ip: 'N/A',          v: '—'         },
-    ];
-
-    area.innerHTML = /*html*/`
-        <div class="cabecalho-pagina animar">
-            <h2>REDE & CONEXÕES</h2>
-            <div class="linha-destaque" style="background:linear-gradient(90deg,#00aaff,transparent);"></div>
-        </div>
-        
-        <div class="grade4" style="margin-bottom:10px;">
-            ${ifaces.map(f => /*html*/`
-                <div class="cartao cartao-interface">
-                    <div class="barra-topo" style="background:${f.ok ? 'var(--verde)' : 'var(--vermelho)'};"></div>
-                    <div class="interface-interna">
-                        <div class="nome-interface" style="color:${f.ok ? 'var(--texto)' : 'var(--texto3)'}; font-size:15px; font-weight:700;">
-                            ${f.nome}
-                        </div>
-                        <div class="status-iface">
-                            <div class="ponto" style="background:${f.ok ? 'var(--verde)' : 'var(--vermelho)'};"></div>
-                            <span style="color:${f.ok ? 'var(--verde)' : 'var(--vermelho)'}; font-size:11px; font-family:var(--mono); font-weight:700;">
-                                ${f.ok ? 'ATIVO' : 'INATIVO'}
-                            </span>
-                        </div>
-                        <div class="ip-iface" style="font-size:13px; font-weight:600;">${f.ip}</div>
-                        <div style="font-family:var(--mono); font-size:11px; color:var(--texto3); margin-top:3px; font-weight:600;">
-                            ${f.v}
-                        </div>
-                    </div>
-                </div>`).join('')}
-        </div>
-        
-        <div class="grade2">
-            <div class="cartao ferramenta-ping">
-                <div class="label-secao" style="margin-bottom:7px;">PING MANUAL</div>
-                <div class="linha-ping">
-                    <input id="inputPing" class="entrada" value="8.8.8.8" style="flex:1;">
-                    <button class="btn btn-destaque" onclick="dispararPing()">PINGAR</button>
-                    <div class="resultado-ping" id="resPing" style="font-size:16px; font-weight:700;">—</div>
-                </div>
-                <div style="font-family:var(--mono); font-size:11px; color:var(--texto3); font-weight:600;">Timeout 2s</div>
-            </div>
-            
-            <div class="cartao" style="padding:14px;">
-                <div class="label-secao" style="margin-bottom:8px;">TRANSFERÊNCIA DA SESSÃO</div>
-                <div style="font-family:var(--orb); font-size:18px; font-weight:700; color:var(--verde); margin-bottom:6px;">
-                    Recebido: 1.24 GB
-                </div>
-                <div style="font-family:var(--orb); font-size:18px; font-weight:700; color:var(--destaque);">
-                    Enviado: 0.38 GB
-                </div>
-            </div>
-        </div>
-    `;
+function _renderChat() {
+    const h = document.getElementById('chatHistory');
+    if (!h) return;
+    if (!state.chatHist.length) {
+        h.innerHTML = `
+            <div style="display:flex;flex-direction:column;align-items:center;
+                 justify-content:center;height:100%;gap:20px;
+                 color:var(--text3);font-family:var(--mono);
+                 font-size:13px;letter-spacing:2px;">
+                <div style="font-size:52px;filter:drop-shadow(0 0 18px var(--accent));
+                     animation:floatIcon 4s ease-in-out infinite;">◈</div>
+                <div style="font-weight:700;">CHAT NEURAL PRONTO</div>
+                <div style="font-size:11px;letter-spacing:3px;">DIGA ALGO PARA J.A.R.V.I.S</div>
+            </div>`;
+        return;
+    }
+    h.innerHTML = state.chatHist.map(m => `
+        <div class="msg ${m.role}">
+            <div class="msg-role">${m.role === 'user' ? 'VOCÊ' : 'J.A.R.V.I.S'}</div>
+            <div class="msg-bubble">${esc(m.text)}</div>
+        </div>`).join('');
+    h.scrollTop = h.scrollHeight;
 }
 
-function dispararPing() {
-    const el = document.getElementById('resPing');
-    el.textContent = '...'; 
-    el.style.color = 'var(--texto2)';
-    
-    setTimeout(() => {
-        const ms = Math.floor(18 + Math.random() * 180);
-        const cor = ms > 150 ? 'var(--vermelho)' : ms < 50 ? 'var(--verde)' : 'var(--amarelo)';
-        el.textContent = ms + ' ms'; 
-        el.style.color = cor;
-    }, 380 + Math.random() * 420);
-}
-
-
-// NOTAS TÁTICAS
-
-function pgNotas() {
-    const area = document.getElementById('conteudo-principal');
-    
-    area.innerHTML = /*html*/`
-        <div class="cabecalho-pagina animar">
-            <h2>NOTAS TÁTICAS</h2>
-            <div class="linha-destaque" style="background:linear-gradient(90deg,var(--roxo),transparent);"></div>
-        </div>
-        
-        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:8px;">
-            <span style="font-family:var(--mono); font-size:11px; color:var(--texto3); font-weight:600;">
-                ÚLTIMA EDIÇÃO: ${new Date().toLocaleString('pt-BR')}
-            </span>
-            <div style="display:flex; gap:6px;">
-                <button class="btn btn-perigo" onclick="limparNotas()">LIMPAR</button>
-                <button class="btn btn-roxo" onclick="salvarNotas()">SALVAR</button>
+function pgNotas(wrap) {
+    wrap.innerHTML = `
+        <div class="notes-wrap">
+            <div class="notes-toolbar">
+                <button class="btn btn-accent" onclick="salvarNotas()">💾 SALVAR</button>
+                <button class="btn btn-ghost"  onclick="limparNotas()">🗑️ LIMPAR</button>
+                <span style="flex:1;"></span>
+                <span style="font-family:var(--mono);font-size:11px;font-weight:700;
+                     color:var(--text3);letter-spacing:2px;" id="notasStatus">—</span>
             </div>
-        </div>
-        
-        <div class="botoes-modelo">
-            <span style="font-family:var(--mono); font-size:10px; color:var(--texto3); align-self:center; font-weight:700;">MODELOS:</span>
-            <span class="etiqueta" onclick="insertNota('IP: \\nMáscara: \\nGateway: \\n')">REDE IP</span>
-            <span class="etiqueta" onclick="insertNota('# CMD\\n$ \\n# Saída:\\n')">COMANDO</span>
-            <span class="etiqueta" onclick="insertNota('[ ] Primária\\n[ ] Secundária\\n')">TODO</span>
-            <span class="etiqueta" onclick="insertNota('---\\nDATA: ${new Date().toLocaleDateString('pt-BR')}\\nLOG: \\n---\\n')">LOG</span>
-        </div>
-        
-        <textarea id="notasTxt" class="area-notas">${_escHtml(estado.notas)}</textarea>
-    `;
+            <textarea class="notes-textarea" id="notasTxt"
+                      spellcheck="false"
+                      placeholder="Escreva notas táticas aqui...">${esc(state.notas)}</textarea>
+        </div>`;
+
+    const ta = document.getElementById('notasTxt');
+    if (ta) {
+        document.getElementById('notasStatus').textContent = `${ta.value.length} chars`;
+        ta.addEventListener('input', e => {
+            state.notas = e.target.value;
+            document.getElementById('notasStatus').textContent = `${e.target.value.length} chars`;
+        });
+    }
 }
 
 function salvarNotas() {
-    const a = document.getElementById('notasTxt');
-    if (!a) return;
-    
-    estado.notas = a.value;
-    if (window.jarvis) {
-        window.jarvis.salvar_configuracao('notas', estado.notas);
-    }
-    toast('Notas salvas.');
+    if (window.jarvis) window.jarvis.salvar_configuracao('notas', state.notas);
+    toast('✓ Notas salvas.');
 }
 
 function limparNotas() {
-    if (!confirm('Apagar todas as notas?')) return;
-    
-    estado.notas = '';
-    const a = document.getElementById('notasTxt');
-    if (a) {
-        a.value = '';
-    }
+    state.notas = '';
+    const t = document.getElementById('notasTxt');
+    if (t) { t.value = ''; document.getElementById('notasStatus').textContent = '0 chars'; }
+    toast('Notas limpas.', 'warn');
 }
 
-function insertNota(t) {
-    const a = document.getElementById('notasTxt');
-    if (a) { 
-        a.value += t; 
-        a.focus(); 
-    }
-}
-
-
-// API KEYS E INTELIGÊNCIA ARTIFICIAL
-
-function pgApi() {
-    const area = document.getElementById('conteudo-principal');
-    
-    area.innerHTML = /*html*/`
-        <div class="cabecalho-pagina animar">
-            <h2>API KEYS & INTELIGÊNCIA</h2>
-            <div class="linha-destaque"></div>
+function pgIA(wrap) {
+    const { ia } = state;
+    wrap.innerHTML = `
+        <div class="page-header">
+            <div>
+                <div class="page-title">MODELO DE IA</div>
+                <div class="page-sub">Selecione e gerencie o motor de inteligência</div>
+            </div>
         </div>
 
-        ${_renderizarSeletorIA()}
-
-        <div class="secao-titulo" style="margin-top:20px;">
-            <span style="color:var(--texto2);">CREDENCIAIS</span>
-            <div class="secao-linha"></div>
-        </div>
-        
-        <div style="font-family:var(--mono); font-size:20px; color:var(--texto3); margin-bottom:25px; font-weight:600; text-align:center;">
-            CAMPOS BLOQUEADOS APÓS SALVAR — CLIQUE EM 🔒 PARA EDITAR
-        </div>
-        
-        <div class="grade2">
-            ${CAMPOS_API.map(c => _campoApi(c)).join('')}
-        </div>
-        
-        <div style="max-width:860px; margin-top:16px; text-align:right;">
-            <button class="btn btn-destaque" style="padding:10px 36px; letter-spacing:3px;" onclick="salvarApis()">
-                GRAVAR NO NÚCLEO
-            </button>
-        </div>
-    `;
-    
-    _atualizarToggleIA();
-}
-
-function _renderizarSeletorIA() {
-    const ia = estado.ia;
-    const cors = { 
-        gemini: '#4285F4', 
-        ollama: 'var(--verde)', 
-        auto: 'var(--amarelo)' 
-    };
-
-    return /*html*/`
-        <div class="secao-titulo" style="margin-top:0;">
-            <span style="color:var(--destaque);">◈ NÚCLEO DE INTELIGÊNCIA</span>
-            <div class="secao-linha"></div>
-        </div>
-        
-        <div class="cartao" style="padding:18px 20px; margin-bottom:4px;">
-            <div style="font-family:var(--mono); font-size:15px; color:var(--texto3); letter-spacing:2px; margin-bottom:14px; font-weight:700;">
-                MODELO ATIVO — TROCA EM TEMPO REAL SEM REINICIALIZAÇÃO
+        <div class="ia-grid">
+            <div class="ia-option ${ia.modo === 'ollama' ? 'ia-active' : ''}"
+                 onclick="trocarIA('ollama')">
+                <div class="ia-option-header">
+                    <div class="ia-name" style="color:var(--accent);">OLLAMA</div>
+                    <div class="ia-badge-dot ${ia.ollama ? 'online' : ''} ${ia.modo === 'ollama' ? 'active-dot' : ''}"></div>
+                </div>
+                <div class="ia-desc">LLM local via Ollama. Privacidade total, sem API key necessária. Requer ollama serve em execução.</div>
+                <div class="ia-model-tag">${ia.modo === 'ollama' && ia.modelo ? ia.modelo : 'nenhum detectado'}</div>
             </div>
 
-            <div style="display:flex; gap:8px; margin-bottom:18px;">
-                ${_btnModoIA('gemini', '✦ GEMINI', 'Nuvem · Google AI', cors.gemini, ia.modo)}
-                ${_btnModoIA('ollama', '⬡ OLLAMA', 'Local · Llama 3',   cors.ollama, ia.modo)}
-                ${_btnModoIA('auto',   '◎ AUTO',   'Gemini + Fallback', cors.auto,   ia.modo)}
+            <div class="ia-option ${ia.modo === 'gemini' ? 'ia-active' : ''}"
+                 onclick="trocarIA('gemini')">
+                <div class="ia-option-header">
+                    <div class="ia-name" style="color:var(--yellow);">GEMINI</div>
+                    <div class="ia-badge-dot ${state.apis.gemini ? 'online' : ''}"></div>
+                </div>
+                <div class="ia-desc">Google Gemini via API. Requer chave válida em CONFIG. Alta capacidade de raciocínio e contexto.</div>
+                <div class="ia-model-tag">gemini-1.5-flash</div>
             </div>
+        </div>
 
-            <div style="display:flex; gap:20px; padding:10px 14px; background:var(--fundo); border:1px solid var(--borda); border-radius:5px; align-items:center;">
-                <div class="ia-provider" style="font-family:var(--mono); font-size:15px;">
-                    <div class="ia-dot" id="ia-dot-gemini" style="background:${ia.gemini_disponivel !== false ? 'var(--verde)' : 'var(--vermelho)'};"></div>
-                    GEMINI API
+        <div class="card" style="padding:22px;margin-bottom:18px;">
+            <div class="card-accent" style="background:linear-gradient(90deg,var(--accent),transparent);"></div>
+            <div style="margin-top:6px;">
+                <div style="font-family:var(--mono);font-size:10px;font-weight:700;
+                     color:var(--text3);letter-spacing:3px;margin-bottom:18px;">
+                     STATUS DO SISTEMA
                 </div>
-                <div class="ia-provider" style="font-family:var(--mono); font-size:15px;">
-                    <div class="ia-dot" id="ia-dot-ollama" style="background:${ia.ollama_disponivel === true ? 'var(--verde)' : 'var(--vermelho)'};"></div>
-                    OLLAMA LOCAL
-                    <small>:11434</small>
-                </div>
-                <div style="flex:1; text-align:right; font-family:var(--mono); font-size:15px; color:var(--texto3); font-weight:600;">
-                    Iniciar Ollama: <span style="color:var(--verde);">ollama run llama3</span>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
+                    ${_iaStatus('MODO ATIVO', ia.modo.toUpperCase(), ia.modo === 'ollama' ? 'var(--accent)' : 'var(--yellow)')}
+                    ${_iaStatus('OLLAMA',     ia.ollama ? 'ONLINE' : 'OFFLINE', ia.ollama ? 'var(--accent2)' : 'var(--red)')}
+                    ${_iaStatus('MODELO',     ia.modelo || 'N/A', 'var(--text)')}
                 </div>
             </div>
+        </div>
 
-            <div class="ia-dica" style="font-family:var(--mono); font-size:15px;">
-                <span style="color:var(--amarelo);">◎ AUTO</span> — tenta Gemini primeiro.
-                Se falhar (sem chave ou cota), usa Ollama automaticamente.
-            </div>
+        <div style="display:flex;gap:12px;">
+            <button class="btn btn-accent" onclick="atualizarStatusIA()">↺ ATUALIZAR STATUS</button>
+            <button class="btn btn-ghost"  onclick="testarIA()">▶ TESTAR IA</button>
         </div>
     `;
 }
 
-function _btnModoIA(modo, label, sub, cor, modoAtivo) {
-    const ativo = modoAtivo === modo;
-    return /*html*/`
-        <button id="ia-btn-${modo}" class="ia-btn-modo"
-            onclick="alternarIA('${modo}')"
-            style="border-color:${ativo ? cor : 'var(--borda2)'};
-                   color:${ativo ? cor : 'var(--texto2)'};
-                   background:${ativo ? `color-mix(in srgb,${cor} 12%,transparent)` : 'transparent'};
-                   box-shadow:${ativo ? `0 0 12px color-mix(in srgb,${cor} 22%,transparent)` : 'none'};"
-            onmouseover="this.style.borderColor='${cor}'; this.style.color='${cor}'"
-            onmouseout="if(estado.ia.modo!=='${modo}') { this.style.borderColor='var(--borda2)'; this.style.color='var(--texto2)' }">
-            <div class="ia-label">${label}</div>
-            <div class="ia-sub">${sub}</div>
-            ${ativo ? `<div class="ia-ativo" style="color:${cor};">● ATIVO</div>` : ''}
-        </button>`;
-}
-
-function alternarIA(modo) {
-    if (!window.jarvis) { 
-        toast('Bridge não conectada.', 'erro'); 
-        return; 
-    }
-
-    estado.ia.modo = modo;
-    _atualizarToggleIA();
-
-    const nomes = { 
-        gemini: 'Gemini (nuvem)', 
-        ollama: 'Ollama Llama 3 (local)', 
-        auto: 'Auto' 
-    };
-    
-    toast(`▶ IA: ${nomes[modo] || modo}`);
-    adicionarLog('info', `IA alterada → ${modo.toUpperCase()}`);
-
-    window.jarvis.alternar_ia(modo, resultado => {
-        try {
-            const r = JSON.parse(resultado || '{}');
-            if (!r.ok) {
-                toast('Erro ao alternar IA.', 'erro');
-            }
-        } catch (_) {}
-    });
-}
-
-function _atualizarToggleIA() {
-    const ia = estado.ia || { 
-        modo: 'gemini', 
-        gemini_disponivel: true, 
-        ollama_disponivel: false 
-    };
-    const cors = { 
-        gemini: '#4285F4', 
-        ollama: 'var(--verde)', 
-        auto: 'var(--amarelo)' 
-    };
-    const icons = { 
-        gemini: '✦', 
-        ollama: '⬡', 
-        auto: '◎' 
-    };
-    
-    const cor = cors[ia.modo] || 'var(--texto2)';
-    const icon = icons[ia.modo] || '?';
-
-    const badge = document.getElementById('iaBadge');
-    if (badge) {
-        badge.innerHTML = /*html*/`
-            <span style="color:${cor}; font-size:11px;">${icon}</span>
-            <span style="color:${cor}; font-family:var(--mono); font-size:10px; font-weight:700; letter-spacing:1px;">
-                ${ia.modo.toUpperCase()}
-            </span>`;
-        badge.style.borderColor = cor;
-    }
-
-    ['gemini', 'ollama', 'auto'].forEach(m => {
-        const btn = document.getElementById(`ia-btn-${m}`);
-        if (!btn) return;
-        
-        const c = cors[m];
-        const ativo = ia.modo === m;
-        
-        btn.style.borderColor = ativo ? c : 'var(--borda2)';
-        btn.style.color = ativo ? c : 'var(--texto2)';
-        btn.style.background = ativo ? `color-mix(in srgb,${c} 12%,transparent)` : 'transparent';
-        btn.style.boxShadow = ativo ? `0 0 12px color-mix(in srgb,${c} 22%,transparent)` : 'none';
-    });
-
-    const dotG = document.getElementById('ia-dot-gemini');
-    const dotO = document.getElementById('ia-dot-ollama');
-    
-    if (dotG) {
-        dotG.style.background = ia.gemini_disponivel !== false ? 'var(--verde)' : 'var(--vermelho)';
-    }
-    if (dotO) {
-        dotO.style.background = ia.ollama_disponivel === true ? 'var(--verde)' : 'var(--vermelho)';
-    }
-}
-
-function _campoApi(campo) {
-    const tem = !!estado.apis[campo.chave];
-    const bloq = tem && !estado.apisDesbloqueadas[campo.chave];
-    const corBorda = tem ? campo.cor : 'var(--borda2)';
-
-    return /*html*/`
-        <div class="campo-api">
-            <div class="rotulo-api">
-                <span class="rotulo-api-label" style="color:${campo.cor};">${campo.emoji} ${campo.rotulo}</span>
-                <div style="display:flex; align-items:center; gap:6px;">
-                    <span class="distintivo ${tem ? 'ok' : 'nok'}">${tem ? 'VINCULADO' : 'PENDENTE'}</span>
-                    ${tem ? `
-                        <button class="btn-lock" id="lock-${campo.chave}" onclick="toggleLock('${campo.chave}')">
-                            ${bloq ? '🔒' : '🔓'}
-                        </button>
-                    ` : ''}
-                </div>
-            </div>
-            <div class="api-row">
-                <input type="password" class="entrada-api" id="api-${campo.chave}"
-                       placeholder="${campo.rotulo}..."
-                       value="${_escAttr(estado.apis[campo.chave] || '')}"
-                       ${bloq ? 'readonly' : ''}
-                       style="border-color:${corBorda};">
-            </div>
+function _iaStatus(lbl, val, col) {
+    return `
+        <div style="padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;">
+            <div style="font-family:var(--mono);font-size:10px;font-weight:700;
+                 color:var(--text3);letter-spacing:2.5px;margin-bottom:9px;">${lbl}</div>
+            <div style="font-family:var(--orb);font-size:16px;font-weight:700;color:${col};">${val}</div>
         </div>`;
 }
 
-function toggleLock(chave) {
-    estado.apisDesbloqueadas[chave] = !estado.apisDesbloqueadas[chave];
-    const inp = document.getElementById(`api-${chave}`);
-    const btn = document.getElementById(`lock-${chave}`);
-    const d = estado.apisDesbloqueadas[chave];
-    
-    if (inp) { 
-        inp.readOnly = !d; 
-        inp.style.opacity = d ? '1' : ''; 
+async function trocarIA(modo) {
+    if (!window.jarvis) { toast('Bridge não conectada.', 'err'); return; }
+    const res = await _bridgeCall('alternar_ia', modo);
+    if (res) {
+        try {
+            const r = JSON.parse(res);
+            toast(r.msg || 'Modo alterado.');
+        } catch(e) {}
     }
-    if (btn) {
-        btn.textContent = d ? '🔓' : '🔒';
-    }
-    if (d) { 
-        inp?.focus(); 
-        toast('Campo desbloqueado para edição.', 'aviso'); 
+    state.ia.modo = modo;
+    if (state.page === 5) renderPage();
+}
+
+async function atualizarStatusIA() {
+    const raw = await _bridge('obter_ia_status');
+    if (raw) {
+        try {
+            const ia = JSON.parse(raw);
+            state.ia = { modo: ia.modo || 'ollama', modelo: ia.modelo || '', ollama: !!ia.ollama };
+            _updateIABadge();
+            if (state.page === 5) renderPage();
+            toast('✓ Status IA atualizado.');
+        } catch(e) {}
     } else {
-        toast('Campo bloqueado.');
+        toast('Status IA indisponível.', 'warn');
     }
 }
 
-function salvarApis() {
-    CAMPOS_API.forEach(c => {
-        const inp = document.getElementById(`api-${c.chave}`);
-        if (inp) {
-            const v = inp.value;
-            estado.apis[c.chave] = v;
-            if (window.jarvis && v) {
-                window.jarvis.salvar_configuracao(c.chave, v);
-            }
-        }
-    });
-    
-    CAMPOS_API.forEach(c => { 
-        if (estado.apis[c.chave]) {
-            estado.apisDesbloqueadas[c.chave] = false; 
-        }
-    });
-    
-    pgApi();
-    toast('Credenciais gravadas no núcleo.');
+function testarIA() {
+    enviarComando('olá jarvis');
+    navegarPara(3);
 }
 
+// NOVA FUNÇÃO: Alternar modo de edição
+function toggleEditConfig() {
+    state.configEdit = !state.configEdit;
+    if (state.page === 6) renderPage(); // 6 é o índice da página Config
+    
+    if (state.configEdit) {
+        toast('🔓 Edição de configurações liberada.');
+    } else {
+        toast('🔒 Configurações bloqueadas.');
+    }
+}
 
-// VISUAL E TEMAS
+function pgConfig(wrap) {
+    const apiFields = [
+        { key:'gemini',      label:'GEMINI API KEY',    tip:'Google AI Studio'  },
+        { key:'qwen',        label:'QWEN API KEY',      tip:'Alibaba Cloud'     },
+        { key:'smartthings', label:'SMARTTHINGS TOKEN', tip:'SmartThings API'   },
+        { key:'spotify_id',  label:'SPOTIFY CLIENT ID', tip:'Spotify Dashboard' },
+        { key:'spotify_sec', label:'SPOTIFY SECRET',    tip:'Spotify Dashboard' },
+    ];
 
-function pgTemas() {
-    const area = document.getElementById('conteudo-principal');
-    const temas = estado.temasDoPython;
-    const ids = Object.keys(temas);
-
-    area.innerHTML = /*html*/`
-        <div class="cabecalho-pagina animar">
-            <h2>PROTOCOLO VISUAL</h2>
-            <div class="linha-destaque"></div>
+    wrap.innerHTML = `
+        <div class="page-header">
+            <div>
+                <div class="page-title">CONFIGURAÇÃO</div>
+                <div class="page-sub">Chaves de API e preferências do sistema</div>
+            </div>
+            <div style="display:flex; gap:12px;">
+                <button class="btn ${state.configEdit ? 'btn-accent2' : 'btn-ghost'}" onclick="toggleEditConfig()">
+                    ${state.configEdit ? '🔓 BLOQUEAR EDIÇÃO' : '🔒 EDITAR CHAVES'}
+                </button>
+                <button class="btn btn-accent" onclick="salvarConfig()">💾 SALVAR TUDO</button>
+            </div>
         </div>
-        ${ids.length === 0
-            ? `<div style="text-align:center; padding:40px; color:var(--texto3); font-family:var(--mono); font-size:13px; font-weight:700;">Carregando temas do Python...</div>`
-            : ids.map(id => {
-                const t = temas[id];
-                const cor = t.accent || t.grad_a || '#00ff88';
-                const cor2 = t.secondary || t.grad_b || '#00aa55';
-                const ativo = estado.tema === id;
-                
-                return /*html*/`
-                    <div class="linha-tema" onclick="aplicarTema('${id}')" style="border-color:${ativo ? cor : 'var(--borda)'}; padding:14px 18px;">
-                        <div class="ponto-tema" style="background:${cor}; box-shadow:0 0 7px ${cor}55;"></div>
-                        <div class="nome-tema" style="color:${cor}; font-size:17px; font-weight:700; letter-spacing:2px;">${id}</div>
-                        <div style="display:flex; gap:5px; align-items:center;">
-                            <div style="width:24px; height:9px; border-radius:3px; background:${cor};"></div>
-                            <div style="width:24px; height:9px; border-radius:3px; background:${cor2};"></div>
+
+        <div class="settings-section">
+            <div class="section-heading">
+                <h3>CHAVES DE API</h3>
+                <div class="section-line"></div>
+            </div>
+            <div class="api-row">
+                ${apiFields.map(f => `
+                    <div class="api-field">
+                        <div class="api-field-top">
+                            <div class="api-label">${f.label}</div>
+                            <div class="api-status ${state.apis[f.key] ? 'ok' : ''}" id="dot_${f.key}"></div>
                         </div>
-                        <button class="btn-tema" style="border-color:${cor}; color:${cor}; background:${ativo ? cor + '22' : 'transparent'}; font-size:13px; font-weight:700; padding:6px 16px;">
-                            ${ativo ? 'ATIVO' : 'APLICAR'}
-                        </button>
-                    </div>`;
-            }).join('')
-        }
-        <div style="margin-top:14px; padding:14px 16px; background:var(--cartao); border:1px solid var(--borda); border-radius:6px;">
-            <div style="font-family:var(--mono); font-size:10px; color:var(--texto3); letter-spacing:2px; margin-bottom:4px; font-weight:700;">PERSISTÊNCIA</div>
-            <div style="font-size:13px; color:var(--texto2); font-weight:600;">Tema salvo em <span style="color:var(--destaque);">api/config_core.json</span> e restaurado no próximo boot.</div>
+                        <input class="api-input" id="api_${f.key}" type="password"
+                               placeholder="${f.tip}"
+                               value="${esc(state.apis[f.key] || '')}"
+                               ${state.configEdit ? '' : 'readonly'}
+                               style="transition: all 0.3s ease; ${state.configEdit ? '' : 'opacity: 0.5; cursor: not-allowed; border-color: transparent;'}"
+                               oninput="_onApiInput('${f.key}', this.value)">
+                    </div>`).join('')}
+            </div>
+        </div>
+
+        <div class="settings-section">
+            <div class="section-heading">
+                <h3>PREFERÊNCIAS</h3>
+                <div class="section-line"></div>
+            </div>
+            <div class="card" style="padding:22px;">
+                <div class="card-accent" style="background:linear-gradient(90deg,var(--accent2),transparent);"></div>
+                <div style="margin-top:6px;display:flex;flex-direction:column;gap:14px;">
+                    <div style="font-family:var(--mono);font-size:10px;font-weight:700;
+                         color:var(--text3);letter-spacing:3px;">NOME DO MESTRE</div>
+                    <input class="input" id="masterName"
+                           value="${esc(state.apis.nome_mestre || '')}"
+                           placeholder="David" 
+                           ${state.configEdit ? '' : 'readonly'}
+                           style="max-width:320px; transition: all 0.3s ease; ${state.configEdit ? '' : 'opacity: 0.5; cursor: not-allowed; border-color: transparent;'}"
+                           oninput="state.apis.nome_mestre=this.value">
+                </div>
+            </div>
+        </div>
+
+        <div style="font-family:var(--mono);font-size:11px;font-weight:700;
+             color:var(--text3);letter-spacing:1.5px;margin-top:10px;padding:14px 18px;
+             background:var(--card);border:1px solid var(--border);border-radius:10px;">
+            Configurações persistidas em
+            <span style="color:var(--accent);">api/config_core.json</span>
         </div>
     `;
 }
 
-function _aplicarTema(id) {
-    const t = estado.temasDoPython[id];
-    if (!t) return;
-    
-    const r = document.documentElement;
-    
-    
-    r.style.setProperty('--destaque', t.accent);
-    r.style.setProperty('--verde', t.secondary);
-    r.style.setProperty('--fundo', t.bg);
-    r.style.setProperty('--cartao', t.card);
-    r.style.setProperty('--borda', t.border);
-    r.style.setProperty('--borda2', t.border);
-    r.style.setProperty('--texto', t.text_pri);
-    r.style.setProperty('--texto2', t.text_sec);
-    r.style.setProperty('--vermelho', t.danger);
-    
-    
-    r.style.setProperty('--superficie', t.surface || t.card);
+function _onApiInput(key, val) {
+    state.apis[key] = val;
+    const dot = document.getElementById(`dot_${key}`);
+    if (dot) dot.className = 'api-status ' + (val ? 'ok' : '');
+}
 
+function salvarConfig() {
+    if (!window.jarvis) { toast('Bridge não conectada.', 'err'); return; }
+    const keys = ['gemini','qwen','smartthings','spotify_id','spotify_sec','nome_mestre'];
+    let saved = 0;
+    keys.forEach(k => {
+        if (state.apis[k] !== undefined) {
+            window.jarvis.salvar_configuracao(k, state.apis[k]);
+            saved++;
+        }
+    });
+    toast(`✓ ${saved} configurações salvas.`);
     
-    const c1 = t.accent;
-    const c2 = t.secondary;
-    const c3 = t.terciaria || t.secondary; 
+    // Opcional: Bloquear os campos novamente após salvar com sucesso
+    if(state.configEdit) toggleEditConfig();
+}
 
-    document.body.style.background = `
-        radial-gradient(
-            circle at 50% -20%, 
-            color-mix(in srgb, ${c1} 15%, ${t.bg}) 0%, 
-            color-mix(in srgb, ${c3} 10%, ${t.bg}) 45%, 
-            ${t.bg} 85%
-        )
+function pgTemas(wrap) {
+    const ids = Object.keys(state.themes);
+
+    wrap.innerHTML = `
+        <div class="page-header">
+            <div>
+                <div class="page-title">PROTOCOLO VISUAL</div>
+                <div class="page-sub">Selecione o esquema de cores da interface</div>
+            </div>
+        </div>
+
+        ${ids.length === 0
+            ? `<div style="text-align:center;padding:80px;color:var(--text3);
+                    font-family:var(--mono);font-size:13px;font-weight:700;letter-spacing:2px;">
+                    Conecte o sistema para carregar os temas disponíveis.
+               </div>`
+            : `<div class="themes-grid">
+                ${ids.map(id => {
+                    const t      = state.themes[id];
+                    const a1     = t.accent     || '#00c8ff';
+                    const a2     = t.secondary || '#00ff9d';
+                    const a3     = t.danger     || '#ff2255';
+                    const active = state.theme === id;
+                    return `
+                        <div class="theme-card ${active ? 'active-theme' : ''}"
+                             style="border-color:${active ? a1 : 'var(--border)'};"
+                             onclick="aplicarTema('${id}')">
+                            <div class="theme-preview">
+                                <div class="theme-swatch" style="background:${a1};"></div>
+                                <div class="theme-swatch" style="background:${a2};"></div>
+                                <div class="theme-swatch" style="background:${a3};"></div>
+                            </div>
+                            <div class="theme-name" style="color:${a1};">${id}</div>
+                            <button class="theme-apply-btn"
+                                    style="border-color:${a1};color:${a1};
+                                           background:${active ? a1 + '1a' : 'transparent'};">
+                                ${active ? '✓ ATIVO' : 'APLICAR'}
+                            </button>
+                        </div>`;
+                }).join('')}
+               </div>`}
+
+        <div style="margin-top:18px;padding:15px 18px;background:var(--card);
+             border:1px solid var(--border);border-radius:10px;
+             font-family:var(--mono);font-size:11px;font-weight:700;
+             color:var(--text3);letter-spacing:1.5px;">
+            Tema ativo persistido em
+            <span style="color:var(--accent);">api/config_core.json</span>
+            · restaurado automaticamente no próximo boot.
+        </div>
     `;
-    
-    const painelLateral = document.getElementById('barra-lateral');
-    if (painelLateral) {
-        const corTopo = t.surface || t.card;
-        painelLateral.style.background = `
-            linear-gradient(
-                180deg, 
-                ${corTopo} 0%, 
-                color-mix(in srgb, ${t.bg} 88%, ${c3} 12%) 50%, 
-                color-mix(in srgb, ${t.bg} 82%, ${c1} 18%) 100%
-            )
-        `;
-    }
-    
-    console.log(`[THEME] Protocolo ${id} aplicado com sucesso.`);
 }
 
 function aplicarTema(id) {
-    if (!estado.temasDoPython[id]) return;
-    
-    estado.tema = id;
-    _aplicarTema(id);
-    
-    if (window.jarvis) {
-        window.jarvis.salvar_configuracao('tema_ativo', id);
-    }
-    
-    pgTemas();
-    toast('Tema ' + id + ' ativado.');
+    if (!state.themes[id]) return;
+    state.theme = id;
+    _applyTheme(id);
+    if (window.jarvis) window.jarvis.salvar_configuracao('tema_ativo', id);
+    if (state.page === 7) renderPage();
+    toast(`Tema ${id} ativado.`);
 }
 
-
-// FERRAMENTAS E UTILITÁRIOS INTERNOS
-
-function pgFerramentas() {
-    const area = document.getElementById('conteudo-principal');
-    const toggleKeys = ['maiusculas', 'minusculas', 'numeros', 'especiais'];
-    
-    area.innerHTML = /*html*/`
-        <div class="cabecalho-pagina animar">
-            <h2>FERRAMENTAS DO SISTEMA</h2>
-            <div class="linha-destaque" style="background:linear-gradient(90deg,var(--amarelo),transparent);"></div>
-        </div>
-
-        <div class="secao-titulo">
-            <span style="color:var(--amarelo);">GERADOR DE SENHAS</span>
-            <div class="secao-linha"></div>
-        </div>
-        
-        <div class="cartao" style="padding:14px;">
-            <div class="tela-senha" id="dispSenha">${estado.senhaAtual || 'Aguardando geração...'}</div>
-            <div class="linha-range" style="margin-top:12px;">
-                <label style="font-weight:700;">COMPRIMENTO</label>
-                <input type="range" id="rngSenha" min="8" max="64" value="${estado.tamanhoSenha}"
-                       oninput="document.getElementById('valSenha').textContent=this.value; estado.tamanhoSenha=+this.value">
-                <span class="range-val" id="valSenha" style="font-size:15px; font-weight:700;">${estado.tamanhoSenha}</span>
-            </div>
-            
-            <div class="opcoes-senha">
-                ${toggleKeys.map(op => {
-                    const lab = { 
-                        maiusculas: 'A-Z', 
-                        minusculas: 'a-z', 
-                        numeros: '0-9', 
-                        especiais: '!@#' 
-                    }[op];
-                    return /*html*/`
-                    <div class="toggle-opcao ${estado.opcoesSenha[op] ? 'on' : ''}" id="opc-${op}" onclick="toggleOpcSenha('${op}')">
-                        <div class="ponto"></div>
-                        ${lab}
-                    </div>`;
-                }).join('')}
-            </div>
-            
-            <div class="linha-botoes">
-                <button class="btn btn-amarelo" onclick="gerarSenha()">GERAR CHAVE</button>
-                <button class="btn btn-destaque" onclick="copiarSenha()">COPIAR</button>
-            </div>
-        </div>
-
-        <div class="secao-titulo" style="margin-top:14px;">
-            <span style="color:var(--destaque);">GERADOR DE HASH</span>
-            <div class="secao-linha"></div>
-        </div>
-        
-        <div class="cartao" style="padding:14px;">
-            <input id="hashInput" class="entrada full" style="margin-bottom:9px;" placeholder="Texto para hash...">
-            <div class="linha-botoes" style="margin-bottom:9px; margin-top:0;">
-                <button class="btn btn-destaque" onclick="calcHash('SHA-256')">SHA-256</button>
-                <button class="btn btn-verde"    onclick="calcHash('SHA-1')">SHA-1</button>
-                <button class="btn btn-roxo"     onclick="calcMd5()">MD5</button>
-            </div>
-            <div class="tela-hash" id="hashRes">—</div>
-        </div>
-
-        <div class="secao-titulo" style="margin-top:14px;">
-            <span style="color:var(--verde);">BASE64</span>
-            <div class="secao-linha"></div>
-        </div>
-        
-        <div class="cartao" style="padding:14px;">
-            <input id="b64Input" class="entrada full" style="margin-bottom:9px;" placeholder="Texto ou Base64...">
-            <div class="linha-botoes" style="margin-top:0;">
-                <button class="btn btn-verde"    onclick="b64(true)">CODIFICAR</button>
-                <button class="btn btn-destaque" onclick="b64(false)">DECODIFICAR</button>
-            </div>
-            <div class="tela-hash" id="b64Res" style="margin-top:9px;">—</div>
-        </div>
-    `;
+function _applyTheme(id) {
+    const t = state.themes[id];
+    if (!t) return;
+    const r = document.documentElement;
+    r.style.setProperty('--accent',   t.accent     || '#00c8ff');
+    r.style.setProperty('--accent2',  t.secondary || '#00ff9d');
+    r.style.setProperty('--bg',       t.bg);
+    r.style.setProperty('--card',     t.card);
+    r.style.setProperty('--border',   t.border);
+    r.style.setProperty('--border2',  t.border);
+    r.style.setProperty('--text',     t.text_pri);
+    r.style.setProperty('--text2',    t.text_sec);
+    r.style.setProperty('--red',      t.danger);
+    r.style.setProperty('--surface',  t.surface || t.card);
 }
 
-function toggleOpcSenha(k) {
-    estado.opcoesSenha[k] = !estado.opcoesSenha[k];
-    const el = document.getElementById(`opc-${k}`);
-    if (el) {
-        el.classList.toggle('on', estado.opcoesSenha[k]);
-    }
+function enviarComando(cmd) {
+    if (!window.jarvis) { toast('Bridge não conectada.', 'err'); return; }
+    window.jarvis.executar_comando(cmd);
+    addLog('info', '▶ ' + cmd);
+    toast('▶ ' + cmd.toUpperCase().slice(0, 60));
 }
 
-function gerarSenha() {
-    let c = '';
-    if (estado.opcoesSenha.maiusculas) c += 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-    if (estado.opcoesSenha.minusculas) c += 'abcdefghijklmnopqrstuvwxyz';
-    if (estado.opcoesSenha.numeros)    c += '0123456789';
-    if (estado.opcoesSenha.especiais)  c += '!@#$%^&*_-+=?';
-    
-    if (!c) {
-        c = 'ABCDEFabcdef0123456789';
-    }
-    
-    const arr = new Uint8Array(estado.tamanhoSenha);
-    crypto.getRandomValues(arr);
-    
-    estado.senhaAtual = Array.from(arr).map(b => c[b % c.length]).join('');
-    
-    const el = document.getElementById('dispSenha');
-    if (el) { 
-        el.textContent = estado.senhaAtual; 
-        el.classList.remove('nova'); 
-        void el.offsetWidth; 
-        el.classList.add('nova'); 
-    }
+function addLog(tipo, msg) {
+    const ts = new Date().toTimeString().slice(0, 8);
+    state.logs.unshift({ tipo, msg: String(msg), ts });
+    if (state.logs.length > 100) state.logs.pop();
+    _renderLog();
 }
 
-function copiarSenha() {
-    if (!estado.senhaAtual) return;
-    
-    navigator.clipboard?.writeText(estado.senhaAtual).then(() => {
-        toast('Senha copiada.');
-    });
-}
-
-async function calcHash(alg) {
-    const txt = document.getElementById('hashInput')?.value || '';
-    const el = document.getElementById('hashRes');
-    
-    if (!txt || !el) return;
-    
-    const buf = await crypto.subtle.digest(alg, new TextEncoder().encode(txt));
-    el.textContent = Array.from(new Uint8Array(buf))
-        .map(b => b.toString(16).padStart(2, '0'))
-        .join('');
-}
-
-function calcMd5() {
-    const bytes = new Uint8Array(16); 
-    crypto.getRandomValues(bytes);
-    const el = document.getElementById('hashRes');
-    
-    if (el) {
-        el.textContent = Array.from(bytes)
-            .map(b => b.toString(16).padStart(2, '0'))
-            .join('') + ' (simulado)';
-    }
-}
-
-function b64(enc) {
-    const txt = document.getElementById('b64Input')?.value || '';
-    const el = document.getElementById('b64Res');
-    
+function _renderLog() {
+    const el = document.getElementById('logStream');
     if (!el) return;
-    
-    try {
-        el.textContent = enc
-            ? btoa(unescape(encodeURIComponent(txt)))
-            : decodeURIComponent(escape(atob(txt)));
-    } catch { 
-        el.textContent = 'Erro de parsing.'; 
-    }
+    el.innerHTML = state.logs.slice(0, 28).map(e => `
+        <div class="log-line">
+            <span class="log-ts">${e.ts}</span>
+            <span class="log-${e.tipo}">${esc(e.msg)}</span>
+        </div>`).join('');
 }
 
-/*
-   8. FUNÇÕES AUXILIARES E GLOBAIS
- */
-function confirmarDesligamento() {
-    const alerta = document.getElementById('alertaSistema');
-    if (alerta) {
-        alerta.classList.add('mostrar');
-    }
+function _updateIABadge() {
+    const el = document.getElementById('iaBadge');
+    if (!el) return;
+    const { ia } = state;
+    const col = ia.modo === 'ollama' ? 'var(--accent)' : 'var(--yellow)';
+    const dot = ia.ollama
+        ? `<span style="width:6px;height:6px;border-radius:50%;
+                 background:var(--accent2);display:inline-block;
+                 box-shadow:0 0 5px var(--accent2);"></span>` : '';
+    const model = ia.modelo ? ia.modelo.slice(0, 14) : '—';
+    el.innerHTML = `${dot}<span style="color:${col};">${ia.modo.toUpperCase()}</span>
+                    <span style="color:var(--text3);">◈</span>
+                    <span style="color:var(--text2);font-size:10px;">${model}</span>`;
 }
 
-function toast(msg, tipo = '') {
+function toast(msg, type = '') {
     const el = document.getElementById('toast');
     if (!el) return;
-    
-    el.textContent = msg;
-    el.className = 'mostrar' + (tipo ? ' ' + tipo : '');
-    
+    el.textContent = String(msg);
+    el.className = 'show' + (type ? ' ' + type : '');
     clearTimeout(el._t);
-    el._t = setTimeout(() => {
-        el.className = '';
-    }, 3000);
+    el._t = setTimeout(() => { el.className = ''; }, 3400);
 }
 
-function _clamp(v, mn, mx) { 
-    return Math.min(mx, Math.max(mn, v)); 
+function _startClock() {
+    const el = document.getElementById('clock');
+    const tick = () => { if (el) el.textContent = new Date().toTimeString().slice(0, 8); };
+    tick();
+    setInterval(tick, 1000);
 }
 
-function _zp(n) { 
-    return String(n).padStart(2, '0'); 
+function _startMetricSimulation() {
+    const α = 0.18;
+
+    const tick = () => {
+        const m = state.metricas;
+
+        m._cpu_raw = clamp(m._cpu_raw + (Math.random() - .46) * 8, 2, 96);
+        m._ram_raw = clamp(m._ram_raw + (Math.random() - .49) * 2.5, 18, 92);
+        m._gpu_raw = clamp(m._gpu_raw + (Math.random() - .46) * 10, 0, 90);
+
+        m.cpu = +(m.cpu * (1 - α) + m._cpu_raw * α).toFixed(1);
+        m.ram = +(m.ram * (1 - α) + m._ram_raw * α).toFixed(1);
+        m.gpu = +(m.gpu * (1 - α) + m._gpu_raw * α).toFixed(1);
+
+        m.net_in   = +(Math.random() * 2.4).toFixed(2);
+        m.net_out  = +(Math.random() * 0.7).toFixed(2);
+        m.ping     = Math.floor(16 + Math.random() * 55);
+        m.freq     = Math.floor(2000 + Math.random() * 1600);
+        m.gpu_temp = Math.floor(36 + m.gpu * 0.42);
+        m.ram_usada = +((m.ram / 100) * m.ram_total).toFixed(1);
+
+        if (state.page === 1) _updateMetrics();
+    };
+
+    tick();
+    setInterval(tick, 1400);
 }
 
-function _escHtml(s) {
-    return String(s)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;');
+function clamp(v, mn, mx) { return Math.min(mx, Math.max(mn, v)); }
+function _zp(n) { return String(n).padStart(2, '0'); }
+
+function esc(s) {
+    return String(s ?? '')
+        .replace(/&/g,'&amp;')
+        .replace(/</g,'&lt;')
+        .replace(/>/g,'&gt;')
+        .replace(/"/g,'&quot;');
 }
 
-function _escAttr(s) {
-    return String(s)
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;');
+function abrirModal(id)  { document.getElementById(id)?.classList.add('open'); }
+function fecharModal(id) { document.getElementById(id)?.classList.remove('open'); }
+function confirmarDesligamento() { abrirModal('modalShutdown'); }
+
+function fecharPainel() {
+    fecharModal('modalClose');
+    document.body.style.transition = 'opacity .4s ease';
+    document.body.style.opacity = '0';
+    setTimeout(() => { document.body.style.display = 'none'; }, 420);
 }
 
-/*
-   9. EASTER EGG (KONAMI CODE)
- */
+function desligarJarvis() {
+    fecharModal('modalShutdown');
+    addLog('err', 'SHUTDOWN INICIADO');
+    if (window.jarvis?.desligar_sistema) window.jarvis.desligar_sistema();
 
-const _KONAMI = [
-    'ArrowUp', 'ArrowUp', 
-    'ArrowDown', 'ArrowDown', 
-    'ArrowLeft', 'ArrowRight', 
-    'ArrowLeft', 'ArrowRight', 
-    'b', 'a'
-];
-
-function _konami(e) {
-    estado.konami.push(e.key);
-    estado.konami = estado.konami.slice(-10);
-    
-    if (estado.konami.join(',') === _KONAMI.join(',')) {
-        estado.konami = [];
-        _candyMode();
-    }
+    const scr = document.createElement('div');
+    scr.className = 'shutdown-screen';
+    scr.innerHTML = `
+        <div class="shutdown-glyph">⏻</div>
+        <div class="shutdown-text">J.A.R.V.I.S OFFLINE</div>
+        <div class="shutdown-progress"><div class="shutdown-bar"></div></div>`;
+    document.body.appendChild(scr);
+    scr.style.opacity = '0';
+    scr.style.transition = 'opacity .4s';
+    requestAnimationFrame(() => { scr.style.opacity = '1'; });
+    setTimeout(() => { scr.style.opacity = '0'; }, 2500);
+    setTimeout(() => { document.body.innerHTML = ''; }, 3100);
 }
 
-function _candyMode() {
+const _K = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown',
+            'ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
+
+function _konamiHandler(e) {
+    state.konami.push(e.key);
+    state.konami = state.konami.slice(-10);
+    if (state.konami.join(',') !== _K.join(',')) return;
+    state.konami = [];
+
     let hue = 0;
     const lp = setInterval(() => {
-        document.documentElement.style.setProperty('--destaque', `hsl(${hue},100%,60%)`);
-        document.documentElement.style.setProperty('--verde', `hsl(${(hue + 120) % 360},100%,55%)`);
-        hue = (hue + 3) % 360;
+        document.documentElement.style.setProperty('--accent',  `hsl(${hue},100%,60%)`);
+        document.documentElement.style.setProperty('--accent2', `hsl(${(hue + 120) % 360},100%,60%)`);
+        hue = (hue + 4) % 360;
     }, 50);
-    
-    toast('MODO CANDY ATIVADO! ↑↑↓↓←→←→BA');
-    
-    setTimeout(() => { 
-        clearInterval(lp); 
-        if (estado.tema) {
-            _aplicarTema(estado.tema); 
-        }
+    toast('✦ MODO ARCO-ÍRIS ATIVADO ↑↑↓↓←→←→BA');
+    setTimeout(() => {
+        clearInterval(lp);
+        if (state.theme) _applyTheme(state.theme);
     }, 8000);
 }
 
-/*
-   10. BOOT DA INTERFACE
- */
-window.addEventListener('DOMContentLoaded', iniciarApp);
+window.addEventListener('DOMContentLoaded', boot);

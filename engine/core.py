@@ -9,14 +9,15 @@ from engine.ia_router import (
     ligar_monitor as iniciar_hardware_monitor,
     desligar_monitor as parar_hardware_monitor,
     info_monitor as obter_status_hardware,
+    _detectar_modelo,
 )
 from engine.controller import processar_diretriz
 
 AGUARDANDO_CONFIRMACAO = False
 ULTIMA_ANALISE = ""
-ULTIMA_SUGESTAO = 0
+ULTIMA_SUGESTAO = 0.0
 
-KEYWORDS_PROBLEMA = ["erro", "falha", "crash", "exception", "não responde", "travou", "problema"]
+KEYWORDS_PROBLEMA = ["erro", "falha", "crash", "exception", "nao responde", "travou", "problema"]
 
 
 def contexto() -> str:
@@ -28,39 +29,41 @@ def contexto() -> str:
     return ctx
 
 
-async def analisar_tela_agora():
-    await falar("Iniciando varredura óptica manual.")
-    resposta = await router.responder("Analise a tela agora e me dê um resumo técnico.", imagem="screenshot")
+async def inicializar_ia() -> None:
+    await _detectar_modelo()
+
+
+async def analisar_tela_agora() -> None:
+    await falar("Iniciando varredura optica.")
+    resposta = await router.responder("Analise a tela agora e me de um resumo tecnico.", imagem="screenshot")
     if resposta:
-        print(f"\n[Jarvis - VISÃO]: {resposta}\n")
+        print(f"\n[Jarvis - VISAO]: {resposta}\n")
         await falar(resposta)
 
 
-async def ligar_monitoramento(comando: str):
+async def ligar_monitoramento(comando: str) -> None:
     intervalo = 10.0
     for token in comando.split():
         if token.isdigit():
             intervalo = max(5.0, float(token))
             break
-    iniciar_hardware_monitor(
-        intervalo_s=intervalo,
-        callback=loop_monitoramento_automatico,
-    )
-    await falar(f"Monitoramento ativo com intervalo de {int(intervalo)} segundos.")
+    iniciar_hardware_monitor(intervalo_s=intervalo, callback=loop_monitoramento_automatico)
+    await falar(f"Monitoramento ativo. Intervalo de {int(intervalo)} segundos.")
 
 
-async def desligar_monitoramento():
+async def desligar_monitoramento() -> None:
     stats = parar_hardware_monitor()
-    await falar("Monitoramento suspenso para poupar recursos da API.")
-    print(f"[SISTEMA]: Monitor desligado. Chamadas economizadas: {stats.get('frames_economizados', 0)}")
+    economizados = stats.get("economizados", 0)
+    await falar("Monitoramento suspenso.")
+    print(f"[SISTEMA]: Monitor desligado. Frames economizados: {economizados}")
 
 
-async def status_do_sistema():
+async def status_do_sistema() -> None:
     s = obter_status_hardware()
     if s["rodando"]:
         msg = f"Sistema operacional. Monitor ativo. {s['chamadas_api']} consultas realizadas."
     else:
-        msg = "Sistema em repouso. Monitoramento automático desligado."
+        msg = "Sistema em repouso. Monitoramento desligado."
     await falar(msg)
 
 
@@ -71,21 +74,24 @@ async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) 
         return False
 
     if AGUARDANDO_CONFIRMACAO:
-        if "sim" in comando.lower():
+        cmd_lower = comando.lower()
+        if "sim" in cmd_lower:
             AGUARDANDO_CONFIRMACAO = False
-            pergunta = f"Sugira uma solução técnica para este problema que você viu na tela: {ULTIMA_ANALISE}"
-            resposta = await router.responder(pergunta, memoria=contexto())
+            resposta = await router.responder(
+                f"Sugira uma solucao tecnica para: {ULTIMA_ANALISE}",
+                memoria=contexto(),
+            )
             await falar(resposta)
             return True
-        if "não" in comando.lower():
+        if "nao" in cmd_lower or "não" in cmd_lower:
             AGUARDANDO_CONFIRMACAO = False
-            await falar("Entendido, monitoramento continua.")
+            await falar("Entendido. Monitoramento continua.")
             return True
 
     resultado_local = await processar_diretriz(comando)
 
     if resultado_local is not None:
-        if resultado_local != "":
+        if resultado_local:
             print(f"\n[Jarvis - LOCAL]: {resultado_local}\n")
             await falar(resultado_local)
         return True
@@ -105,7 +111,7 @@ async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) 
     return True
 
 
-async def loop_monitoramento_automatico(analise: str):
+async def loop_monitoramento_automatico(analise: str) -> None:
     global AGUARDANDO_CONFIRMACAO, ULTIMA_ANALISE, ULTIMA_SUGESTAO
 
     if AGUARDANDO_CONFIRMACAO:
@@ -119,4 +125,4 @@ async def loop_monitoramento_automatico(analise: str):
         ULTIMA_ANALISE = analise
         AGUARDANDO_CONFIRMACAO = True
         ULTIMA_SUGESTAO = agora
-        await falar("Detectei uma anomalia na tela. Deseja que eu analise uma solução?")
+        await falar("Detectei uma anomalia na tela. Deseja que eu analise uma solucao?")
