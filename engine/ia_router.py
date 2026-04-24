@@ -279,8 +279,8 @@ class IARRouter:
         try:
             from engine.tools_mapper import despachar
             return str(await despachar(name, args))
-        except Exception as e:
-            return f"Erro na ferramenta '{name}': {e}"
+        except Exception:
+            return f"Erro na ferramenta '{name}':"
 
 
 

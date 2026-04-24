@@ -56,8 +56,8 @@ class SpotifyManager:
                     cache_path=config.BASE_DIR / "api" / ".spotify_cache",
                 )
             )
-        except Exception as e:
-            print(f"[SPOTIFY] Falha ao inicializar API: {e}")
+        except Exception:
+            print(f"[SPOTIFY] Falha ao inicializar API:")
         self.inicializado: bool = True
 
 
@@ -80,8 +80,8 @@ class SpotifyManager:
             pyautogui.press("alt")
             win.activate()
             return True
-        except Exception as e:
-            print(f"[SPOTIFY] Erro window manager: {e}")
+        except Exception:
+            print(f"[SPOTIFY] Erro window manager:")
             return False
 
 
@@ -100,8 +100,8 @@ class SpotifyManager:
                 self.sp.start_playback(uris=[track_uri])
                 return True
             return False
-        except Exception as e:
-            print(f"[SPOTIFY] Erro na API (Backstage): {e}")
+        except Exception:
+            print(f"[SPOTIFY] Erro na API (Backstage):")
             return False
 
 
@@ -137,8 +137,8 @@ class SpotifyManager:
                     pyautogui.press("space")
                     return f"Spotify despertado. {nome_exibicao} em execucao."
                 return "Spotify aberto, mas o foco da janela falhou."
-        except Exception as e:
-            print(f"[SPOTIFY] Erro critico: {e}")
+        except Exception:
+            print(f"[SPOTIFY] Erro critico:")
             return "Erro nos protocolos de audio."
 
 
@@ -168,14 +168,14 @@ class SpotifyManager:
     def tocar_minhas_favoritas(self) -> str:
         try:
             self.sp.start_playback(context_uri="spotify:user:me:collection")
-            return "Favoritas em execucao via API."
+            return "Favorim execucao via API."
         except Exception:
             os.system("start spotify:collection:tracks")
             time.sleep(3)
             if self.focar_spotify():
                 pyautogui.press("tab", presses=3, interval=0.1)
                 pyautogui.press("enter")
-                return "Playlist de favoritas em execucao via teclado."
+                return "Playlist de favorim execucao via teclado."
             return "Spotify aberto com favoritas."
 
 
@@ -242,8 +242,8 @@ class SpotifyManager:
                 self.sp.current_user_saved_tracks_add(track_id)
                 return f"'{track_name}' adicionada aos favoritos."
             return ""
-        except Exception as e:
-            print(f"[SPOTIFY] Erro favoritos: {e}")
+        except Exception:
+            print(f"[SPOTIFY] Erro favoritos:")
             return ""
 
 

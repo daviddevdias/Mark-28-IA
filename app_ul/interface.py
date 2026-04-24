@@ -236,7 +236,7 @@ class JarvisUI(QWidget):
             self._painel_aberto = PainelCore()
             self._painel_aberto.show()
         except Exception as e:
-            print(f"[SISTEMA] Falha ao abrir painel: {e}")
+            print(f"[SISTEMA] Falha ao abrir painel:")
 
     def _update_frame(self):
         global falando, intensidade_global

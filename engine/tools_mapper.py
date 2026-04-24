@@ -265,8 +265,8 @@ def gerenciador_cmd(argumentos: dict) -> str:
         )
         try:
             comando = executar_corotina(router.responder(prompt)).strip().strip("`").strip()
-        except Exception as e:
-            return f"Erro ao gerar comando: {e}"
+        except Exception:
+            return f"Erro ao gerar comando:"
 
     if not comando:
         return "Nenhum comando gerado ou informado."

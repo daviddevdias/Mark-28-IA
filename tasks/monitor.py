@@ -44,8 +44,8 @@ def falar(texto: str) -> None:
     if falar_callback:
         try:
             falar_callback(texto)
-        except Exception as e:
-            print(f"[SENTINELA] Voz indisponivel: {e}")
+        except Exception:
+            print(f"[SENTINELA] Voz indisponivel:")
 
 
 
@@ -140,8 +140,8 @@ def monitorar_proativo() -> None:
         for fn in CHECKERS:
             try:
                 fn()
-            except Exception as e:
-                print(f"[SENTINELA] Erro em {fn.__name__}: {e}")
+            except Exception:
+                print(f"[SENTINELA] Erro em {fn.__name__}:")
         time.sleep(INTERVALO_S)
 
 

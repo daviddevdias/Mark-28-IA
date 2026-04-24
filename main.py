@@ -126,8 +126,8 @@ async def engine(ui: PainelCore):
             except asyncio.TimeoutError:
                 print("[SISTEMA] Comando cancelado por timeout.")
 
-        except Exception as e:
-            print(f"[LOOP] Erro: {e}")
+        except Exception:
+            print(f"[LOOP] Erro: ")
             await asyncio.sleep(0.3)
 
 
@@ -169,8 +169,8 @@ def iniciar_sistema():
         threading.Thread(target=engine_thread, args=(ui,), daemon=True, name="CoreEngine").start()
         sys.exit(app.exec())
 
-    except Exception as e:
-        print(f"[CRÍTICO] Erro na inicialização: {e}")
+    except Exception:
+        print(f"[CRÍTICO] Erro na inicialização:")
 
 
 

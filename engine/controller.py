@@ -300,7 +300,7 @@ class IARRouter:
             from engine.tools_mapper import despachar
             return str(await despachar(name, args))
         except Exception as e:
-            return f"Erro na ferramenta '{name}': {e}"
+            return f"Erro na ferramenta '{name}':"
 
 
 
@@ -821,7 +821,7 @@ async def processar_diretriz(texto: str) -> Optional[str]:
     try:
         return await handler(cmd)
     except Exception as e:
-        return f"Erro: {e}"
+        return f"Erro:"
 
 router = IARRouter()
 router.carregar_modo_salvo()

@@ -183,11 +183,11 @@ def executar(comando: str, timeout: int = 15, confirmar_fn: Optional[Callable] =
 
     except subprocess.TimeoutExpired:
         return f"Timeout: excedeu {timeout}s."
-    except FileNotFoundError as e:
-        return f"Comando não encontrado: {e}"
-    except Exception as e:
-        log.error("Erro ao executar '%s': %s", cmd[:60], e)
-        return f"Erro: {e}"
+    except FileNotFoundError:
+        return f"Comando não encontrado: "
+    except Exception:
+        log.error("Erro ao executar '%s': %s", cmd[:60], )
+        return f"Erro: "
 
 avaliar_comando  = avaliar
 executar_seguro  = executar

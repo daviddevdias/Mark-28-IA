@@ -190,12 +190,9 @@ async def despachar(nome: str, args: dict, func: Callable) -> Any:
             asyncio.get_event_loop().run_in_executor(None, func, args),
             timeout=c.timeout_s,
         )
-    except asyncio.TimeoutError:
-        log.warning("Timeout '%s' (%.0fs)", nome, c.timeout_s)
-        return f"Timeout: '{nome}' não respondeu em {c.timeout_s:.0f}s."
-    except Exception as e:
-        log.error("Erro '%s': %s", nome, e)
-        return f"Erro em '{nome}': {e}"
+    except Exception:
+        log.error("Erro '%s': %s", nome, )
+        return 
 
     if c.cache and c.ttl_s > 0:
         if isinstance(resultado, str) and not resultado.startswith(("Erro", "Timeout")):

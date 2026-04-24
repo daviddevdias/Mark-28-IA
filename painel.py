@@ -96,8 +96,8 @@ class JarvisBridge(QObject):
             processou = await processar_comando(diretriz)
             if processou:
                 self.dados_para_ui.emit(json.dumps({"resposta": "Comando enviado ao core."}))
-        except Exception as e:
-            self.dados_para_ui.emit(json.dumps({"resposta": f"Erro: {e}"}))
+        except Exception :
+            self.dados_para_ui.emit(json.dumps({""}))
 
 
 
@@ -292,8 +292,8 @@ class JarvisBridge(QObject):
             resultado_str = await loop.run_in_executor(None, obter_clima_raw, cidade)
             resultado_json = json.loads(resultado_str)
             self.dados_para_ui.emit(json.dumps({"clima_dados": resultado_json, "cidade_buscada": cidade}))
-        except Exception as e:
-            self.dados_para_ui.emit(json.dumps({"erro": f"Erro clima: {e}"}))
+        except Exception:
+            self.dados_para_ui.emit(json.dumps({"erro": f"Erro clima:"}))
 
 
 

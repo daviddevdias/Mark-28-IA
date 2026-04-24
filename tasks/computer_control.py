@@ -29,8 +29,8 @@ def fechar_janela() -> str:
         action = "q" if OS == "Darwin" else "f4"
         pyautogui.hotkey(key, action)
         return "Janela fechada."
-    except Exception as e:
-        return f"Erro: {e}"
+    except Exception:
+        return f"Erro:"
 
 
 
@@ -49,8 +49,8 @@ def minimizar_tudo() -> str:
         }
         pyautogui.hotkey(*combos.get(OS, ("win", "d")))
         return "Janelas minimizadas."
-    except Exception as e:
-        return f"Erro: {e}"
+    except Exception:
+        return f"Erro:"
 
 
 
@@ -69,8 +69,8 @@ def print_tela() -> str:
         }
         pyautogui.hotkey(*combos.get(OS, ("win", "shift", "s")))
         return "Captura acionada."
-    except Exception as e:
-        return f"Erro: {e}"
+    except Exception:
+        return f"Erro:"
 
 
 
@@ -90,8 +90,8 @@ def bloquear_tela() -> str:
             return f"Bloqueado por segurança: {av.motivo}"
         subprocess.run(cmds.get(OS, []), check=True)
         return "Tela bloqueada."
-    except Exception as e:
-        return f"Erro: {e}"
+    except Exception:
+        return f"Erro:"
 
 
 
@@ -108,8 +108,8 @@ def limpar_lixeira() -> str:
         }
         subprocess.run(cmds.get(OS, []), check=True, shell=(OS == "Darwin"))
         return "Lixeira limpa."
-    except Exception as e:
-        return f"Erro: {e}"
+    except Exception:
+        return f"Erro:"
 
 
 
@@ -133,8 +133,8 @@ def ajustar_volume(nivel: int) -> str:
                 )
                 subprocess.run(["powershell", "-Command", script], capture_output=True)
         return f"Volume ajustado para {nivel}%."
-    except Exception as e:
-        return f"Erro ao ajustar volume: {e}"
+    except Exception:
+        return f"Erro ao ajustar volume:"
 
 
 
@@ -159,8 +159,8 @@ def desligar_computador(atraso: int = 30) -> str:
         if atraso == 0:
             return "Protocolo de encerramento iniciado. Até logo, Senhor."
         return f"Computador será desligado em {atraso} segundos, Senhor."
-    except Exception as e:
-        return f"Erro ao desligar: {e}"
+    except Exception:
+        return f"Erro ao desligar:"
 
 
 
@@ -174,9 +174,9 @@ def cancelar_desligamento() -> str:
             subprocess.run(["shutdown", "/a"], check=True)
         else:
             subprocess.run(["sudo", "shutdown", "-c"], check=True)
-        return "Desligamento cancelado. Sistemas em operação normal, Senhor."
-    except Exception as e:
-        return f"Erro ao cancelar: {e}"
+        return "Desligamento cancelado. Sistem operação normal, Senhor."
+    except Exception:
+        return f"Erro ao cancelar:"
 
 
 
@@ -199,8 +199,8 @@ def reiniciar_computador(atraso: int = 30) -> str:
 
         subprocess.run(cmd, check=True)
         return f"Reinicialização agendada para {atraso} segundos, Senhor."
-    except Exception as e:
-        return f"Erro ao reiniciar: {e}"
+    except Exception:
+        return f"Erro ao reiniciar:"
 
 
 
