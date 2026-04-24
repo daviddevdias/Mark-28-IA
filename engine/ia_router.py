@@ -17,27 +17,19 @@ from vision.capture import iniciar_monitor as iniciar_monitor_raw, parar_monitor
 
 log = logging.getLogger("engine.ia_router")
 
-URL        = "http://127.0.0.1:11434/api/chat"
-TIMEOUT    = 25.0
-MAX_HIST   = 20
-MAX_TOOLS  = 5
-COOL       = 30.0
-OPTIONS    = {"num_predict": 300, "temperature": 0.7}
+URL       = "http://127.0.0.1:11434/api/chat"
+TIMEOUT   = 25.0
+MAX_HIST  = 20
+MAX_TOOLS = 5
+COOL      = 30.0
+OPTIONS   = {"num_predict": 300, "temperature": 0.7}
 
-
-
-
-
-PREFERIDOS = ["llama3.2", "llama3.1", "llama3", "qwen2.5", "qwen2",
-               "mistral", "gemma2", "gemma", "phi3", "phi", "tinyllama"]
-
-
+PREFERIDOS = [
+    "llama3.2", "llama3.1", "llama3", "qwen2.5", "qwen2",
+    "mistral", "gemma2", "gemma", "phi3", "phi", "tinyllama",
+]
 
 TOOLS_SUPORTADOS = ["qwen", "phi3", "mixtral", "mistral", "llama3.1", "llama3.2"]
-
-
-
-
 
 SYSTEM = (
     "Você é Jarvis, assistente pessoal inteligente e didático. "
@@ -51,8 +43,8 @@ SYSTEM = (
     "5. Seja conversacional."
 )
 
-modelo:      str   = ""
-disponivel:  bool  = False
+modelo:       str   = ""
+disponivel:   bool  = False
 ultimo_check: float = 0.0
 
 
@@ -97,8 +89,10 @@ async def detectar_modelo() -> bool:
     global modelo, disponivel, ultimo_check
     try:
         async with aiohttp.ClientSession() as s:
-            async with s.get("http://127.0.0.1:11434/api/tags",
-                             timeout=aiohttp.ClientTimeout(total=5)) as r:
+            async with s.get(
+                "http://127.0.0.1:11434/api/tags",
+                timeout=aiohttp.ClientTimeout(total=5),
+            ) as r:
                 if r.status != 200:
                     disponivel = False
                     return False
@@ -112,7 +106,7 @@ async def detectar_modelo() -> bool:
                     modelos[0],
                 )
                 disponivel    = True
-                ultimo_check = time.time()
+                ultimo_check  = time.time()
                 print(f"[OLLAMA] Modelo: {modelo}")
                 return True
     except Exception:
@@ -217,15 +211,12 @@ class IARRouter:
 
 
     @property
-
-
-
-
-
-
-
     def status(self) -> dict:
         return {"modelo": modelo, "ollama": disponivel}
+    
+    @property
+    def modo_atual(self) -> str:
+        return modelo or "ollama"
 
 
 
@@ -269,8 +260,9 @@ class IARRouter:
             payload["tools"] = TOOL_DECLARATIONS
         try:
             async with aiohttp.ClientSession() as s:
-                async with s.post(URL, json=payload,
-                                  timeout=aiohttp.ClientTimeout(total=TIMEOUT)) as r:
+                async with s.post(
+                    URL, json=payload, timeout=aiohttp.ClientTimeout(total=TIMEOUT)
+                ) as r:
                     if r.status != 200:
                         return None
                     return (await r.json()).get("message")
@@ -322,8 +314,10 @@ class IARRouter:
         elif isinstance(imagem, str) and imagem.startswith("data:"):
             img_url = imagem
         if img_url:
-            return [{"type": "text", "text": text},
-                    {"type": "image_url", "image_url": {"url": img_url}}]
+            return [
+                {"type": "text",      "text": text},
+                {"type": "image_url", "image_url": {"url": img_url}},
+            ]
         return text
 
 
@@ -332,7 +326,9 @@ class IARRouter:
 
 
 
-    async def responder(self, pergunta: str, nome: str = "Chefe", memoria: str = "", imagem: Any = None) -> str:
+    async def responder(
+        self, pergunta: str, nome: str = "Chefe", memoria: str = "", imagem: Any = None
+    ) -> str:
         await check()
         if not disponivel:
             await check(force=True)
@@ -341,20 +337,14 @@ class IARRouter:
         if not modelo:
             return "Nenhum modelo instalado. Rode: ollama pull llama3.2"
 
-
-
         self.historico.add("user", self.montar_content(pergunta, imagem))
         msgs = [{"role": "system", "content": system_msg(memoria)}] + self.historico.msgs()
-
-
 
         for i in range(MAX_TOOLS):
             msg = await self.chat(msgs) or await self.chat(msgs, tools=False)
             if msg is None:
                 self.historico.pop()
                 return "Sem resposta do Ollama. Tente novamente."
-
-
 
             tool_calls = msg.get("tool_calls") or []
             if not tool_calls:
@@ -366,12 +356,12 @@ class IARRouter:
                 self.historico.add("assistant", reply)
                 return reply
 
-
-
-            msgs.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": tool_calls})
+            msgs.append({
+                "role":       "assistant",
+                "content":    msg.get("content") or "",
+                "tool_calls": tool_calls,
+            })
             self.historico.add("assistant", msg.get("content") or "")
-
-
 
             for tc in tool_calls:
                 call_id = tc.get("id", f"call_{i}")
@@ -379,7 +369,12 @@ class IARRouter:
                 raw     = fn.get("arguments", {})
                 args    = json.loads(raw) if isinstance(raw, str) else (raw or {})
                 result  = await self.dispatch(fn.get("name", ""), args)
-                msgs.append({"role": "tool", "tool_call_id": call_id, "name": fn.get("name"), "content": result})
+                msgs.append({
+                    "role":         "tool",
+                    "tool_call_id": call_id,
+                    "name":         fn.get("name"),
+                    "content":      result,
+                })
                 self.historico.add_tool(call_id, fn.get("name", ""), result)
 
         return "Operação concluída."
@@ -387,5 +382,5 @@ class IARRouter:
 router = IARRouter()
 router.carregar_modo_salvo()
 
-info_monitor    = status_monitor
+info_monitor     = status_monitor
 desligar_monitor = parar_monitor

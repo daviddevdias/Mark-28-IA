@@ -51,44 +51,24 @@ def achar_ollama() -> str | None:
 
 
 
-def iniciar_ollama() -> bool:
+def iniciar_ollama():
+    caminho = achar_ollama()
+    if not caminho:
+        print("[OLLAMA] Executável não encontrado.")
+        return
+
     try:
-        r      = requests.get("http://127.0.0.1:11434/api/tags", timeout=2)
-        models = [m["name"] for m in r.json().get("models", [])]
-        print(f"[OLLAMA] Já ativo. Modelos: {models}")
-        return True
+        requests.get("http://localhost:11434/api/tags", timeout=2)
+        print("[OLLAMA] Já ativo.")
     except Exception:
-        pass
-
-    exe = achar_ollama()
-    if not exe:
-        print("[OLLAMA] Executável não encontrado. Instale em https://ollama.com")
-        return False
-
-    print(f"[OLLAMA] Iniciando via: {exe}")
-    try:
+        print("[OLLAMA] Iniciando serviço...")
         subprocess.Popen(
-            [exe, "serve"],
+            [caminho, "serve"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
         )
-    except Exception as e:
-        print(f"[OLLAMA] Erro ao iniciar: {e}")
-        return False
-
-    for _ in range(15):
-        time.sleep(1)
-        try:
-            r = requests.get("http://127.0.0.1:11434/api/tags", timeout=2)
-            models = [m["name"] for m in r.json().get("models", [])]
-            print(f"[OLLAMA] Online. Modelos: {models or ['nenhum — rode: ollama pull llama3.2']}")
-            return True
-        except Exception:
-            continue
-
-    print("[OLLAMA] Não respondeu após 15s.")
-    return False
+        time.sleep(3)
 
 
 
@@ -96,24 +76,16 @@ def iniciar_ollama() -> bool:
 
 
 
-def iniciar_subsistemas():
-    sincronizar_config()
-    iniciar_sentinela()
-    iniciar_sistema_alarmes()
-    threading.Thread(target=iniciar_telegram, daemon=True, name="TelegramBot").start()
-
-
-
-
-
-
-
-async def executar(comando: str, ui: PainelCore) -> None:
-    try:
-        if await processar_comando(comando):
-            ui.bridge.dados_para_ui.emit(json.dumps({"resposta": f"Executado: {comando}"}))
-    except Exception as e:
-        print(f"[COMANDO] Erro: {e}")
+async def executar(comando: str, ui: PainelCore):
+    if not isinstance(comando, str):
+        return
+        
+    ui.bridge.dados_para_ui.emit(json.dumps({"log": f"Comando: {comando}"}))
+    resposta = await processar_comando(comando)
+    
+    if resposta:
+        ui.bridge.dados_para_ui.emit(json.dumps({"resposta": resposta}))
+        await falar(resposta)
 
 
 
@@ -123,16 +95,22 @@ async def executar(comando: str, ui: PainelCore) -> None:
 
 async def engine(ui: PainelCore):
     await inicializar_ia()
-    iniciar_subsistemas()
+    registrar_falar(falar)
+    registrar_falar_alarme(falar)
 
-    loop = asyncio.get_running_loop()
-    registrar_falar_alarme(lambda txt: asyncio.run_coroutine_threadsafe(falar(txt), loop))
+    iniciar_sentinela()
+    iniciar_sistema_alarmes()
 
-    shutdown = get_shutdown_event()
-    while not shutdown.is_set():
+    threading.Thread(target=iniciar_telegram, daemon=True, name="TelegramBot").start()
+
+    print("[Jarvis] Motor Sentinela - Ativado verificando tudo")
+
+    while not get_shutdown_event().is_set():
         try:
+            sincronizar_config()
             resultado = await ouvir_comando()
-            if not resultado:
+
+            if not resultado or not isinstance(resultado, str):
                 continue
 
             lower = resultado.lower()
@@ -140,7 +118,7 @@ async def engine(ui: PainelCore):
                 cmd = lower.replace("jarvis", "").strip()
             else:
                 ativo, cmd = processar_wake(resultado)
-                if not (ativo and cmd):
+                if not (ativo and cmd and isinstance(cmd, str)):
                     continue
 
             try:
@@ -184,6 +162,7 @@ def iniciar_sistema():
             hud.btn_code.clicked.disconnect()
         except TypeError:
             pass
+
         hud.btn_code.clicked.connect(lambda: (ui.show(), ui.raise_(), ui.activateWindow()))
         hud.show()
 
@@ -191,8 +170,7 @@ def iniciar_sistema():
         sys.exit(app.exec())
 
     except Exception as e:
-        print(f"[SISTEMA] Erro fatal: {e}")
-        sys.exit(1)
+        print(f"[CRÍTICO] Erro na inicialização: {e}")
 
 
 

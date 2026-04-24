@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import webbrowser
-from typing import Callable
+from typing import Any, Callable
 
 from tasks.browser import jarvis_web
 from tasks.spotify_manager import spotify_stark
@@ -12,8 +12,8 @@ from tasks.weather import obter_previsao_hoje, verificar_chuva_amanha
 from tasks.alarm import adicionar_alarme, listar_alarmes, remover_alarme
 from tasks.computer_control import computer_settings
 from storage.memory_manager import load_memory, update_memory
-from engine.cmd_security import avaliar_comando, executar_seguro
-from engine.tool_cache import stats_cache, invalidar_cache_tool
+from engine.cmd_security import avaliar, executar
+from engine.tool_cache import despachar as cache_despachar, stats_cache, invalidar_cache_tool
 
 log = logging.getLogger("jarvis.tools_mapper")
 
@@ -23,7 +23,7 @@ log = logging.getLogger("jarvis.tools_mapper")
 
 
 
-def executar_corotina(coro):
+def executar_corotina(coro) -> Any:
     try:
         loop = asyncio.get_running_loop()
         return asyncio.run_coroutine_threadsafe(coro, loop).result()
@@ -56,19 +56,15 @@ def gerenciador_browser(argumentos: dict) -> str:
     if acao == "open" and url:
         webbrowser.open(url)
         return f"Abrindo {url} no navegador."
-
     if acao in ("search", "open") and query:
         webbrowser.open(f"https://www.google.com/search?q={query}")
         return f"Pesquisando '{query}' no Google."
-
     if url:
         webbrowser.open(url)
         return f"Abrindo {url}."
-
     if query:
         webbrowser.open(f"https://www.google.com/search?q={query}")
         return f"Pesquisando '{query}'."
-
     return "Informe uma URL ou termo de pesquisa."
 
 
@@ -81,10 +77,7 @@ def gerenciador_youtube(argumentos: dict) -> str:
     pesquisa = argumentos.get("query", "").strip()
     if not pesquisa:
         return "Nenhum termo informado para YouTube."
-    return (
-        jarvis_web.run(jarvis_web.tocar_youtube(pesquisa))
-        or "Nada encontrado no YouTube."
-    )
+    return jarvis_web.run(jarvis_web.tocar_youtube(pesquisa)) or "Nada encontrado no YouTube."
 
 
 
@@ -146,10 +139,10 @@ def gerenciador_memoria(argumentos: dict) -> str:
     valor     = argumentos.get("value")
     if not all([categoria, chave, valor]):
         return "Dados incompletos para salvar memória."
-    memoria = load_memory()
-    secao   = memoria.get(categoria, {})
-    secao[chave] = valor
-    sucesso = update_memory(f"{categoria}.json", secao)
+    memoria       = load_memory()
+    secao         = memoria.get(categoria, {})
+    secao[chave]  = valor
+    sucesso       = update_memory(f"{categoria}.json", secao)
     return f"{categoria}/{chave} salvo." if sucesso else "Erro ao salvar memória."
 
 
@@ -187,17 +180,17 @@ def gerenciador_codigo(argumentos: dict) -> str:
     descricao   = argumentos.get("description", "")
     linguagem   = argumentos.get("language", "python")
     codigo_base = argumentos.get("code", "")
-    executar    = argumentos.get("execute", False)
+    executar_flag = argumentos.get("execute", False)
     if not descricao:
         return "Descrição do código ausente."
-    comando_ia = f"Gere APENAS código {linguagem}: {descricao}. {codigo_base}"
+    comando_ia    = f"Gere APENAS código {linguagem}: {descricao}. {codigo_base}"
     codigo_gerado = executar_corotina(router.responder(comando_ia))
-    if executar and codigo_gerado:
-        resultado = executar_seguro(
-            f"python -c {codigo_gerado}" if linguagem == "python" else f"bash -c {codigo_gerado}",
-            timeout=15,
-        )
-        return resultado
+    if executar_flag and codigo_gerado:
+        cmd = f"python -c {codigo_gerado}" if linguagem == "python" else f"bash -c {codigo_gerado}"
+        av  = avaliar(cmd)
+        if not av.permitido:
+            return f"Bloqueado por segurança: {av.motivo}"
+        return executar(cmd, timeout=15)
     return codigo_gerado or "Falha ao gerar código."
 
 
@@ -218,17 +211,29 @@ def gerenciador_visao(argumentos: dict) -> str:
 
 
 def gerenciador_casa_inteligente(argumentos: dict) -> str:
-    from tasks.smart_home import enviar_comando_tv, ligar_tv
+    from tasks.smart_home import enviar_comando_tv, ligar_tv, ligar_lampada, desligar_lampada, ajustar_brilho
     dispositivo = argumentos.get("device", "").lower()
     acao        = argumentos.get("action", "").lower()
+    valor       = argumentos.get("value")
+
     if "tv" in dispositivo:
         if acao == "on":
-            return "TV ligada" if ligar_tv() else "Falha ao ligar TV"
+            return "TV ligada." if ligar_tv() else "Falha ao ligar TV."
         if acao == "off":
-            return "TV desligada" if enviar_comando_tv("off", "switch") else "Erro ao desligar TV"
+            return "TV desligada." if enviar_comando_tv("off", "switch") else "Erro ao desligar TV."
+        if acao == "status":
+            from tasks.smart_home import status_tv
+            return status_tv()
+
     if "lamp" in dispositivo or "luz" in dispositivo:
-        return "Comando de iluminação enviado."
-    return "Dispositivo não reconhecido."
+        if acao == "on":
+            return ligar_lampada(dispositivo)
+        if acao == "off":
+            return desligar_lampada(dispositivo)
+        if acao == "brilho" and valor is not None:
+            return ajustar_brilho(dispositivo, int(valor))
+
+    return "Dispositivo ou ação não reconhecidos."
 
 
 
@@ -259,28 +264,27 @@ def gerenciador_cmd(argumentos: dict) -> str:
             "Responda somente com o comando puro, sem explicação, sem markdown, sem backticks."
         )
         try:
-            comando = executar_corotina(router.responder(prompt)).strip()
-            comando = comando.strip("`").strip()
+            comando = executar_corotina(router.responder(prompt)).strip().strip("`").strip()
         except Exception as e:
             return f"Erro ao gerar comando: {e}"
 
     if not comando:
         return "Nenhum comando gerado ou informado."
 
-    avaliacao = avaliar_comando(comando)
+    av = avaliar(comando)
 
-    if not avaliacao.permitido:
+    if not av.permitido:
         log.warning("Comando bloqueado: %s", comando[:80])
-        return f"Bloqueado por segurança: {avaliacao.motivo}"
+        return f"Bloqueado por segurança: {av.motivo}"
 
-    if avaliacao.requer_confirmacao and not confirmado:
+    if av.confirmar and not confirmado:
         return (
-            f"Comando classificado como '{avaliacao.categoria.value}' — requer confirmação.\n"
+            f"Comando classificado como '{av.categoria.value}' — requer confirmação.\n"
             f"Comando: `{comando}`\n"
             f"Para executar, diga: 'confirmar e executar: {comando}'"
         )
 
-    return executar_seguro(comando, timeout=20)
+    return executar(comando, timeout=20)
 
 
 
@@ -302,10 +306,6 @@ def gerenciador_cache_status(argumentos: dict) -> str:
         f"Taxa: {stats['taxa_hit']} | Entradas ativas: {stats['entradas_vivas']}"
     )
 
-
-
-
-
 EXECUTOR_FERRAMENTAS: dict[str, Callable[[dict], str]] = {
     "open_app":         open_app,
     "computer_control": gerenciador_computador,
@@ -324,3 +324,16 @@ EXECUTOR_FERRAMENTAS: dict[str, Callable[[dict], str]] = {
     "cmd_control":      gerenciador_cmd,
     "cache_status":     gerenciador_cache_status,
 }
+
+
+
+
+
+
+
+async def despachar(nome: str, args: dict) -> str:
+    func = EXECUTOR_FERRAMENTAS.get(nome)
+    if func is None:
+        log.warning("Ferramenta desconhecida: %s", nome)
+        return f"Ferramenta '{nome}' não encontrada."
+    return await cache_despachar(nome, args, func)

@@ -8,8 +8,12 @@ import time
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
 
-
 log = logging.getLogger("jarvis.tool_cache")
+
+
+
+
+
 
 
 @dataclass
@@ -18,25 +22,28 @@ class Entrada:
     criado_em: float
     ttl: float
 
+
+
+
+
+
+
     @property
-
-
-
-
-
-
-
     def expirado(self) -> bool:
         return (time.monotonic() - self.criado_em) > self.ttl
 
 
+
+
+
+
+
 @dataclass
 class ConfigTool:
-    timeout_s: float  = 15.0
-    ttl_s: float      = 0.0
-    cache: bool       = False
-    nome: str         = ""
-
+    timeout_s: float = 15.0
+    ttl_s: float     = 0.0
+    cache: bool      = False
+    nome: str        = ""
 
 CONFIGS: dict[str, ConfigTool] = {
     "weather_report":   ConfigTool(10.0,  600.0, True,  "Clima"),
@@ -59,6 +66,11 @@ CONFIGS: dict[str, ConfigTool] = {
 DEFAULT = ConfigTool()
 
 
+
+
+
+
+
 class Cache:
 
 
@@ -68,10 +80,10 @@ class Cache:
 
 
     def __init__(self, max_itens: int = 256):
-        self._store: dict[str, Entrada] = {}
-        self._max   = max_itens
-        self._hits  = 0
-        self._miss  = 0
+        self.store: dict[str, Entrada] = {}
+        self.max   = max_itens
+        self.hits  = 0
+        self.miss  = 0
 
 
 
@@ -90,13 +102,13 @@ class Cache:
 
 
     def get(self, tool: str, args: dict) -> Optional[Any]:
-        k = self._chave(tool, args)
-        e = self._store.get(k)
+        k = self.chave(tool, args)
+        e = self.store.get(k)
         if e is None or e.expirado:
-            self._store.pop(k, None)
-            self._miss += 1
+            self.store.pop(k, None)
+            self.miss += 1
             return None
-        self._hits += 1
+        self.hits += 1
         return e.valor
 
 
@@ -106,10 +118,10 @@ class Cache:
 
 
     def set(self, tool: str, args: dict, valor: Any, ttl: float) -> None:
-        if len(self._store) >= self._max:
-            mais_velho = min(self._store, key=lambda k: self._store[k].criado_em)
-            del self._store[mais_velho]
-        self._store[self._chave(tool, args)] = Entrada(valor, time.monotonic(), ttl)
+        if len(self.store) >= self.max:
+            mais_velho = min(self.store, key=lambda k: self.store[k].criado_em)
+            del self.store[mais_velho]
+        self.store[self.chave(tool, args)] = Entrada(valor, time.monotonic(), ttl)
 
 
 
@@ -118,9 +130,9 @@ class Cache:
 
 
     def invalidar(self, tool: str) -> int:
-        chaves = [k for k in list(self._store) if tool in k]
+        chaves = [k for k in list(self.store) if tool in k]
         for k in chaves:
-            del self._store[k]
+            del self.store[k]
         return len(chaves)
 
 
@@ -130,32 +142,23 @@ class Cache:
 
 
     def limpar(self) -> None:
-        self._store.clear()
+        self.store.clear()
+
+
 
 
 
 
 
     @property
-
-
-
-
-
-
-
     def stats(self) -> dict:
-        total = self._hits + self._miss
+        total = self.hits + self.miss
         return {
-            "hits": self._hits,
-            "misses": self._miss,
-            "taxa_hit": f"{(self._hits / total * 100) if total else 0:.1f}%",
-            "ativos": sum(1 for e in self._store.values() if not e.expirado),
+            "hits":         self.hits,
+            "misses":       self.miss,
+            "taxa_hit":     f"{(self.hits / total * 100) if total else 0:.1f}%",
+            "entradas_vivas": sum(1 for e in self.store.values() if not e.expirado),
         }
-
-
-
-
 
 cache = Cache()
 
@@ -187,19 +190,12 @@ async def despachar(nome: str, args: dict, func: Callable) -> Any:
             asyncio.get_event_loop().run_in_executor(None, func, args),
             timeout=c.timeout_s,
         )
-
-
-
-
     except asyncio.TimeoutError:
         log.warning("Timeout '%s' (%.0fs)", nome, c.timeout_s)
         return f"Timeout: '{nome}' não respondeu em {c.timeout_s:.0f}s."
     except Exception as e:
         log.error("Erro '%s': %s", nome, e)
         return f"Erro em '{nome}': {e}"
-
-
-
 
     if c.cache and c.ttl_s > 0:
         if isinstance(resultado, str) and not resultado.startswith(("Erro", "Timeout")):
@@ -222,7 +218,7 @@ def stats_cache() -> dict:
 
 
 
-def invalidar(nome: str) -> str:
+def invalidar_cache_tool(nome: str) -> str:
     n = cache.invalidar(nome)
     return f"{n} entrada(s) removida(s) de '{nome}'."
 

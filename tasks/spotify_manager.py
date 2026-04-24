@@ -14,7 +14,7 @@ from typing import Optional
 
 
 class SpotifyManager:
-    instance: Optional["SpotifyManager"] = None
+    _instance: Optional["SpotifyManager"] = None
 
 
 
@@ -25,7 +25,7 @@ class SpotifyManager:
     def __new__(cls) -> "SpotifyManager":
         if cls._instance is None:
             cls._instance = super(SpotifyManager, cls).__new__(cls)
-            cls._instance._inicializado = False
+            cls._instance.inicializado = False
         return cls._instance
 
 
@@ -35,7 +35,7 @@ class SpotifyManager:
 
 
     def __init__(self) -> None:
-        if hasattr(self, "_inicializado") and self._inicializado:
+        if hasattr(self, "inicializado") and self.inicializado:
             return
         self.nome_janela: str = "Spotify"
         self.sp = None
@@ -58,7 +58,7 @@ class SpotifyManager:
             )
         except Exception as e:
             print(f"[SPOTIFY] Falha ao inicializar API: {e}")
-        self._inicializado: bool = True
+        self.inicializado: bool = True
 
 
 
@@ -129,7 +129,7 @@ class SpotifyManager:
             except Exception:
                 os.system(f"start {uri_escolhida}")
                 time.sleep(7)
-                if self._focar_spotify():
+                if self.focar_spotify():
                     pyautogui.press("esc")
                     time.sleep(0.5)
                     pyautogui.press("playpause")
@@ -153,7 +153,7 @@ class SpotifyManager:
         termo_formatado = termo.replace(" ", "%20")
         os.system(f"start spotify:search:{termo_formatado}")
         time.sleep(4)
-        if self._focar_spotify():
+        if self.focar_spotify():
             pyautogui.press("tab", presses=2, interval=0.2)
             pyautogui.press("enter")
             return f"Busca por {termo} concluida no player."
@@ -172,7 +172,7 @@ class SpotifyManager:
         except Exception:
             os.system("start spotify:collection:tracks")
             time.sleep(3)
-            if self._focar_spotify():
+            if self.focar_spotify():
                 pyautogui.press("tab", presses=3, interval=0.1)
                 pyautogui.press("enter")
                 return "Playlist de favoritas em execucao via teclado."

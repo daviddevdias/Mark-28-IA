@@ -42,7 +42,7 @@ class JarvisWeb:
 
 
 
-    def run_loop(self):
+    def _run_loop(self):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         try:
@@ -74,7 +74,7 @@ class JarvisWeb:
 
 
 
-    async def boot_sequence(self):
+    async def _boot_sequence(self):
         if not self.pw:
             self.pw = await async_playwright().start()
 
@@ -106,7 +106,7 @@ class JarvisWeb:
 
 
 
-    async def ensure_alive(self):
+    async def _ensure_alive(self):
         try:
             if not self.browser or not self.browser.is_connected():
                 await self._boot_sequence()
@@ -157,7 +157,7 @@ class JarvisWeb:
 
 
 
-    async def extract_google_result(self, page):
+    async def _extract_google_result(self, page):
         try:
             rhs = page.locator("#rhs")
             if await rhs.count() > 0:

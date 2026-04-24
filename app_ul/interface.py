@@ -1,5 +1,6 @@
 import sys
 import math
+import signal
 
 from PyQt6.QtWidgets import QApplication, QWidget, QPushButton, QHBoxLayout, QFrame
 from PyQt6.QtGui import (
@@ -239,12 +240,19 @@ class JarvisUI(QWidget):
 
     def _update_frame(self):
         global falando, intensidade_global
-        alvo = intensidade_global if falando else 0.1
-        vel = 0.22 if alvo > self.intensidade_interna else 0.055
-        self.intensidade_interna += (alvo - self.intensidade_interna) * vel
-        speed = 0.28 + self.intensidade_interna * 1.6
-        self.tempo_vivido += 0.05 * speed
-        self.update()
+        try:
+            alvo = intensidade_global if falando else 0.1
+            vel = 0.22 if alvo > self.intensidade_interna else 0.055
+            self.intensidade_interna += (alvo - self.intensidade_interna) * vel
+            speed = 0.28 + self.intensidade_interna * 1.6
+            self.tempo_vivido += 0.05 * speed
+            self.update()
+        except RuntimeError:
+            self._timer.stop()
+
+    def closeEvent(self, event):
+        self._timer.stop()
+        event.accept()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.MouseButton.LeftButton:
@@ -261,56 +269,62 @@ class JarvisUI(QWidget):
 
     def paintEvent(self, event):
         painter = QPainter(self)
-        painter.setRenderHint(QPainter.RenderHint.Antialiasing)
-        painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
+        try:
+            painter.setRenderHint(QPainter.RenderHint.Antialiasing)
+            painter.setRenderHint(QPainter.RenderHint.SmoothPixmapTransform)
 
-        cx = self.width() // 2
-        cy = int(self.height() // 2.15)
-        iv = self.intensidade_interna
-        t = self.tempo_vivido
+            cx = self.width() // 2
+            cy = int(self.height() // 2.15)
+            iv = self.intensidade_interna
+            t = self.tempo_vivido
 
-        ang_base = math.radians((t * 10) % 360)
-        r_sol = 88 + iv * 24
-        r_anel1 = r_sol * 1.65
-        r_anel2 = r_sol * 2.60
-        r_anel3 = r_sol * 3.40
+            ang_base = math.radians((t * 10) % 360)
+            r_sol = 88 + iv * 24
+            r_anel1 = r_sol * 1.65
+            r_anel2 = r_sol * 2.60
+            r_anel3 = r_sol * 3.40
 
-        bg = QRadialGradient(cx, cy, r_anel3 * 1.1)
-        bg.setColorAt(0, C_BG_TINT)
-        bg.setColorAt(1, QColor(0, 0, 0, 0))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(bg))
-        painter.drawEllipse(
-            int(cx - r_anel3 * 1.1),
-            int(cy - r_anel3 * 1.1),
-            int(r_anel3 * 2.2),
-            int(r_anel3 * 2.2),
-        )
+            bg = QRadialGradient(cx, cy, r_anel3 * 1.1)
+            bg.setColorAt(0, C_BG_TINT)
+            bg.setColorAt(1, QColor(0, 0, 0, 0))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(bg))
+            painter.drawEllipse(
+                int(cx - r_anel3 * 1.1),
+                int(cy - r_anel3 * 1.1),
+                int(r_anel3 * 2.2),
+                int(r_anel3 * 2.2),
+            )
 
-        self._draw_scan_lines(painter, cx, cy, r_anel3)
-        self._draw_rings(painter, cx, cy, r_anel1, r_anel2, r_anel3, t, iv)
+            self._draw_scan_lines(painter, cx, cy, r_anel3)
+            self._draw_rings(painter, cx, cy, r_anel1, r_anel2, r_anel3, t, iv)
 
-        glow_outer = QRadialGradient(cx, cy, r_sol * 4.0)
-        glow_outer.setColorAt(0, QColor(255, 80, 0, int(90 + iv * 60)))
-        glow_outer.setColorAt(0.4, QColor(255, 50, 0, int(30 + iv * 20)))
-        glow_outer.setColorAt(1, QColor(0, 0, 0, 0))
-        painter.setPen(Qt.PenStyle.NoPen)
-        painter.setBrush(QBrush(glow_outer))
-        r4 = r_sol * 4
-        painter.drawEllipse(int(cx - r4), int(cy - r4), int(r4 * 2), int(r4 * 2))
+            glow_outer = QRadialGradient(cx, cy, r_sol * 4.0)
+            glow_outer.setColorAt(0, QColor(255, 80, 0, int(90 + iv * 60)))
+            glow_outer.setColorAt(0.4, QColor(255, 50, 0, int(30 + iv * 20)))
+            glow_outer.setColorAt(1, QColor(0, 0, 0, 0))
+            painter.setPen(Qt.PenStyle.NoPen)
+            painter.setBrush(QBrush(glow_outer))
+            r4 = r_sol * 4
+            painter.drawEllipse(int(cx - r4), int(cy - r4), int(r4 * 2), int(r4 * 2))
 
-        if iv > 0.04:
-            self._draw_tentacles(painter, cx, cy, r_sol, ang_base, t, iv)
+            if iv > 0.04:
+                self._draw_tentacles(painter, cx, cy, r_sol, ang_base, t, iv)
 
-        self._draw_sun(painter, cx, cy, r_sol, iv)
-        self._draw_particles(painter, cx, cy, r_sol, r_anel2, ang_base, iv)
-        self._draw_arc_ring(painter, cx, cy, r_anel1, t)
+            self._draw_sun(painter, cx, cy, r_sol, iv)
+            self._draw_particles(painter, cx, cy, r_sol, r_anel2, ang_base, iv)
+            self._draw_arc_ring(painter, cx, cy, r_anel1, t)
 
-        y_texto = cy + r_anel2 + 44
-        self._draw_text(painter, cx, y_texto, iv)
+            y_texto = cy + r_anel2 + 44
+            self._draw_text(painter, cx, y_texto, iv)
 
-        hud_y = int(y_texto + 34)
-        self._hud.move(int(cx - self._hud.width() // 2), hud_y)
+            hud_y = int(y_texto + 34)
+            self._hud.move(int(cx - self._hud.width() // 2), hud_y)
+
+        except Exception:
+            pass
+        finally:
+            painter.end()
 
     def _draw_scan_lines(self, p, cx, cy, r):
         pen = QPen(C_SCAN_LINE, 1.0)
@@ -462,6 +476,11 @@ if __name__ == "__main__":
     app = QApplication(sys.argv)
     janela = JarvisUI()
     janela.show()
+
+    signal.signal(signal.SIGINT, lambda *_: app.quit())
+    _sig_timer = QTimer()
+    _sig_timer.start(200)
+    _sig_timer.timeout.connect(lambda: None)
 
     def _sim():
         global falando, intensidade_global

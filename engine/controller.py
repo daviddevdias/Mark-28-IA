@@ -232,13 +232,6 @@ class IARRouter:
 
 
     @property
-
-
-
-
-
-
-
     def status(self) -> dict:
         return {"modelo": modelo, "ollama": disponivel}
 
@@ -247,6 +240,10 @@ class IARRouter:
 
 
 
+
+    @property
+    def modo_atual(self) -> str:
+        return modelo or "ollama"
 
     def definir_modo(self, modo: str) -> str:
         return f"Modo Ollama ativo. Modelo: {modelo or 'nenhum detectado'}."

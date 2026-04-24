@@ -8,23 +8,37 @@ from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, Callable
 
-
 log = logging.getLogger("jarvis.cmd_security")
 
 
+
+
+
+
+
 class Categoria(Enum):
-    LEITURA   = "leitura"
-    SISTEMA   = "sistema"
-    REDE      = "rede"
+    LEITURA    = "leitura"
+    SISTEMA    = "sistema"
+    REDE       = "rede"
     DESTRUTIVO = "destrutivo"
-    BLOQUEADO = "bloqueado"
+    BLOQUEADO  = "bloqueado"
+
+
+
+
+
 
 
 @dataclass
 class Regra:
-    padrao: re.Pattern
+    padrao:    re.Pattern
     categoria: Categoria
-    shell: bool = False
+    shell:     bool = False
+
+
+
+
+
 
 
 @dataclass
@@ -32,9 +46,8 @@ class Avaliacao:
     permitido: bool
     confirmar: bool      = False
     categoria: Categoria = Categoria.BLOQUEADO
-    motivo: str          = ""
-    cmd: Optional[str]   = None
-
+    motivo:    str       = ""
+    cmd:       Optional[str] = None
 
 BLOQUEIOS = [
     r"rm\s+-rf\s+[/~\$]",
@@ -56,25 +69,22 @@ BLOQUEIOS = [
     r"sudo\s+(su|-s)",
 ]
 
-
-
-
 REGRAS: list[Regra] = [
     Regra(re.compile(r"^(ls|dir|echo|pwd|whoami|date|uptime|df|du|free|ps|top|cat\s+\S+\.(txt|log|json)|type\s+\S+)"), Categoria.LEITURA),
-    Regra(re.compile(r"^(python3?|node|npm|pip)\s+"),            Categoria.SISTEMA),
-    Regra(re.compile(r"^(mkdir|touch|cp|mv)\s+"),                Categoria.SISTEMA),
+    Regra(re.compile(r"^(python3?|node|npm|pip)\s+"),              Categoria.SISTEMA),
+    Regra(re.compile(r"^(mkdir|touch|cp|mv)\s+"),                  Categoria.SISTEMA),
     Regra(re.compile(r"^(ping|nslookup|curl\s+https?://|wget\s+https?://)\s+"), Categoria.REDE),
     Regra(re.compile(r"^(tasklist|taskkill|Get-Process|Stop-Process|systemctl\s+status|service\s+\S+\s+status)"), Categoria.SISTEMA, shell=True),
-    Regra(re.compile(r"^(rm|del|rmdir|rd|Remove-Item|shred)\s+"), Categoria.DESTRUTIVO, shell=True),
+    Regra(re.compile(r"^(rm|del|rmdir|rd|Remove-Item|shred)\s+"),  Categoria.DESTRUTIVO, shell=True),
     Regra(re.compile(r"^(kill|taskkill\s+/f|Stop-Process\s+-Force)\s+"), Categoria.DESTRUTIVO, shell=True),
     Regra(re.compile(r"^(pip\s+install|npm\s+install|apt\s+install|brew\s+install|winget\s+install)"), Categoria.SISTEMA, shell=True),
-    Regra(re.compile(r"^(powershell|cmd|bash|sh|zsh|fish)\s+"), Categoria.SISTEMA, shell=True),
-    Regra(re.compile(r"^(netsh|iptables|ufw|firewall-cmd)\s+"), Categoria.DESTRUTIVO, shell=True),
-    Regra(re.compile(r"^(reg\s+|regedit|regedt32)"),            Categoria.DESTRUTIVO, shell=True),
+    Regra(re.compile(r"^(powershell|cmd|bash|sh|zsh|fish)\s+"),    Categoria.SISTEMA, shell=True),
+    Regra(re.compile(r"^(netsh|iptables|ufw|firewall-cmd)\s+"),    Categoria.DESTRUTIVO, shell=True),
+    Regra(re.compile(r"^(reg\s+|regedit|regedt32)"),               Categoria.DESTRUTIVO, shell=True),
 ]
 
 BLOQUEIOS_COMPILADOS = [re.compile(p, re.IGNORECASE) for p in BLOQUEIOS]
-INJECOES = [";", "&&", "||", "`", "$(", ">{", "<(", "2>&1 |"]
+INJECOES             = [";", "&&", "||", "`", "$(", ">{", "<(", "2>&1 |"]
 
 
 
@@ -124,8 +134,13 @@ def avaliar(comando: str) -> Avaliacao:
                 cmd=cmd,
             )
 
-    return Avaliacao(permitido=True, confirmar=True, categoria=Categoria.SISTEMA, cmd=cmd,
-                     motivo="Comando não catalogado.")
+    return Avaliacao(
+        permitido=True,
+        confirmar=True,
+        categoria=Categoria.SISTEMA,
+        cmd=cmd,
+        motivo="Comando não catalogado.",
+    )
 
 
 
@@ -141,18 +156,15 @@ def executar(comando: str, timeout: int = 15, confirmar_fn: Optional[Callable] =
 
     if av.confirmar:
         if confirmar_fn is None:
-            return (f"Comando '{av.categoria.value}' requer confirmação.\n"
-                    f"Use: executar_confirmado('{comando}')")
+            return (
+                f"Comando '{av.categoria.value}' requer confirmação.\n"
+                f"Use: executar_confirmado('{comando}')"
+            )
         if not confirmar_fn(comando, av):
             return "Execução cancelada."
 
-    cmd = av.cmd or comando
+    cmd        = av.cmd or comando
     usar_shell = any(r.shell and r.padrao.match(cmd) for r in REGRAS)
-
-
-
-
-
 
     try:
         if usar_shell:
@@ -169,10 +181,6 @@ def executar(comando: str, timeout: int = 15, confirmar_fn: Optional[Callable] =
             log.warning("Código %d: %s", res.returncode, cmd[:60])
         return saida[:600]
 
-
-
-
-
     except subprocess.TimeoutExpired:
         return f"Timeout: excedeu {timeout}s."
     except FileNotFoundError as e:
@@ -180,3 +188,6 @@ def executar(comando: str, timeout: int = 15, confirmar_fn: Optional[Callable] =
     except Exception as e:
         log.error("Erro ao executar '%s': %s", cmd[:60], e)
         return f"Erro: {e}"
+
+avaliar_comando  = avaliar
+executar_seguro  = executar
