@@ -13,7 +13,7 @@ HEADERS = {"Accept-Language": "pt-BR,pt;q=0.9", "User-Agent": "CORE-Assistant/1.
 cache: dict = {}
 CACHE_TTL = timedelta(minutes=10)
 
-_CIDADE_ALIAS = {
+CIDADE_ALIAS = {
     "porto alegre":      "Porto+Alegre,Rio+Grande+do+Sul,Brazil",
     "porto alegre rs":   "Porto+Alegre,Rio+Grande+do+Sul,Brazil",
     "poa":               "Porto+Alegre,Rio+Grande+do+Sul,Brazil",
@@ -39,21 +39,39 @@ _CIDADE_ALIAS = {
     "caxias do sul":     "Caxias+do+Sul,Rio+Grande+do+Sul,Brazil",
 }
 
-def _get_cidade_painel() -> str:
+
+
+
+
+
+
+def get_cidade_painel() -> str:
     return getattr(config, "cidade_padrao", "Esteio,RS")
 
-def _remover_acentos(texto: str) -> str:
+
+
+
+
+
+
+def remover_acentos(texto: str) -> str:
     texto = unicodedata.normalize("NFD", texto)
     return "".join(c for c in texto if unicodedata.category(c) != "Mn")
 
+
+
+
+
+
+
 def sanitizar_localidade(cidade: str) -> str:
     if not cidade:
-        cidade = _get_cidade_painel()
-    
+        cidade = get_cidade_painel()
+
     cidade = cidade.strip().lower()
-    alias = _CIDADE_ALIAS.get(cidade)
+    alias = CIDADE_ALIAS.get(cidade)
     if not alias:
-        alias = _CIDADE_ALIAS.get(_remover_acentos(cidade))
+        alias = CIDADE_ALIAS.get(remover_acentos(cidade))
     if alias:
         return alias
 
@@ -63,11 +81,17 @@ def sanitizar_localidade(cidade: str) -> str:
         cidade = cidade + ",Brazil"
     return cidade.replace(" ", "+")
 
+
+
+
+
+
+
 def requisitar_telemetria(cidade: str = "") -> Optional[dict]:
     now = datetime.now()
     if not cidade:
-        cidade = _get_cidade_painel()
-        
+        cidade = get_cidade_painel()
+
     cidade_alvo = sanitizar_localidade(cidade)
     if not cidade_alvo:
         return None
@@ -89,14 +113,26 @@ def requisitar_telemetria(cidade: str = "") -> Optional[dict]:
     except Exception:
         return None
 
+
+
+
+
+
+
 def extrair_descricao(bloco: dict) -> str:
     try:
         return bloco.get("lang_pt", [{}])[0].get("value", "Estável")
     except Exception:
         return "Estável"
 
+
+
+
+
+
+
 def obter_previsao_hoje(cidade_alvo: str = "") -> str:
-    alvo = (cidade_alvo or _get_cidade_painel()).strip()
+    alvo = (cidade_alvo or get_cidade_painel()).strip()
     dados = requisitar_telemetria(alvo)
     if not dados:
         return f"Senhor, falha na conexão com a Nuvem Oracle para '{alvo}'."
@@ -119,8 +155,14 @@ def obter_previsao_hoje(cidade_alvo: str = "") -> str:
     except Exception:
         return "Senhor, dados da Nuvem Oracle inconsistentes."
 
+
+
+
+
+
+
 def verificar_chuva_amanha(cidade_alvo: str = "") -> str:
-    alvo = (cidade_alvo or _get_cidade_painel()).strip()
+    alvo = (cidade_alvo or get_cidade_painel()).strip()
     dados = requisitar_telemetria(alvo)
     if not dados or "weather" not in dados or len(dados["weather"]) < 2:
         return "Senhor, projeções Oracle indisponíveis."
@@ -141,10 +183,22 @@ def verificar_chuva_amanha(cidade_alvo: str = "") -> str:
     except Exception:
         return "Senhor, erro nas projeções Oracle."
 
+
+
+
+
+
+
 def limpar_cache_clima() -> None:
     cache.clear()
 
+
+
+
+
+
+
 def obter_clima_raw(cidade_alvo: str) -> str:
-    alvo = cidade_alvo if cidade_alvo else _get_cidade_painel()
+    alvo = cidade_alvo if cidade_alvo else get_cidade_painel()
     dados = requisitar_telemetria(alvo)
     return json.dumps(dados if dados else {"error": f"Conexão Oracle falhou para '{alvo}'"})

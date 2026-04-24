@@ -14,7 +14,7 @@ from typing import Optional
 
 
 class SpotifyManager:
-    _instance: Optional["SpotifyManager"] = None
+    instance: Optional["SpotifyManager"] = None
 
 
 
@@ -66,7 +66,7 @@ class SpotifyManager:
 
 
 
-    def _focar_spotify(self) -> bool:
+    def focar_spotify(self) -> bool:
         try:
             janelas = [
                 w for w in gw.getAllWindows()

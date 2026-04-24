@@ -7,9 +7,9 @@ from datetime import datetime
 
 try:
     import pygame
-    _PYGAME = True
+    PYGAME = True
 except ImportError:
-    _PYGAME = False
+    PYGAME = False
 
 
 DB_ALARMES = "logs/alarmes.json"
@@ -19,8 +19,13 @@ alarme_ativo = False
 falar_callback = None
 ultimo_disparo = {}
 
-_canal_alarme = None
-_sound_alarme = None
+canal_alarme = None
+sound_alarme = None
+
+
+
+
+
 
 
 def registrar_falar_alarme(fn):
@@ -28,9 +33,10 @@ def registrar_falar_alarme(fn):
     falar_callback = fn
 
 
-# ──────────────────────────────────────────────
-# Persistência
-# ──────────────────────────────────────────────
+
+
+
+
 
 def carregar_alarmes() -> list:
     if not os.path.exists(DB_ALARMES):
@@ -43,6 +49,11 @@ def carregar_alarmes() -> list:
             return []
 
 
+
+
+
+
+
 def salvar_alarmes(alarmes: list) -> None:
     os.makedirs(os.path.dirname(DB_ALARMES), exist_ok=True)
     with lock:
@@ -50,9 +61,10 @@ def salvar_alarmes(alarmes: list) -> None:
             json.dump(alarmes, f, indent=2, ensure_ascii=False)
 
 
-# ──────────────────────────────────────────────
-# CRUD
-# ──────────────────────────────────────────────
+
+
+
+
 
 def adicionar_alarme(hora: str, missao: str, repetir: bool = False, musica: str = "") -> str:
     if not hora or ":" not in hora:
@@ -77,6 +89,11 @@ def adicionar_alarme(hora: str, missao: str, repetir: bool = False, musica: str 
     return random.choice(confirmacoes)
 
 
+
+
+
+
+
 def remover_alarme(hora: str, missao: str) -> str:
     alarmes = carregar_alarmes()
     novos = [a for a in alarmes if not (a["hora"] == hora and a["missao"] == missao)]
@@ -86,15 +103,21 @@ def remover_alarme(hora: str, missao: str) -> str:
     return f"Diretriz cancelada. O alarme das {hora} foi removido do sistema."
 
 
+
+
+
+
+
 def listar_alarmes() -> list:
     return [a for a in carregar_alarmes() if a["status"] == "pendente"]
 
 
-# ──────────────────────────────────────────────
-# Música via Channel dedicado
-# ──────────────────────────────────────────────
 
-def _caminho_musica() -> str:
+
+
+
+
+def caminho_musica() -> str:
     base = os.path.dirname(os.path.abspath(__file__))
     candidatos = [
         os.path.join(base, "assets", "despertar.mp3"),
@@ -107,19 +130,24 @@ def _caminho_musica() -> str:
     return ""
 
 
+
+
+
+
+
 def tocar_musica_canal():
     """
     Toca despertar.mp3 em Channel(1) em loop.
     Channel(1) é separado do pygame.mixer.music usado pelo TTS — sem conflito.
     """
-    global _canal_alarme, _sound_alarme, alarme_ativo
+    global canal_alarme, sound_alarme, alarme_ativo
 
-    caminho = _caminho_musica()
+    caminho = caminho_musica()
     if not caminho:
         print("[ALARME] despertar.mp3 nao encontrado!")
         return
 
-    if not _PYGAME:
+    if not PYGAME:
         print("[ALARME] pygame nao instalado!")
         return
 
@@ -128,47 +156,48 @@ def tocar_musica_canal():
             pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=512)
         pygame.mixer.set_num_channels(max(pygame.mixer.get_num_channels(), 4))
 
-        _sound_alarme = pygame.mixer.Sound(caminho)
-        _sound_alarme.set_volume(1.0)
-        _canal_alarme = pygame.mixer.Channel(1)
-        _canal_alarme.play(_sound_alarme, loops=-1)
+        sound_alarme = pygame.mixer.Sound(caminho)
+        sound_alarme.set_volume(1.0)
+        canal_alarme = pygame.mixer.Channel(1)
+        canal_alarme.play(sound_alarme, loops=-1)
         print(f"[ALARME] Tocando: {caminho}")
 
-        while alarme_ativo and _canal_alarme.get_busy():
+        while alarme_ativo and canal_alarme.get_busy():
             time.sleep(0.3)
 
-        _canal_alarme.stop()
+        canal_alarme.stop()
 
     except Exception as e:
         print(f"[ALARME] Erro ao tocar musica: {e}")
     finally:
-        _canal_alarme = None
-        _sound_alarme = None
+        canal_alarme = None
+        sound_alarme = None
 
 
-# ──────────────────────────────────────────────
-# Disparar alarme
-# ──────────────────────────────────────────────
+
+
+
+
 
 def disparar_alarme(alarme: dict):
     global alarme_ativo
     alarme_ativo = True
 
-    # Toca a música direto — sem beep, sem esperar TTS
     tocar_musica_canal()
 
 
-# ──────────────────────────────────────────────
-# Parar alarme
-# ──────────────────────────────────────────────
+
+
+
+
 
 def parar_alarme_total():
-    global alarme_ativo, _canal_alarme
+    global alarme_ativo, canal_alarme
     alarme_ativo = False
 
     try:
-        if _canal_alarme is not None:
-            _canal_alarme.stop()
+        if canal_alarme is not None:
+            canal_alarme.stop()
     except Exception:
         pass
 
@@ -180,9 +209,10 @@ def parar_alarme_total():
     return random.choice(encerrar)
 
 
-# ──────────────────────────────────────────────
-# Loop de verificação
-# ──────────────────────────────────────────────
+
+
+
+
 
 def verificar_agenda_loop():
     while True:
@@ -201,6 +231,11 @@ def verificar_agenda_loop():
                     alarme["status"] = "concluido"
                 salvar_alarmes(alarmes)
         time.sleep(1)
+
+
+
+
+
 
 
 def iniciar_sistema_alarmes():

@@ -1,31 +1,30 @@
-import sys
-import os
-import threading
+from __future__ import annotations
+
 import asyncio
 import json
-import subprocess
-import requests
-import time
+import os
 import shutil
+import subprocess
+import sys
+import threading
+import time
 
+import requests
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 
 from painel import PainelCore, set_loop
-from audio.audio import ouvir_comando, falar, interromper_voz
+from audio.audio import ouvir_comando, falar
 from engine.core import processar_comando, inicializar_ia
 from engine.controller import get_shutdown_event
 from storage.memory_bridge import sincronizar_config
 from tasks.monitor import iniciar_sentinela, registrar_falar
 from tasks.alarm import iniciar_sistema_alarmes, registrar_falar_alarme
 from app_ul.interface import JarvisUI
-from storage.wake import processar_wake, e_comando_monitoramento, e_comando_parar_monitor
+from storage.wake import processar_wake
 from integrations.telegram_bridge import iniciar_telegram
 
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(BASE_DIR)
-
-os.environ["QT_LOGGING_RULES"] = "qt.qpa.window=false"
+os.environ["QT_LOGGING_RULES"]          = "qt.qpa.window=false"
 os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-logging"
 
 QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
@@ -37,18 +36,14 @@ app = QApplication(sys.argv)
 
 
 
-def _encontrar_ollama() -> str | None:
+def achar_ollama() -> str | None:
     candidatos = [
         shutil.which("ollama"),
-        r"C:\Users\{}\AppData\Local\Programs\Ollama\ollama.exe".format(os.environ.get("USERNAME", "")),
+        rf"C:\Users\{os.environ.get('USERNAME', '')}\AppData\Local\Programs\Ollama\ollama.exe",
         r"C:\Program Files\Ollama\ollama.exe",
-        r"C:\Program Files (x86)\Ollama\ollama.exe",
         os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Ollama", "ollama.exe"),
     ]
-    for caminho in candidatos:
-        if caminho and os.path.isfile(caminho):
-            return caminho
-    return None
+    return next((c for c in candidatos if c and os.path.isfile(c)), None)
 
 
 
@@ -58,40 +53,41 @@ def _encontrar_ollama() -> str | None:
 
 def iniciar_ollama() -> bool:
     try:
-        r = requests.get("http://127.0.0.1:11434/api/tags", timeout=2)
-        modelos = [m["name"] for m in r.json().get("models", [])]
-        print(f"[OLLAMA] Servico ja ativo. Modelos: {modelos}")
+        r      = requests.get("http://127.0.0.1:11434/api/tags", timeout=2)
+        models = [m["name"] for m in r.json().get("models", [])]
+        print(f"[OLLAMA] Já ativo. Modelos: {models}")
         return True
     except Exception:
         pass
-    ollama_exe = _encontrar_ollama()
-    if not ollama_exe:
-        print("[OLLAMA] Executavel nao encontrado. Instale em https://ollama.com")
+
+    exe = achar_ollama()
+    if not exe:
+        print("[OLLAMA] Executável não encontrado. Instale em https://ollama.com")
         return False
-    print(f"[OLLAMA] Iniciando servico via: {ollama_exe}")
+
+    print(f"[OLLAMA] Iniciando via: {exe}")
     try:
         subprocess.Popen(
-            [ollama_exe, "serve"],
+            [exe, "serve"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
         )
     except Exception as e:
-        print(f"[OLLAMA] Erro ao iniciar processo: {e}")
+        print(f"[OLLAMA] Erro ao iniciar: {e}")
         return False
+
     for _ in range(15):
         time.sleep(1)
         try:
             r = requests.get("http://127.0.0.1:11434/api/tags", timeout=2)
-            modelos = [m["name"] for m in r.json().get("models", [])]
-            if modelos:
-                print(f"[OLLAMA] Online. Modelos: {modelos}")
-            else:
-                print("[OLLAMA] Online mas sem modelos. Rode: ollama pull llama3.2")
+            models = [m["name"] for m in r.json().get("models", [])]
+            print(f"[OLLAMA] Online. Modelos: {models or ['nenhum — rode: ollama pull llama3.2']}")
             return True
         except Exception:
             continue
-    print("[OLLAMA] AVISO: servico nao respondeu apos 15s.")
+
+    print("[OLLAMA] Não respondeu após 15s.")
     return False
 
 
@@ -100,16 +96,11 @@ def iniciar_ollama() -> bool:
 
 
 
-def _iniciar_subsistemas():
+def iniciar_subsistemas():
     sincronizar_config()
     iniciar_sentinela()
     iniciar_sistema_alarmes()
-    t_telegram = threading.Thread(
-        target=iniciar_telegram,
-        daemon=True,
-        name="TelegramBot",
-    )
-    t_telegram.start()
+    threading.Thread(target=iniciar_telegram, daemon=True, name="TelegramBot").start()
 
 
 
@@ -117,15 +108,12 @@ def _iniciar_subsistemas():
 
 
 
-async def _executar_comando(resultado: str, ui: PainelCore) -> None:
+async def executar(comando: str, ui: PainelCore) -> None:
     try:
-        processou = await processar_comando(resultado)
-        if processou:
-            ui.bridge.dados_para_ui.emit(
-                json.dumps({"resposta": f"Executado: {resultado}"})
-            )
+        if await processar_comando(comando):
+            ui.bridge.dados_para_ui.emit(json.dumps({"resposta": f"Executado: {comando}"}))
     except Exception as e:
-        print(f"[COMANDO] Erro crítico: {e}")
+        print(f"[COMANDO] Erro: {e}")
 
 
 
@@ -133,38 +121,33 @@ async def _executar_comando(resultado: str, ui: PainelCore) -> None:
 
 
 
-async def engine_core_async(ui: PainelCore):
+async def engine(ui: PainelCore):
     await inicializar_ia()
-    _iniciar_subsistemas()
-    
+    iniciar_subsistemas()
+
     loop = asyncio.get_running_loop()
-    registrar_falar_alarme(lambda texto: asyncio.run_coroutine_threadsafe(falar(texto), loop))
-    
-    shutdown_evt = get_shutdown_event()
-    while not shutdown_evt.is_set():
+    registrar_falar_alarme(lambda txt: asyncio.run_coroutine_threadsafe(falar(txt), loop))
+
+    shutdown = get_shutdown_event()
+    while not shutdown.is_set():
         try:
             resultado = await ouvir_comando()
-            if not resultado: 
+            if not resultado:
                 continue
-            
-            texto_lower = resultado.lower()
-            comando_pronto = ""
-            
-            if "jarvis" in texto_lower:
-                comando_pronto = texto_lower.replace("jarvis", "").strip()
+
+            lower = resultado.lower()
+            if "jarvis" in lower:
+                cmd = lower.replace("jarvis", "").strip()
             else:
-                ativo, cmd_wake = processar_wake(resultado)
-                if ativo and cmd_wake:
-                    comando_pronto = cmd_wake
-                    
-            if not comando_pronto:
-                continue
-            
+                ativo, cmd = processar_wake(resultado)
+                if not (ativo and cmd):
+                    continue
+
             try:
-                await asyncio.wait_for(_executar_comando(comando_pronto, ui), timeout=45.0)
+                await asyncio.wait_for(executar(cmd, ui), timeout=45.0)
             except asyncio.TimeoutError:
-                print("\n[SISTEMA] O comando demorou demais e foi cancelado para evitar travamentos.")
-            
+                print("[SISTEMA] Comando cancelado por timeout.")
+
         except Exception as e:
             print(f"[LOOP] Erro: {e}")
             await asyncio.sleep(0.3)
@@ -175,12 +158,12 @@ async def engine_core_async(ui: PainelCore):
 
 
 
-def engine_core_wrapper(ui: PainelCore):
+def engine_thread(ui: PainelCore):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     set_loop(loop)
     try:
-        loop.run_until_complete(engine_core_async(ui))
+        loop.run_until_complete(engine(ui))
     finally:
         loop.close()
 
@@ -194,28 +177,19 @@ def iniciar_sistema():
     iniciar_ollama()
     try:
         ui = PainelCore()
-        def ocultar_painel(event):
-            event.ignore()
-            ui.hide()
-        ui.closeEvent = ocultar_painel
+        ui.closeEvent = lambda e: (e.ignore(), ui.hide())
+
         hud = JarvisUI()
-        def mostrar_painel_web():
-            ui.show()
-            ui.raise_()
-            ui.activateWindow()
         try:
             hud.btn_code.clicked.disconnect()
-        except TypeError: pass
-        hud.btn_code.clicked.connect(mostrar_painel_web)
+        except TypeError:
+            pass
+        hud.btn_code.clicked.connect(lambda: (ui.show(), ui.raise_(), ui.activateWindow()))
         hud.show()
-        t = threading.Thread(
-            target=engine_core_wrapper,
-            args=(ui,),
-            daemon=True,
-            name="CoreEngine",
-        )
-        t.start()
+
+        threading.Thread(target=engine_thread, args=(ui,), daemon=True, name="CoreEngine").start()
         sys.exit(app.exec())
+
     except Exception as e:
         print(f"[SISTEMA] Erro fatal: {e}")
         sys.exit(1)

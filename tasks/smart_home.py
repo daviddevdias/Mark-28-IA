@@ -5,9 +5,9 @@ import logging
 log = logging.getLogger("CORE.smartthings")
 
 
-_API_BASE = "https://api.smartthings.com/v1"
-_tv_id_cache: str | None = None
-_devices_cache: list | None = None
+API_BASE = "https://api.smartthings.com/v1"
+tv_id_cache: str | None = None
+devices_cache: list | None = None
 
 
 
@@ -15,31 +15,41 @@ _devices_cache: list | None = None
 
 
 
-def _headers() -> dict:
+def headers() -> dict:
     return {"Authorization": f"Bearer {config.SMARTTHINGS_TOKEN}"}
 
 
-def _get(endpoint: str) -> dict | None:
+
+
+
+
+
+def get(endpoint: str) -> dict | None:
     if not config.SMARTTHINGS_TOKEN:
         log.error("Token SmartThings não configurado.")
         return None
 
     try:
-        res = requests.get(f"{_API_BASE}/{endpoint}", headers=_headers(), timeout=8)
+        res = requests.get(f"{API_BASE}/{endpoint}", headers=headers(), timeout=8)
         return res.json() if res.status_code == 200 else None
     except Exception as e:
         log.error("GET %s: %s", endpoint, e)
         return None
 
 
-def _post(endpoint: str, payload: list) -> bool:
+
+
+
+
+
+def post(endpoint: str, payload: list) -> bool:
     if not config.SMARTTHINGS_TOKEN:
         return False
 
     try:
         res = requests.post(
-            f"{_API_BASE}/{endpoint}",
-            headers=_headers(),
+            f"{API_BASE}/{endpoint}",
+            headers=headers(),
             json=payload,
             timeout=8,
         )
@@ -54,25 +64,30 @@ def _post(endpoint: str, payload: list) -> bool:
 
 
 
-def _carregar_devices(forcar: bool = False) -> list:
-    global _devices_cache
+def carregar_devices(forcar: bool = False) -> list:
+    global devices_cache
 
-    if _devices_cache and not forcar:
-        return _devices_cache
+    if devices_cache and not forcar:
+        return devices_cache
 
-    dados = _get("devices")
+    dados = get("devices")
 
     if not dados:
         return []
 
-    _devices_cache = dados.get("items", [])
-    return _devices_cache
+    devices_cache = dados.get("items", [])
+    return devices_cache
 
 
-def _buscar_device_por_label(label_busca: str) -> str | None:
+
+
+
+
+
+def buscar_device_por_label(label_busca: str) -> str | None:
     label_busca = label_busca.lower().strip()
 
-    for device in _carregar_devices():
+    for device in carregar_devices():
         label = device.get("label", "").lower()
         name = device.get("name", "").lower()
 
@@ -100,7 +115,7 @@ def enviar_comando_device(
         }
     ]
 
-    ok = _post(f"devices/{device_id}/commands", payload)
+    ok = post(f"devices/{device_id}/commands", payload)
 
     log.info(
         "Comando '%s' → device %s: %s", comando, device_id[:8], "OK" if ok else "FALHOU"
@@ -115,23 +130,28 @@ def enviar_comando_device(
 
 
 def buscar_id_tv(forcar: bool = False) -> str | None:
-    global _tv_id_cache
+    global tv_id_cache
 
-    if _tv_id_cache and not forcar:
-        return _tv_id_cache
+    if tv_id_cache and not forcar:
+        return tv_id_cache
 
-    for device in _carregar_devices(forcar):
+    for device in carregar_devices(forcar):
         label = device.get("label", "").lower()
         name = device.get("name", "").lower()
 
         if "hub" not in label and (
             "tv" in label or "samsung" in name or "[tv]" in label
         ):
-            _tv_id_cache = device["deviceId"]
-            return _tv_id_cache
+            tv_id_cache = device["deviceId"]
+            return tv_id_cache
 
     log.warning("Nenhuma TV Samsung encontrada.")
     return None
+
+
+
+
+
 
 
 def enviar_comando_tv(
@@ -145,17 +165,37 @@ def enviar_comando_tv(
     return enviar_comando_device(device_id, comando, capacidade, argumentos)
 
 
+
+
+
+
+
 def ligar_tv() -> bool:
     return enviar_comando_tv("on", "switch")
+
+
+
+
+
 
 
 def desligar_tv() -> bool:
     return enviar_comando_tv("off", "switch")
 
 
+
+
+
+
+
 def ajustar_volume_tv(nivel: int) -> bool:
     nivel = max(0, min(100, nivel))
     return enviar_comando_tv("setVolume", "audioVolume", [nivel])
+
+
+
+
+
 
 
 def status_tv() -> str:
@@ -164,7 +204,7 @@ def status_tv() -> str:
     if not device_id:
         return "TV não encontrada na rede."
 
-    dados = _get(f"devices/{device_id}/status")
+    dados = get(f"devices/{device_id}/status")
 
     if not dados:
         return "Não foi possível obter o status da TV."
@@ -183,7 +223,7 @@ def status_tv() -> str:
 
 
 def ligar_lampada(label: str) -> str:
-    device_id = _buscar_device_por_label(label)
+    device_id = buscar_device_por_label(label)
 
     if not device_id:
         return f"Lâmpada '{label}' não encontrada no SmartThings."
@@ -193,8 +233,13 @@ def ligar_lampada(label: str) -> str:
     return f"Lâmpada '{label}' ligada." if ok else f"Falha ao ligar '{label}'."
 
 
+
+
+
+
+
 def desligar_lampada(label: str) -> str:
-    device_id = _buscar_device_por_label(label)
+    device_id = buscar_device_por_label(label)
 
     if not device_id:
         return f"Lâmpada '{label}' não encontrada no SmartThings."
@@ -204,8 +249,13 @@ def desligar_lampada(label: str) -> str:
     return f"Lâmpada '{label}' apagada." if ok else f"Falha ao desligar '{label}'."
 
 
+
+
+
+
+
 def ligar_todas_lampadas() -> str:
-    devices = _carregar_devices()
+    devices = carregar_devices()
 
     ligadas = 0
 
@@ -223,8 +273,13 @@ def ligar_todas_lampadas() -> str:
     )
 
 
+
+
+
+
+
 def desligar_todas_lampadas() -> str:
-    devices = _carregar_devices()
+    devices = carregar_devices()
 
     apagadas = 0
 
@@ -242,8 +297,13 @@ def desligar_todas_lampadas() -> str:
     )
 
 
+
+
+
+
+
 def ajustar_brilho(label: str, nivel: int) -> str:
-    device_id = _buscar_device_por_label(label)
+    device_id = buscar_device_por_label(label)
 
     if not device_id:
         return f"Lâmpada '{label}' não encontrada."
@@ -255,8 +315,13 @@ def ajustar_brilho(label: str, nivel: int) -> str:
     )
 
 
+
+
+
+
+
 def listar_dispositivos() -> str:
-    devices = _carregar_devices(forcar=True)
+    devices = carregar_devices(forcar=True)
 
     if not devices:
         return "Nenhum dispositivo encontrado no SmartThings."

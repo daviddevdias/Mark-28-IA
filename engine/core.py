@@ -1,35 +1,31 @@
+from __future__ import annotations
+
 import asyncio
 import json
 import time
-from typing import Optional, Any
+from typing import Any, Optional
 
 from audio.audio import falar
 from storage.memory_manager import load_memory, get_nome, process_memory_logic
-from engine.ia_router import (
-    router,
-    ligar_monitor as iniciar_hardware_monitor,
-    desligar_monitor as parar_hardware_monitor,
-    info_monitor as obter_status_hardware,
-    _detectar_modelo,
-)
+from engine.ia_router import router, detectar_modelo, desligar_monitor, info_monitor
 from engine.controller import processar_diretriz
 from tasks.alarm import alarme_ativo, parar_alarme_total
 
+
+ui_bridge             = None
 AGUARDANDO_CONFIRMACAO = False
-ULTIMA_ANALISE_OBJ = None
-ULTIMA_SUGESTAO = 0.0
+ULTIMA_ANALISE_OBJ     = None
+ULTIMA_SUGESTAO        = 0.0
 
-_ui_bridge = None
-
-ALERTAS_POR_TIPO = {
-    "erro":        "Senhor, detectei um erro na tela.",
-    "crash":       "Senhor, houve um crash no sistema.",
-    "travado":     "Senhor, algo parece travado na tela.",
-    "aviso":       "Senhor, há um aviso importante na tela.",
-    "instalacao":  "Senhor, há uma instalação em andamento.",
-    "compilacao":  "Senhor, processo de compilação detectado.",
-    "terminal":    "Senhor, atividade no terminal identificada.",
-    "codigo":      "Senhor, código com possível problema detectado.",
+ALERTAS = {
+    "erro":       "Senhor, detectei um erro na tela.",
+    "crash":      "Senhor, houve um crash no sistema.",
+    "travado":    "Senhor, algo parece travado.",
+    "aviso":      "Senhor, há um aviso importante.",
+    "instalacao": "Senhor, há uma instalação em andamento.",
+    "compilacao": "Senhor, compilação detectada.",
+    "terminal":   "Senhor, atividade no terminal identificada.",
+    "codigo":     "Senhor, código com possível problema.",
 }
 
 
@@ -39,8 +35,8 @@ ALERTAS_POR_TIPO = {
 
 
 def registrar_ui_bridge(bridge) -> None:
-    global _ui_bridge
-    _ui_bridge = bridge
+    global ui_bridge
+    ui_bridge = bridge
 
 
 
@@ -48,11 +44,11 @@ def registrar_ui_bridge(bridge) -> None:
 
 
 
-def emitir_para_ui(dados: dict) -> None:
-    if _ui_bridge is None:
+def emitir(dados: dict) -> None:
+    if ui_bridge is None:
         return
     try:
-        _ui_bridge.dados_para_ui.emit(json.dumps(dados))
+        ui_bridge.dados_para_ui.emit(json.dumps(dados))
     except Exception:
         pass
 
@@ -63,11 +59,11 @@ def emitir_para_ui(dados: dict) -> None:
 
 
 def contexto() -> str:
-    nome = get_nome()
-    memoria = load_memory()
-    ctx = f"Mestre: {nome} (Dev ADS)."
-    if isinstance(memoria, dict) and "preferences" in memoria:
-        ctx += f" Pref: {memoria['preferences']}."
+    nome   = get_nome()
+    mem    = load_memory()
+    ctx    = f"Mestre: {nome} (Dev ADS)."
+    if isinstance(mem, dict) and "preferences" in mem:
+        ctx += f" Pref: {mem['preferences']}."
     return ctx
 
 
@@ -77,7 +73,7 @@ def contexto() -> str:
 
 
 async def inicializar_ia() -> None:
-    await _detectar_modelo()
+    await detectar_modelo()
 
 
 
@@ -88,52 +84,29 @@ async def inicializar_ia() -> None:
 async def analisar_tela_agora() -> None:
     await falar("Iniciando varredura óptica, senhor.")
 
-    from vision.capture import capturar_frame_base64, gerar_dica_profunda, _parse_resultado, _chamar_qwen, _SYSTEM_VISAO_RAPIDA
+    from vision.capture import capturar_frame_base64, gerar_dica_profunda, parse, chamar_qwen, SYSTEM_RAPIDO
 
-    loop = asyncio.get_running_loop()
-    img_b64 = await loop.run_in_executor(None, capturar_frame_base64)
-
-    if not img_b64:
-        await falar("Falha na captura de tela, senhor.")
+    img = await asyncio.get_running_loop().run_in_executor(None, capturar_frame_base64)
+    if not img:
+        await falar("Falha na captura, senhor.")
         return
 
-    raw = await _chamar_qwen(
-        _SYSTEM_VISAO_RAPIDA,
-        "Analise esta tela detalhadamente. Há erros, avisos ou situações relevantes?",
-        img_b64,
-        max_tokens=150,
-    )
+    raw      = await chamar_qwen(SYSTEM_RAPIDO, "Analise esta tela. Há erros ou situações relevantes?", img, 150)
+    resultado = parse(raw, img)
 
-    resultado = _parse_resultado(raw, img_b64)
-
-    emitir_para_ui({
-        "visao_img": img_b64,
-        "visao_status": "Análise concluída.",
-        "visao_resultado": resultado.resumo,
-        "monitor_evento": {
-            "ok": resultado.ok,
-            "tipo": resultado.tipo,
-            "resumo": resultado.resumo,
-            "problema": resultado.problema,
-            "sugestao_rapida": resultado.sugestao_rapida,
-            "timestamp": time.time(),
-        }
-    })
+    emitir({"visao_img": img, "visao_resultado": resultado.resumo,
+            "monitor_evento": {"ok": resultado.ok, "tipo": resultado.tipo,
+                               "resumo": resultado.resumo, "problema": resultado.problema,
+                               "sugestao_rapida": resultado.sugestao_rapida, "timestamp": time.time()}})
 
     if not resultado.ok:
-        dica = await gerar_dica_profunda(img_b64, resultado.problema, resultado.tipo)
+        dica = await gerar_dica_profunda(img, resultado.problema, resultado.tipo)
         resultado.dica_profunda = dica
-
-        emitir_para_ui({
-            "monitor_dica": dica,
-            "monitor_tipo": resultado.tipo,
-        })
-
-        print(f"\n[Jarvis - VISAO]: {resultado.resumo}")
-        print(f"[Jarvis - DICA]: {dica}\n")
+        emitir({"monitor_dica": dica, "monitor_tipo": resultado.tipo})
+        print(f"\n[VISAO]: {resultado.resumo}\n[DICA]: {dica}\n")
         await falar(f"{resultado.resumo}. {resultado.sugestao_rapida}")
     else:
-        print(f"\n[Jarvis - VISAO]: {resultado.resumo}\n")
+        print(f"\n[VISAO]: {resultado.resumo}\n")
         await falar(resultado.resumo)
 
 
@@ -143,35 +116,24 @@ async def analisar_tela_agora() -> None:
 
 
 async def ligar_monitoramento(comando: str) -> None:
-    from vision.capture import MonitorConfig, parar_monitor, _monitor_state
+    from vision.capture import MonitorConfig, parar_monitor, estado
 
-    if _monitor_state.rodando:
+    if estado.rodando:
         parar_monitor()
         await asyncio.sleep(0.5)
 
-    intervalo = 8.0
-    for token in comando.split():
-        if token.isdigit():
-            intervalo = max(5.0, float(token))
-            break
-
-    cfg = MonitorConfig(
-        intervalo_s=intervalo,
-        apenas_mudancas=True,
-        gerar_dica_automatica=True,
-        cooldown_alerta_s=45.0,
-        callback=loop_monitoramento_automatico,
-    )
+    intervalo = max(5.0, float(next((t for t in comando.split() if t.isdigit()), "8")))
 
     from vision.capture import iniciar_monitor
-    loop = asyncio.get_running_loop()
-    await iniciar_monitor(cfg)
+    await iniciar_monitor(MonitorConfig(
+        intervalo_s=intervalo,
+        apenas_mudancas=True,
+        gerar_dica_auto=True,
+        cooldown_s=45.0,
+        callback=loop_monitoramento,
+    ))
 
-    emitir_para_ui({
-        "monitor_status": "ativo",
-        "monitor_intervalo": int(intervalo),
-    })
-
+    emitir({"monitor_status": "ativo", "monitor_intervalo": int(intervalo)})
     await falar(f"Monitoramento ativo, senhor. Intervalo de {int(intervalo)} segundos.")
 
 
@@ -184,26 +146,12 @@ async def desligar_monitoramento() -> None:
     global AGUARDANDO_CONFIRMACAO
     AGUARDANDO_CONFIRMACAO = False
 
-    stats = parar_hardware_monitor()
+    stats = desligar_monitor()
+    emitir({"monitor_status": "inativo", "monitor_stats": stats})
 
-    emitir_para_ui({
-        "monitor_status": "inativo",
-        "monitor_stats": stats,
-    })
-
-    economizados = stats.get("economizados", 0)
-    problemas    = stats.get("total_problemas", 0)
-
-    await falar(
-        f"Monitoramento suspenso, senhor. "
-        f"{problemas} problema(s) detectado(s) na sessão."
-    )
-
-    print(
-        f"[SISTEMA] Monitor desligado — "
-        f"frames economizados: {economizados} | "
-        f"problemas: {problemas}"
-    )
+    problemas = stats.get("total_problemas", 0)
+    await falar(f"Monitoramento suspenso, senhor. {problemas} problema(s) detectado(s).")
+    print(f"[SISTEMA] Monitor desligado — problemas: {problemas}")
 
 
 
@@ -212,15 +160,12 @@ async def desligar_monitoramento() -> None:
 
 
 async def status_do_sistema() -> None:
-    s = obter_status_hardware()
+    s = info_monitor()
     if s["rodando"]:
-        msg = (
-            f"Sistema operacional, senhor. "
-            f"Monitor ativo com {s['chamadas_api']} consultas realizadas "
-            f"e {s.get('total_problemas', 0)} problema(s) detectado(s)."
-        )
+        msg = (f"Operacional, senhor. {s['chamadas_api']} consultas, "
+               f"{s.get('total_problemas', 0)} problema(s).")
     else:
-        msg = "Sistema em repouso. Monitoramento desligado."
+        msg = "Sistema em repouso."
     await falar(msg)
 
 
@@ -229,9 +174,8 @@ async def status_do_sistema() -> None:
 
 
 
-def quer_parar_alarme(comando: str) -> bool:
-    cmd = comando.lower()
-    return any(p in cmd for p in ("parar", "desligar", "acordei", "chega", "ok"))
+def quer_parar_alarme(cmd: str) -> bool:
+    return any(p in cmd.lower() for p in ("parar", "desligar", "acordei", "chega", "ok"))
 
 
 
@@ -242,64 +186,66 @@ def quer_parar_alarme(comando: str) -> bool:
 async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) -> bool:
     global AGUARDANDO_CONFIRMACAO, ULTIMA_ANALISE_OBJ
 
+
+
+
     if not comando.strip() and not imagem_monitor:
         return False
 
     if alarme_ativo and quer_parar_alarme(comando):
-        resposta = parar_alarme_total()
-        await falar(resposta)
+        await falar(parar_alarme_total())
         return True
 
+
+
+
     if AGUARDANDO_CONFIRMACAO:
-        cmd_lower = comando.lower()
-
-        if any(p in cmd_lower for p in ("sim", "pode", "analisa", "continua", "vai")):
+        cmd = comando.lower()
+        if any(p in cmd for p in ("sim", "pode", "analisa", "continua", "vai")):
             AGUARDANDO_CONFIRMACAO = False
-
             obj = ULTIMA_ANALISE_OBJ
-            if obj is not None and obj.img_b64:
+            if obj and obj.img_b64:
                 from vision.capture import gerar_dica_profunda
                 dica = await gerar_dica_profunda(obj.img_b64, obj.problema, obj.tipo)
             else:
                 dica = await router.responder(
-                    f"Sugira solução técnica para: {obj.problema if obj else 'problema na tela'}",
+                    f"Sugira solução para: {obj.problema if obj else 'problema na tela'}",
                     memoria=contexto(),
                 )
-
-            emitir_para_ui({
-                "monitor_dica": dica,
-                "monitor_tipo": obj.tipo if obj else "erro",
-            })
-
-            print(f"\n[Jarvis - SOLUÇÃO]: {dica}\n")
+            emitir({"monitor_dica": dica, "monitor_tipo": obj.tipo if obj else "erro"})
+            print(f"\n[SOLUÇÃO]: {dica}\n")
             await falar(dica)
             return True
 
-        if any(p in cmd_lower for p in ("nao", "não", "ignora", "ok", "beleza")):
+
+
+        if any(p in cmd for p in ("nao", "não", "ignora", "ok", "beleza")):
             AGUARDANDO_CONFIRMACAO = False
             await falar("Entendido, senhor. Monitoramento continua.")
             return True
 
-        await falar("Senhor, ainda aguardo sua confirmação sobre o problema detectado. Diga 'sim' ou 'não'.")
+
+
+
+        await falar("Ainda aguardo confirmação. Diga 'sim' ou 'não'.")
         return True
 
-    resultado_local = await processar_diretriz(comando)
 
-    if resultado_local is not None:
-        if resultado_local:
-            print(f"\n[Jarvis - LOCAL]: {resultado_local}\n")
-            await falar(resultado_local)
+
+    resultado = await processar_diretriz(comando)
+    if resultado is not None:
+        if resultado:
+            print(f"\n[LOCAL]: {resultado}\n")
+            await falar(resultado)
         return True
+
+
 
     resposta = await router.responder(
-        pergunta=comando,
-        nome=get_nome(),
-        memoria=contexto(),
-        imagem=imagem_monitor,
+        pergunta=comando, nome=get_nome(), memoria=contexto(), imagem=imagem_monitor
     )
-
     if resposta:
-        print(f"\n[Jarvis - IA]: {resposta}\n")
+        print(f"\n[IA]: {resposta}\n")
         await falar(resposta)
         asyncio.create_task(process_memory_logic(comando, resposta))
 
@@ -311,58 +257,57 @@ async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) 
 
 
 
-async def loop_monitoramento_automatico(resultado) -> None:
+async def loop_monitoramento(resultado) -> None:
     global AGUARDANDO_CONFIRMACAO, ULTIMA_ANALISE_OBJ, ULTIMA_SUGESTAO
 
+
+
+
     from vision.capture import ResultadoAnalise
-
-    if not isinstance(resultado, ResultadoAnalise):
+    if not isinstance(resultado, ResultadoAnalise) or AGUARDANDO_CONFIRMACAO:
         return
 
-    if AGUARDANDO_CONFIRMACAO:
-        return
+
+
 
     agora = time.time()
+    emitir({"monitor_evento": {
+        "ok": resultado.ok, "tipo": resultado.tipo, "resumo": resultado.resumo,
+        "problema": resultado.problema, "sugestao_rapida": resultado.sugestao_rapida,
+        "timestamp": agora,
+    }})
 
-    emitir_para_ui({
-        "monitor_evento": {
-            "ok":             resultado.ok,
-            "tipo":           resultado.tipo,
-            "resumo":         resultado.resumo,
-            "problema":       resultado.problema,
-            "sugestao_rapida": resultado.sugestao_rapida,
-            "timestamp":      agora,
-        }
-    })
+
+
 
     if resultado.ok:
-        emitir_para_ui({"monitor_ultimo_ok": resultado.resumo})
+        emitir({"monitor_ultimo_ok": resultado.resumo})
         return
 
     if (agora - ULTIMA_SUGESTAO) < 45.0:
         return
 
-    ULTIMA_ANALISE_OBJ   = resultado
+    ULTIMA_ANALISE_OBJ     = resultado
     AGUARDANDO_CONFIRMACAO = True
-    ULTIMA_SUGESTAO      = agora
+    ULTIMA_SUGESTAO        = agora
 
-    alerta = ALERTAS_POR_TIPO.get(resultado.tipo, "Senhor, detectei algo incomum na tela.")
+
+
+
+
+    alerta = ALERTAS.get(resultado.tipo, "Senhor, detectei algo incomum.")
+
+
+
+
+
 
     if resultado.dica_profunda:
-        emitir_para_ui({
-            "monitor_dica":  resultado.dica_profunda,
-            "monitor_tipo":  resultado.tipo,
-            "monitor_alerta": alerta,
-            "aguardando_confirmacao": True,
-        })
-        print(f"\n[Jarvis - MONITOR]: {alerta}")
-        print(f"[Jarvis - DICA]: {resultado.dica_profunda}\n")
-        await falar(f"{alerta} {resultado.sugestao_rapida}. Deseja a análise completa?")
+        emitir({"monitor_dica": resultado.dica_profunda, "monitor_tipo": resultado.tipo,
+                "monitor_alerta": alerta, "aguardando_confirmacao": True})
+        print(f"\n[MONITOR]: {alerta}\n[DICA]: {resultado.dica_profunda}\n")
+        await falar(f"{alerta} {resultado.sugestao_rapida}. Deseja análise completa?")
     else:
-        emitir_para_ui({
-            "monitor_alerta": alerta,
-            "monitor_tipo":   resultado.tipo,
-            "aguardando_confirmacao": True,
-        })
-        print(f"\n[Jarvis - MONITOR]: {alerta} — {resultado.problema}\n")
-        await falar(f"{alerta} Deseja que eu analise uma solução?")
+        emitir({"monitor_alerta": alerta, "monitor_tipo": resultado.tipo, "aguardando_confirmacao": True})
+        print(f"\n[MONITOR]: {alerta} — {resultado.problema}\n")
+        await falar(f"{alerta} Deseja que eu analise?")

@@ -5,7 +5,7 @@ import socket
 from datetime import datetime
 
 
-_ALERTAS = {
+ALERTAS = {
     "tempo": False,
     "bateria": False,
     "temp": False,
@@ -14,20 +14,30 @@ _ALERTAS = {
     "ram": False,
 }
 
-_inicio_sessao = datetime.now()
-_INTERVALO_S = 10
-_TEMP_CRITICA = 82
-_TEMP_OK = 70
-_RAM_CRITICA = 90.0
-_CPU_CRITICO = 95.0
-_BAT_CRITICA = 20
+inicio_sessao = datetime.now()
+INTERVALO_S = 10
+TEMP_CRITICA = 82
+TEMP_OK = 70
+RAM_CRITICA = 90.0
+CPU_CRITICO = 95.0
+BAT_CRITICA = 20
 
 falar_callback = None
+
+
+
+
+
 
 
 def registrar_falar(fn):
     global falar_callback
     falar_callback = fn
+
+
+
+
+
 
 
 def falar(texto: str) -> None:
@@ -38,12 +48,22 @@ def falar(texto: str) -> None:
             print(f"[SENTINELA] Voz indisponivel: {e}")
 
 
+
+
+
+
+
 def check_internet(host: str = "8.8.8.8", port: int = 53, timeout: float = 3.0) -> bool:
     try:
         with socket.create_connection((host, port), timeout=timeout):
             return True
     except OSError:
         return False
+
+
+
+
+
 
 
 def obter_temperatura_cpu() -> float | None:
@@ -59,50 +79,75 @@ def obter_temperatura_cpu() -> float | None:
     return None
 
 
+
+
+
+
+
 def checar_rede() -> None:
     online = check_internet()
-    if not online and not _ALERTAS["rede"]:
+    if not online and not ALERTAS["rede"]:
         print("[!] ALERTA: Conexao com a rede perdida.")
         falar("Atencao, Chefe. Perda de conexao detectada.")
-        _ALERTAS["rede"] = True
-    elif online and _ALERTAS["rede"]:
+        ALERTAS["rede"] = True
+    elif online and ALERTAS["rede"]:
         print("[+] Conexao restabelecida.")
         falar("Conexao restaurada. Sistemas online.")
-        _ALERTAS["rede"] = False
+        ALERTAS["rede"] = False
+
+
+
+
+
 
 
 def checar_temperatura() -> None:
     temp = obter_temperatura_cpu()
     if temp is None:
         return
-    if temp >= _TEMP_CRITICA and not _ALERTAS["temp"]:
+    if temp >= TEMP_CRITICA and not ALERTAS["temp"]:
         print(f"[!] CRITICO: CPU a {temp:.0f}C")
         falar(f"Alerta termico. Nucleo a {int(temp)} graus. Reduza a carga.")
-        _ALERTAS["temp"] = True
-    elif temp < _TEMP_OK:
-        _ALERTAS["temp"] = False
+        ALERTAS["temp"] = True
+    elif temp < TEMP_OK:
+        ALERTAS["temp"] = False
+
+
+
+
+
 
 
 def checar_bateria() -> None:
     bat = psutil.sensors_battery()
     if not bat:
         return
-    if bat.percent < _BAT_CRITICA and not bat.power_plugged and not _ALERTAS["bateria"]:
+    if bat.percent < BAT_CRITICA and not bat.power_plugged and not ALERTAS["bateria"]:
         falar(f"Bateria em {int(bat.percent)} por cento. Conecte o carregador.")
-        _ALERTAS["bateria"] = True
+        ALERTAS["bateria"] = True
     elif bat.power_plugged:
-        _ALERTAS["bateria"] = False
+        ALERTAS["bateria"] = False
+
+
+
+
+
 
 
 def monitorar_proativo() -> None:
-    _CHECKERS = [checar_rede, checar_temperatura, checar_bateria]
+    CHECKERS = [checar_rede, checar_temperatura, checar_bateria]
     while True:
-        for fn in _CHECKERS:
+        for fn in CHECKERS:
             try:
                 fn()
             except Exception as e:
                 print(f"[SENTINELA] Erro em {fn.__name__}: {e}")
-        time.sleep(_INTERVALO_S)
+        time.sleep(INTERVALO_S)
+
+
+
+
+
 
 
 def iniciar_sentinela() -> None:

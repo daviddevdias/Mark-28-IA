@@ -5,7 +5,7 @@ import shutil
 
 
 
-_APP_ALIASES = {
+APP_ALIASES = {
     "whatsapp": {"Windows": "WhatsApp", "Darwin": "WhatsApp", "Linux": "whatsapp"},
     "chrome": {"Windows": "chrome", "Darwin": "Google Chrome", "Linux": "google-chrome"},
     "google chrome": {"Windows": "chrome", "Darwin": "Google Chrome", "Linux": "google-chrome"},
@@ -46,19 +46,29 @@ _APP_ALIASES = {
 }
 
 
+
+
+
+
+
 def normalize(raw: str) -> str:
     system = platform.system()
     key = raw.lower().strip()
-    if key in _APP_ALIASES:
-        return _APP_ALIASES[key].get(system, raw)
-    for alias_key, os_map in _APP_ALIASES.items():
+    if key in APP_ALIASES:
+        return APP_ALIASES[key].get(system, raw)
+    for alias_key, os_map in APP_ALIASES.items():
         if alias_key in key or key in alias_key:
             return os_map.get(system, raw)
     return raw
 
 
+
+
+
+
+
 def launch_windows(app_name: str) -> bool:
-    # 1. Tenta pelo PATH
+
     if shutil.which(app_name):
         try:
             subprocess.Popen([app_name], shell=False,
@@ -67,7 +77,6 @@ def launch_windows(app_name: str) -> bool:
         except Exception:
             pass
 
-    # 2. Tenta via shell (chrome, msedge, calc.exe, ms-settings:, etc.)
     try:
         subprocess.Popen(app_name, shell=True,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -75,7 +84,6 @@ def launch_windows(app_name: str) -> bool:
     except Exception:
         pass
 
-    # 3. Fallback: menu iniciar
     try:
         import pyautogui
         pyautogui.press("win")
@@ -86,6 +94,11 @@ def launch_windows(app_name: str) -> bool:
         return True
     except Exception:
         return False
+
+
+
+
+
 
 
 def launch_macos(app_name: str) -> bool:
@@ -107,6 +120,11 @@ def launch_macos(app_name: str) -> bool:
         return False
 
 
+
+
+
+
+
 def launch_linux(app_name: str) -> bool:
     binary = shutil.which(app_name) or shutil.which(app_name.lower())
     if binary:
@@ -121,6 +139,11 @@ def launch_linux(app_name: str) -> bool:
     except Exception:
         pass
     return False
+
+
+
+
+
 
 
 def open_app(parameters=None, **kwargs) -> str:

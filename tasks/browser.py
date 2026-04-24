@@ -9,6 +9,11 @@ import re
 class JarvisWeb:
 
 
+
+
+
+
+
     def __init__(self):
         self.loop = None
         self.browser_thread = None
@@ -19,6 +24,11 @@ class JarvisWeb:
         self.browser = None
 
 
+
+
+
+
+
     def start_system(self):
         if self.browser_thread and self.browser_thread.is_alive():
             return
@@ -27,7 +37,12 @@ class JarvisWeb:
         self.ready.wait(timeout=15)
 
 
-    def _run_loop(self):
+
+
+
+
+
+    def run_loop(self):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         try:
@@ -37,6 +52,11 @@ class JarvisWeb:
         except Exception as e:
             print(f"[BROWSER] erro loop: {e}")
             self.ready.set()
+
+
+
+
+
 
 
     def run(self, coro):
@@ -49,7 +69,12 @@ class JarvisWeb:
             return f"Erro execucao: {e}"
 
 
-    async def _boot_sequence(self):
+
+
+
+
+
+    async def boot_sequence(self):
         if not self.pw:
             self.pw = await async_playwright().start()
 
@@ -76,7 +101,12 @@ class JarvisWeb:
                 self.pw = None
 
 
-    async def _ensure_alive(self):
+
+
+
+
+
+    async def ensure_alive(self):
         try:
             if not self.browser or not self.browser.is_connected():
                 await self._boot_sequence()
@@ -90,6 +120,11 @@ class JarvisWeb:
 
         except Exception:
             await self._boot_sequence()
+
+
+
+
+
 
 
     async def smart_search(self, termo, private=False):
@@ -117,7 +152,12 @@ class JarvisWeb:
             await page.close()
 
 
-    async def _extract_google_result(self, page):
+
+
+
+
+
+    async def extract_google_result(self, page):
         try:
             rhs = page.locator("#rhs")
             if await rhs.count() > 0:
@@ -125,6 +165,11 @@ class JarvisWeb:
             return (await page.inner_text("body"))[:500]
         except Exception:
             return "Sem resultado"
+
+
+
+
+
 
 
     async def tocar_youtube(self, termo):
@@ -145,6 +190,11 @@ class JarvisWeb:
             return f"Erro YouTube: {e}"
 
 
+
+
+
+
+
     async def fechar_aba(self):
         if self.page and not self.page.is_closed():
             await self.page.close()
@@ -152,7 +202,12 @@ class JarvisWeb:
         return "Nenhuma aba ativa"
 
 
-_jarvis_web = JarvisWeb()
+jarvis_web = JarvisWeb()
+
+
+
+
+
 
 
 async def web_controller(command: str):
@@ -164,12 +219,12 @@ async def web_controller(command: str):
     if cmd.startswith(("pesquisa", "busca")):
         termo = re.sub(r"^(pesquisa|busca)\s*(no\s*)?(google|youtube)?", "", cmd).strip()
         if termo:
-            return _jarvis_web.run(_jarvis_web.smart_search(termo))
+            return jarvis_web.run(jarvis_web.smart_search(termo))
 
     if "youtube" in cmd:
         termo = re.sub(r"^(pesquisar|pesquisa|buscar|busca)?\s*(no\s*)?youtube\s*", "", cmd).strip()
         termo = re.sub(r"^(tocar)\s*", "", termo).strip()
         if termo:
-            return _jarvis_web.run(_jarvis_web.tocar_youtube(termo))
+            return jarvis_web.run(jarvis_web.tocar_youtube(termo))
 
     return False

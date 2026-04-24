@@ -8,26 +8,32 @@ try:
     import pyautogui
     pyautogui.FAILSAFE = True
     pyautogui.PAUSE = 0.05
-    _PYAUTOGUI = True
+    PYAUTOGUI = True
 except ImportError:
-    _PYAUTOGUI = False
+    PYAUTOGUI = False
 
 
-_OS = platform.system()
+OS = platform.system()
 
 
 
-# Ações de janela / sistema
+
+
 
 
 def fechar_janela() -> str:
     try:
-        key = "command" if _OS == "Darwin" else "alt"
-        action = "q" if _OS == "Darwin" else "f4"
+        key = "command" if OS == "Darwin" else "alt"
+        action = "q" if OS == "Darwin" else "f4"
         pyautogui.hotkey(key, action)
         return "Janela fechada."
     except Exception as e:
         return f"Erro: {e}"
+
+
+
+
+
 
 
 def minimizar_tudo() -> str:
@@ -37,10 +43,15 @@ def minimizar_tudo() -> str:
             "Darwin":  ("fn", "f11"),
             "Linux":   ("super", "d"),
         }
-        pyautogui.hotkey(*combos.get(_OS, ("win", "d")))
+        pyautogui.hotkey(*combos.get(OS, ("win", "d")))
         return "Janelas minimizadas."
     except Exception as e:
         return f"Erro: {e}"
+
+
+
+
+
 
 
 def print_tela() -> str:
@@ -50,10 +61,15 @@ def print_tela() -> str:
             "Darwin":  ("command", "shift", "3"),
             "Linux":   ("ctrl", "print_screen"),
         }
-        pyautogui.hotkey(*combos.get(_OS, ("win", "shift", "s")))
+        pyautogui.hotkey(*combos.get(OS, ("win", "shift", "s")))
         return "Captura acionada."
     except Exception as e:
         return f"Erro: {e}"
+
+
+
+
+
 
 
 def bloquear_tela() -> str:
@@ -63,10 +79,15 @@ def bloquear_tela() -> str:
             "Darwin":  ["pmset", "displaysleepnow"],
             "Linux":   ["xdg-screensaver", "lock"],
         }
-        subprocess.run(cmds.get(_OS, []), check=True)
+        subprocess.run(cmds.get(OS, []), check=True)
         return "Tela bloqueada."
     except Exception as e:
         return f"Erro: {e}"
+
+
+
+
+
 
 
 def limpar_lixeira() -> str:
@@ -77,17 +98,22 @@ def limpar_lixeira() -> str:
             "Darwin":  ["rm", "-rf", str(Path.home() / ".Trash" / "*")],
             "Linux":   ["gio", "trash", "--empty"],
         }
-        subprocess.run(cmds.get(_OS, []), check=True, shell=(_OS == "Darwin"))
+        subprocess.run(cmds.get(OS, []), check=True, shell=(OS == "Darwin"))
         return "Lixeira limpa."
     except Exception as e:
         return f"Erro: {e}"
 
 
+
+
+
+
+
 def ajustar_volume(nivel: int) -> str:
     nivel = max(0, min(100, nivel))
     try:
-        if _OS == "Windows":
-            # Usa nircmd se disponível, senão PowerShell
+        if OS == "Windows":
+
             nircmd = Path("nircmd.exe")
             if nircmd.exists():
                 vol = int(nivel / 100 * 65535)
@@ -105,7 +131,8 @@ def ajustar_volume(nivel: int) -> str:
 
 
 
-# Desligar / reiniciar  (NOVO)
+
+
 
 
 def desligar_computador(atraso: int = 30) -> str:
@@ -114,9 +141,9 @@ def desligar_computador(atraso: int = 30) -> str:
     Passa atraso=0 para desligar imediatamente.
     """
     try:
-        if _OS == "Windows":
+        if OS == "Windows":
             subprocess.run(["shutdown", "/s", "/t", str(atraso)], check=True)
-        elif _OS == "Darwin":
+        elif OS == "Darwin":
             subprocess.run(["sudo", "shutdown", "-h", f"+{atraso // 60 or 1}"], check=True)
         else:
             subprocess.run(["shutdown", "-h", f"+{atraso // 60 or 1}"], check=True)
@@ -128,9 +155,14 @@ def desligar_computador(atraso: int = 30) -> str:
         return f"Erro ao desligar: {e}"
 
 
+
+
+
+
+
 def cancelar_desligamento() -> str:
     try:
-        if _OS == "Windows":
+        if OS == "Windows":
             subprocess.run(["shutdown", "/a"], check=True)
         else:
             subprocess.run(["sudo", "shutdown", "-c"], check=True)
@@ -139,11 +171,16 @@ def cancelar_desligamento() -> str:
         return f"Erro ao cancelar: {e}"
 
 
+
+
+
+
+
 def reiniciar_computador(atraso: int = 30) -> str:
     try:
-        if _OS == "Windows":
+        if OS == "Windows":
             subprocess.run(["shutdown", "/r", "/t", str(atraso)], check=True)
-        elif _OS == "Darwin":
+        elif OS == "Darwin":
             subprocess.run(["sudo", "shutdown", "-r", f"+{atraso // 60 or 1}"], check=True)
         else:
             subprocess.run(["shutdown", "-r", f"+{atraso // 60 or 1}"], check=True)
@@ -153,11 +190,12 @@ def reiniciar_computador(atraso: int = 30) -> str:
 
 
 
-# Dispatcher principal
+
+
 
 
 def computer_settings(parameters: dict) -> str:
-    if not _PYAUTOGUI and parameters.get("action") not in (
+    if not PYAUTOGUI and parameters.get("action") not in (
         "desligar", "reiniciar", "cancelar_desligamento", "limpar", "bloqueio", "volume"
     ):
         return "pyautogui não disponível."

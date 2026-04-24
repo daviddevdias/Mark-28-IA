@@ -5,181 +5,233 @@ import hashlib
 import json
 import logging
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Callable, Optional
+
 
 log = logging.getLogger("jarvis.tool_cache")
 
 
 @dataclass
-class EntradaCache:
+class Entrada:
     valor: Any
     criado_em: float
     ttl: float
 
     @property
+
+
+
+
+
+
+
     def expirado(self) -> bool:
         return (time.monotonic() - self.criado_em) > self.ttl
 
-    @property
-    def idade_s(self) -> float:
-        return time.monotonic() - self.criado_em
-
 
 @dataclass
-class ConfigFerramenta:
-    timeout_s: float = 15.0
-    ttl_cache_s: float = 0.0
-    cache_ativo: bool = False
-    nome: str = ""
+class ConfigTool:
+    timeout_s: float  = 15.0
+    ttl_s: float      = 0.0
+    cache: bool       = False
+    nome: str         = ""
 
 
-_CONFIGS: dict[str, ConfigFerramenta] = {
-    "weather_report":   ConfigFerramenta(timeout_s=10.0, ttl_cache_s=600.0,  cache_ativo=True,  nome="Clima"),
-    "web_search":       ConfigFerramenta(timeout_s=20.0, ttl_cache_s=120.0,  cache_ativo=True,  nome="Web"),
-    "smart_home":       ConfigFerramenta(timeout_s=8.0,  ttl_cache_s=30.0,   cache_ativo=True,  nome="Casa"),
-    "spotify_control":  ConfigFerramenta(timeout_s=8.0,  ttl_cache_s=0.0,    cache_ativo=False, nome="Spotify"),
-    "open_app":         ConfigFerramenta(timeout_s=12.0, ttl_cache_s=0.0,    cache_ativo=False, nome="App"),
-    "computer_control": ConfigFerramenta(timeout_s=10.0, ttl_cache_s=0.0,    cache_ativo=False, nome="PC"),
-    "cmd_control":      ConfigFerramenta(timeout_s=20.0, ttl_cache_s=0.0,    cache_ativo=False, nome="CMD"),
-    "youtube_video":    ConfigFerramenta(timeout_s=30.0, ttl_cache_s=0.0,    cache_ativo=False, nome="YouTube"),
-    "screen_analysis":  ConfigFerramenta(timeout_s=25.0, ttl_cache_s=0.0,    cache_ativo=False, nome="Visão"),
-    "file_controller":  ConfigFerramenta(timeout_s=10.0, ttl_cache_s=0.0,    cache_ativo=False, nome="Arquivos"),
-    "set_reminder":     ConfigFerramenta(timeout_s=5.0,  ttl_cache_s=0.0,    cache_ativo=False, nome="Alarme"),
-    "save_memory":      ConfigFerramenta(timeout_s=5.0,  ttl_cache_s=0.0,    cache_ativo=False, nome="Memória"),
-    "agent_task":       ConfigFerramenta(timeout_s=45.0, ttl_cache_s=0.0,    cache_ativo=False, nome="Agente"),
-    "code_helper":      ConfigFerramenta(timeout_s=30.0, ttl_cache_s=0.0,    cache_ativo=False, nome="Código"),
-    "switch_ia_mode":   ConfigFerramenta(timeout_s=5.0,  ttl_cache_s=0.0,    cache_ativo=False, nome="IA Mode"),
+CONFIGS: dict[str, ConfigTool] = {
+    "weather_report":   ConfigTool(10.0,  600.0, True,  "Clima"),
+    "web_search":       ConfigTool(20.0,  120.0, True,  "Web"),
+    "smart_home":       ConfigTool(8.0,   30.0,  True,  "Casa"),
+    "spotify_control":  ConfigTool(8.0,   0.0,   False, "Spotify"),
+    "open_app":         ConfigTool(12.0,  0.0,   False, "App"),
+    "computer_control": ConfigTool(10.0,  0.0,   False, "PC"),
+    "cmd_control":      ConfigTool(20.0,  0.0,   False, "CMD"),
+    "youtube_video":    ConfigTool(30.0,  0.0,   False, "YouTube"),
+    "screen_analysis":  ConfigTool(25.0,  0.0,   False, "Visão"),
+    "file_controller":  ConfigTool(10.0,  0.0,   False, "Arquivos"),
+    "set_reminder":     ConfigTool(5.0,   0.0,   False, "Alarme"),
+    "save_memory":      ConfigTool(5.0,   0.0,   False, "Memória"),
+    "agent_task":       ConfigTool(45.0,  0.0,   False, "Agente"),
+    "code_helper":      ConfigTool(30.0,  0.0,   False, "Código"),
+    "switch_ia_mode":   ConfigTool(5.0,   0.0,   False, "IA Mode"),
 }
 
-_DEFAULT_CONFIG = ConfigFerramenta(timeout_s=15.0, ttl_cache_s=0.0, cache_ativo=False, nome="Desconhecida")
+DEFAULT = ConfigTool()
 
 
-class CacheFerramenta:
-    def __init__(self, max_entradas: int = 256):
-        self._store: dict[str, EntradaCache] = {}
-        self._max = max_entradas
-        self._hits = 0
-        self._misses = 0
+class Cache:
 
-    def _chave(self, tool: str, args: dict) -> str:
-        payload = json.dumps({"t": tool, "a": args}, sort_keys=True, default=str)
-        return hashlib.sha256(payload.encode()).hexdigest()[:16]
+
+
+
+
+
+
+    def __init__(self, max_itens: int = 256):
+        self._store: dict[str, Entrada] = {}
+        self._max   = max_itens
+        self._hits  = 0
+        self._miss  = 0
+
+
+
+
+
+
+
+    def chave(self, tool: str, args: dict) -> str:
+        raw = json.dumps({"t": tool, "a": args}, sort_keys=True, default=str)
+        return hashlib.sha256(raw.encode()).hexdigest()[:16]
+
+
+
+
+
+
 
     def get(self, tool: str, args: dict) -> Optional[Any]:
         k = self._chave(tool, args)
-        entrada = self._store.get(k)
-        if entrada is None or entrada.expirado:
-            if entrada:
-                del self._store[k]
-            self._misses += 1
+        e = self._store.get(k)
+        if e is None or e.expirado:
+            self._store.pop(k, None)
+            self._miss += 1
             return None
         self._hits += 1
-        log.debug("Cache HIT '%s' (%.0fs de idade)", tool, entrada.idade_s)
-        return entrada.valor
+        return e.valor
+
+
+
+
+
+
 
     def set(self, tool: str, args: dict, valor: Any, ttl: float) -> None:
         if len(self._store) >= self._max:
-            mais_antigo = min(self._store, key=lambda k: self._store[k].criado_em)
-            del self._store[mais_antigo]
-        k = self._chave(tool, args)
-        self._store[k] = EntradaCache(valor=valor, criado_em=time.monotonic(), ttl=ttl)
+            mais_velho = min(self._store, key=lambda k: self._store[k].criado_em)
+            del self._store[mais_velho]
+        self._store[self._chave(tool, args)] = Entrada(valor, time.monotonic(), ttl)
+
+
+
+
+
+
 
     def invalidar(self, tool: str) -> int:
-        removidos = [k for k in list(self._store) if tool in k]
-        for k in removidos:
+        chaves = [k for k in list(self._store) if tool in k]
+        for k in chaves:
             del self._store[k]
-        return len(removidos)
+        return len(chaves)
+
+
+
+
+
+
 
     def limpar(self) -> None:
         self._store.clear()
 
+
+
+
+
     @property
+
+
+
+
+
+
+
     def stats(self) -> dict:
-        total = self._hits + self._misses
-        taxa = (self._hits / total * 100) if total else 0
-        vivos = sum(1 for e in self._store.values() if not e.expirado)
+        total = self._hits + self._miss
         return {
             "hits": self._hits,
-            "misses": self._misses,
-            "taxa_hit": f"{taxa:.1f}%",
-            "entradas_vivas": vivos,
+            "misses": self._miss,
+            "taxa_hit": f"{(self._hits / total * 100) if total else 0:.1f}%",
+            "ativos": sum(1 for e in self._store.values() if not e.expirado),
         }
 
 
-_cache_global = CacheFerramenta()
 
 
-def config_da_ferramenta(nome: str) -> ConfigFerramenta:
-    return _CONFIGS.get(nome, _DEFAULT_CONFIG)
+
+cache = Cache()
 
 
-def executar_com_timeout(
-    func: Callable[[dict], Any],
-    args: dict,
-    timeout_s: float,
-    nome_tool: str,
-) -> Any:
-    import concurrent.futures
-    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
-        future = ex.submit(func, args)
-        try:
-            return future.result(timeout=timeout_s)
-        except concurrent.futures.TimeoutError:
-            log.warning("Timeout na ferramenta '%s' (%.0fs)", nome_tool, timeout_s)
-            return f"Timeout: '{nome_tool}' não respondeu em {timeout_s:.0f}s."
-        except Exception as e:
-            log.error("Erro na ferramenta '%s': %s", nome_tool, e)
-            return f"Erro em '{nome_tool}': {e}"
 
 
-async def executar_com_timeout_async(
-    func: Callable[[dict], Any],
-    args: dict,
-    timeout_s: float,
-    nome_tool: str,
-) -> Any:
-    loop = asyncio.get_event_loop()
-    try:
-        resultado = await asyncio.wait_for(
-            loop.run_in_executor(None, func, args),
-            timeout=timeout_s,
-        )
-        return resultado
-    except asyncio.TimeoutError:
-        log.warning("Timeout async na ferramenta '%s' (%.0fs)", nome_tool, timeout_s)
-        return f"Timeout: '{nome_tool}' não respondeu em {timeout_s:.0f}s."
-    except Exception as e:
-        log.error("Erro async na ferramenta '%s': %s", nome_tool, e)
-        return f"Erro em '{nome_tool}': {e}"
 
 
-async def despachar_ferramenta(nome: str, args: dict, func: Callable) -> Any:
-    cfg = config_da_ferramenta(nome)
 
-    if cfg.cache_ativo and cfg.ttl_cache_s > 0:
-        cached = _cache_global.get(nome, args)
+def cfg(nome: str) -> ConfigTool:
+    return CONFIGS.get(nome, DEFAULT)
+
+
+
+
+
+
+
+async def despachar(nome: str, args: dict, func: Callable) -> Any:
+    c = cfg(nome)
+
+    if c.cache and c.ttl_s > 0:
+        cached = cache.get(nome, args)
         if cached is not None:
             return cached
 
-    resultado = await executar_com_timeout_async(func, args, cfg.timeout_s, nome)
+    try:
+        resultado = await asyncio.wait_for(
+            asyncio.get_event_loop().run_in_executor(None, func, args),
+            timeout=c.timeout_s,
+        )
 
-    if cfg.cache_ativo and cfg.ttl_cache_s > 0:
+
+
+
+    except asyncio.TimeoutError:
+        log.warning("Timeout '%s' (%.0fs)", nome, c.timeout_s)
+        return f"Timeout: '{nome}' não respondeu em {c.timeout_s:.0f}s."
+    except Exception as e:
+        log.error("Erro '%s': %s", nome, e)
+        return f"Erro em '{nome}': {e}"
+
+
+
+
+    if c.cache and c.ttl_s > 0:
         if isinstance(resultado, str) and not resultado.startswith(("Erro", "Timeout")):
-            _cache_global.set(nome, args, resultado, cfg.ttl_cache_s)
+            cache.set(nome, args, resultado, c.ttl_s)
 
     return resultado
 
 
+
+
+
+
+
 def stats_cache() -> dict:
-    return _cache_global.stats
+    return cache.stats
 
 
-def invalidar_cache_tool(nome: str) -> str:
-    n = _cache_global.invalidar(nome)
-    return f"{n} entrada(s) removida(s) do cache de '{nome}'."
+
+
+
+
+
+def invalidar(nome: str) -> str:
+    n = cache.invalidar(nome)
+    return f"{n} entrada(s) removida(s) de '{nome}'."
+
+
+
+
+
 
 
 def limpar_cache() -> str:
-    _cache_global.limpar()
+    cache.limpar()
     return "Cache limpo."

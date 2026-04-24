@@ -1,347 +1,455 @@
+from __future__ import annotations
+
 import asyncio
-import base64
-import hashlib
-import logging
-import time
-from dataclasses import dataclass, field
-from io import BytesIO
-from typing import Callable, Optional
+
+from telegram import Update, BotCommand
+from telegram.ext import Application, CommandHandler, ContextTypes, MessageHandler, filters
 
 import config
-from mss import mss
-from openai import OpenAI
-from PIL import Image
+from engine.controller import processar_diretriz
+from engine.ia_router import router
+from storage.memory_manager import get_nome
+from tasks.alarm import adicionar_alarme, listar_alarmes, remover_alarme, parar_alarme_total
+from tasks.weather import obter_previsao_hoje, verificar_chuva_amanha
+from audio.audio import falar, interromper_voz
 
-log = logging.getLogger("vision")
-
-MAX_WIDTH = 1280
-JPEG_QUALITY = 42
-MONITOR_INDEX = 1
-
-_client: Optional[OpenAI] = None
+TOKEN      = getattr(config, "TELEGRAM_TOKEN", "")
+monitorando = False
 
 
-def get_client() -> Optional[OpenAI]:
-    global _client
-
-    if _client:
-        return _client
-
-    if not getattr(config, "QWEN_API_KEY", None):
-        log.error("QWEN_API_KEY ausente em config.")
-        return None
-
-    _client = OpenAI(api_key=config.QWEN_API_KEY, base_url=config.BASE_URL)
-    return _client
 
 
-def capturar_frame_base64() -> Optional[str]:
+
+
+
+def nome() -> str:
+    return get_nome() or "Chefe"
+
+
+
+
+
+
+
+def cidade_padrao() -> str:
     try:
-        with mss() as sct:
-            idx = MONITOR_INDEX if len(sct.monitors) > MONITOR_INDEX else 0
-            monitor = sct.monitors[idx]
-            screenshot = sct.grab(monitor)
-            img = Image.frombytes("RGB", screenshot.size, screenshot.bgra, "raw", "BGRX")
-
-            if img.width > MAX_WIDTH:
-                img.thumbnail((MAX_WIDTH, 720), Image.LANCZOS)
-
-            buffer = BytesIO()
-            img.save(buffer, format="JPEG", quality=JPEG_QUALITY)
-            return base64.b64encode(buffer.getvalue()).decode()
-
-    except Exception as e:
-        log.error("Erro ao capturar tela: %s", e)
-        return None
-
-
-def _hash_frame(b64: str) -> str:
-    return hashlib.md5(b64[:4096].encode()).hexdigest()
-
-
-_SYSTEM_VISAO_RAPIDA = (
-    "Você é o sensor visual do J.A.R.V.I.S. "
-    "Observe a tela e responda SOMENTE em JSON, sem markdown, sem explicações. "
-    "Formato obrigatório: "
-    '{"ok": true/false, "tipo": "normal|erro|aviso|crash|travado|instalacao|compilacao|terminal|codigo|navegador|outro", '
-    '"resumo": "frase curta do que vê", '
-    '"problema": "descrição do problema se ok=false, senão vazio", '
-    '"sugestao_rapida": "ação imediata se ok=false, senão vazia"} '
-    "Seja preciso. Máximo 20 palavras por campo."
-)
-
-_SYSTEM_DICA_PROFUNDA = (
-    "Você é J.A.R.V.I.S, assistente técnico especialista. "
-    "O usuário é desenvolvedor ADS. "
-    "Analise o problema detectado na tela e forneça: "
-    "1) diagnóstico direto do problema "
-    "2) causa provável "
-    "3) solução passo a passo (máximo 3 passos) "
-    "Seja técnico, direto, sem rodeios. "
-    "Responda em português. Máximo 80 palavras total."
-)
-
-
-async def _chamar_qwen(system: str, pergunta: str, img_b64: str, max_tokens: int = 120) -> str:
-    client = get_client()
-    if not client:
-        return "[ERRO] Cliente Qwen não configurado."
-
-    loop = asyncio.get_event_loop()
-
-    try:
-        resp = await loop.run_in_executor(
-            None,
-            lambda: client.chat.completions.create(
-                model=config.CURRENT_MODEL,
-                max_tokens=max_tokens,
-                messages=[
-                    {"role": "system", "content": system},
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "text", "text": pergunta},
-                            {
-                                "type": "image_url",
-                                "image_url": {"url": f"data:image/jpeg;base64,{img_b64}"},
-                            },
-                        ],
-                    },
-                ],
-            ),
-        )
-        return resp.choices[0].message.content.strip()
-
-    except Exception as e:
-        log.error("Erro Qwen API: %s", e)
-        return f"[ERRO] {e}"
-
-
-async def analisar_tela(pergunta: str = "O que vê na tela?") -> str:
-    client = get_client()
-    if not client:
-        return "[ERRO] Cliente não configurado."
-
-    loop = asyncio.get_event_loop()
-    img_b64 = await loop.run_in_executor(None, capturar_frame_base64)
-
-    if not img_b64:
-        return "[ERRO] Falha na captura de tela."
-
-    return await _chamar_qwen(_SYSTEM_VISAO_RAPIDA, pergunta, img_b64, max_tokens=120)
-
-
-async def gerar_dica_profunda(img_b64: str, problema: str, tipo: str) -> str:
-    prompt = (
-        f"Tipo de problema detectado: {tipo}.\n"
-        f"Descrição: {problema}\n"
-        f"Analise a tela e me diga o que fazer."
-    )
-    return await _chamar_qwen(_SYSTEM_DICA_PROFUNDA, prompt, img_b64, max_tokens=200)
-
-
-@dataclass
-class ResultadoAnalise:
-    ok: bool = True
-    tipo: str = "normal"
-    resumo: str = ""
-    problema: str = ""
-    sugestao_rapida: str = ""
-    dica_profunda: str = ""
-    img_b64: str = ""
-    timestamp: float = field(default_factory=time.time)
-
-
-@dataclass
-class MonitorConfig:
-    intervalo_s: float = 8.0
-    apenas_mudancas: bool = True
-    gerar_dica_automatica: bool = True
-    cooldown_alerta_s: float = 45.0
-    pergunta: str = "Analise esta tela. Há erros, travamentos ou problemas visíveis?"
-    callback: Optional[Callable] = None
-
-
-@dataclass
-class _MonitorState:
-    rodando: bool = False
-    ultimo_hash: str = ""
-    ultima_analise: str = ""
-    ultimo_resultado: Optional[ResultadoAnalise] = None
-    total_capturas: int = 0
-    total_chamadas_api: int = 0
-    total_problemas: int = 0
-    economizados: int = 0
-    ultimo_alerta_ts: float = 0.0
-
-
-_monitor_state = _MonitorState()
-_monitor_cfg: Optional[MonitorConfig] = None
-_monitor_task: Optional[asyncio.Task] = None
-
-
-def _parse_resultado(raw: str, img_b64: str) -> ResultadoAnalise:
-    import json
-    import re
-
-    try:
-        limpo = re.sub(r"```(?:json)?|```", "", raw).strip()
-        dados = json.loads(limpo)
-        return ResultadoAnalise(
-            ok=bool(dados.get("ok", True)),
-            tipo=str(dados.get("tipo", "normal")),
-            resumo=str(dados.get("resumo", "")),
-            problema=str(dados.get("problema", "")),
-            sugestao_rapida=str(dados.get("sugestao_rapida", "")),
-            img_b64=img_b64,
-        )
+        return config.carregar_tudo().get("cidade_padrao", "São Paulo")
     except Exception:
-        tem_problema = any(
-            k in raw.lower()
-            for k in ["erro", "error", "falha", "crash", "travad", "exception", "warning"]
-        )
-        return ResultadoAnalise(
-            ok=not tem_problema,
-            tipo="erro" if tem_problema else "normal",
-            resumo=raw[:120],
-            problema=raw[:120] if tem_problema else "",
-            img_b64=img_b64,
-        )
+        return "São Paulo"
 
 
-async def _loop_monitor():
-    global _monitor_state, _monitor_cfg
-
-    cfg = _monitor_cfg
-    state = _monitor_state
-
-    loop = asyncio.get_event_loop()
-
-    while state.rodando:
-        t_inicio = time.monotonic()
-
-        img_b64 = await loop.run_in_executor(None, capturar_frame_base64)
-        state.total_capturas += 1
-
-        if img_b64:
-            h = _hash_frame(img_b64)
-            mudou = h != state.ultimo_hash
-
-            if mudou or not cfg.apenas_mudancas:
-                state.ultimo_hash = h
-                state.total_chamadas_api += 1
-
-                raw = await _chamar_qwen(
-                    _SYSTEM_VISAO_RAPIDA,
-                    cfg.pergunta,
-                    img_b64,
-                    max_tokens=150,
-                )
-
-                resultado = _parse_resultado(raw, img_b64)
-                state.ultima_analise = resultado.resumo
-                state.ultimo_resultado = resultado
-
-                agora = time.time()
-                cooldown_ok = (agora - state.ultimo_alerta_ts) >= cfg.cooldown_alerta_s
-
-                if not resultado.ok and cooldown_ok:
-                    state.total_problemas += 1
-                    state.ultimo_alerta_ts = agora
-
-                    if cfg.gerar_dica_automatica:
-                        resultado.dica_profunda = await gerar_dica_profunda(
-                            img_b64,
-                            resultado.problema,
-                            resultado.tipo,
-                        )
-
-                    log.warning(
-                        "[MONITOR] Problema '%s': %s",
-                        resultado.tipo,
-                        resultado.problema[:80],
-                    )
-
-                    if cfg.callback:
-                        try:
-                            import inspect
-                            if inspect.iscoroutinefunction(cfg.callback):
-                                asyncio.create_task(cfg.callback(resultado))
-                            else:
-                                cfg.callback(resultado)
-                        except Exception as e:
-                            log.warning("Callback erro: %s", e)
-
-                else:
-
-                    if cfg.callback and resultado.ok:
-                        try:
-                            import inspect
-                            if inspect.iscoroutinefunction(cfg.callback):
-                                asyncio.create_task(cfg.callback(resultado))
-                            else:
-                                cfg.callback(resultado)
-                        except Exception as e:
-                            log.warning("Callback erro: %s", e)
-
-                    log.debug("[MONITOR] OK — %s", resultado.resumo[:60])
-
-            else:
-                state.economizados += 1
-
-        elapsed = time.monotonic() - t_inicio
-        await asyncio.sleep(max(0.5, cfg.intervalo_s - elapsed))
 
 
-async def iniciar_monitor(cfg: Optional[MonitorConfig] = None) -> bool:
-    global _monitor_state, _monitor_cfg, _monitor_task
-
-    if _monitor_task and not _monitor_task.done():
-        _monitor_task.cancel()
-        try:
-            await asyncio.wait_for(asyncio.shield(_monitor_task), timeout=2.0)
-        except Exception:
-            pass
-
-    _monitor_cfg   = cfg or MonitorConfig()
-
-    _monitor_state = _MonitorState(rodando=True)
-
-    loop = asyncio.get_event_loop()
-    _monitor_task  = loop.create_task(_loop_monitor())
-
-    log.info("[MONITOR] Iniciado — intervalo %.0fs", _monitor_cfg.intervalo_s)
-    return True
 
 
-def parar_monitor() -> dict:
-    global _monitor_state, _monitor_task
 
-    if not _monitor_state.rodando:
-        return {"status": "inativo"}
-
-    _monitor_state.rodando = False
-
-    if _monitor_task and not _monitor_task.done():
-        _monitor_task.cancel()
-
-    stats = {
-        "total_capturas":   _monitor_state.total_capturas,
-        "chamadas_api":     _monitor_state.total_chamadas_api,
-        "total_problemas":  _monitor_state.total_problemas,
-        "economizados":     _monitor_state.economizados,
-        "ultima_analise":   _monitor_state.ultima_analise,
-    }
-
-    return stats
+async def responder(update: Update, texto: str) -> None:
+    if not texto:
+        return
+    await update.message.reply_text(str(texto))
+    asyncio.create_task(falar(str(texto)))
 
 
-def status_monitor() -> dict:
-    return {
-        "rodando":          _monitor_state.rodando,
-        "total_capturas":   _monitor_state.total_capturas,
-        "chamadas_api":     _monitor_state.total_chamadas_api,
-        "total_problemas":  _monitor_state.total_problemas,
-        "economizados":     _monitor_state.economizados,
-        "ultima_analise":   _monitor_state.ultima_analise,
-    }
+
+
+
+
+
+async def processar(update: Update, texto: str) -> None:
+    resposta = await processar_diretriz(texto)
+    if not resposta:
+        resposta = await router.responder(texto, nome=nome())
+    await responder(update, resposta)
+
+
+
+
+
+
+
+async def cmd_jarvis(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    texto = " ".join(c.args)
+    if not texto:
+        await u.message.reply_text("Use: /jarvis <comando>")
+        return
+    await processar(u, texto)
+
+
+
+
+
+
+
+async def cmd_livre(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    if u.message.text:
+        await processar(u, u.message.text)
+
+
+
+
+
+
+
+async def cmd_status(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    from engine.ia_router import modelo, disponivel
+    await u.message.reply_text(
+        f"J.A.R.V.I.S\nOllama: {'online' if disponivel else 'offline'}\n"
+        f"Modelo: {modelo or 'nenhum'}\nMonitor: {'ativo' if monitorando else 'inativo'}"
+    )
+
+
+
+
+
+
+
+async def cmd_clima(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    cidade = " ".join(c.args).strip() or cidade_padrao()
+    loop   = asyncio.get_event_loop()
+    await responder(u, await loop.run_in_executor(None, obter_previsao_hoje, cidade))
+
+
+
+
+
+
+
+async def cmd_amanha(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    cidade = " ".join(c.args).strip() or cidade_padrao()
+    loop   = asyncio.get_event_loop()
+    await responder(u, await loop.run_in_executor(None, verificar_chuva_amanha, cidade))
+
+
+
+
+
+
+
+async def cmd_alarme(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    if len(c.args) < 2:
+        await u.message.reply_text("Use: /alarme HH:MM descricao")
+        return
+    await responder(u, adicionar_alarme(c.args[0], " ".join(c.args[1:])))
+
+
+
+
+
+
+
+async def cmd_listar(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    itens = listar_alarmes()
+    if not itens:
+        await u.message.reply_text("Nenhum alarme ativo.")
+        return
+    await u.message.reply_text("Alarmes:\n" + "\n".join(f"• {a['hora']} — {a['missao']}" for a in itens))
+
+
+
+
+
+
+
+async def cmd_remover(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    if len(c.args) < 2:
+        await u.message.reply_text("Use: /remover HH:MM descricao")
+        return
+    await responder(u, remover_alarme(c.args[0], " ".join(c.args[1:])))
+
+
+
+
+
+
+
+async def cmd_parar_alarme(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    await responder(u, parar_alarme_total())
+
+
+
+
+
+
+
+async def cmd_stop(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    interromper_voz()
+    await u.message.reply_text("Voz interrompida.")
+
+
+
+
+
+
+
+async def cmd_spotify(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    termo = " ".join(c.args).strip()
+    if not termo:
+        await u.message.reply_text("Use: /spotify <música>")
+        return
+    await processar(u, f"spotify {termo}")
+
+
+
+
+
+
+
+async def cmd_pausar(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    await responder(u, await processar_diretriz("pausar") or "Pausado.")
+
+
+
+
+
+
+
+async def cmd_continuar(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    await responder(u, await processar_diretriz("continuar") or "Retomado.")
+
+
+
+
+
+
+
+async def cmd_proxima(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    await responder(u, await processar_diretriz("proxima") or "Próxima.")
+
+
+
+
+
+
+
+async def cmd_youtube(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    termo = " ".join(c.args).strip()
+    if not termo:
+        await u.message.reply_text("Use: /youtube <busca>")
+        return
+    await processar(u, f"youtube {termo}")
+
+
+
+
+
+
+
+async def cmd_monitorar(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    global monitorando
+    intervalo = int(c.args[0]) if c.args and c.args[0].isdigit() else 10
+    monitorando = True
+    await responder(u, await processar_diretriz(f"monitorar tela {intervalo}") or f"Monitor ativo. Intervalo: {intervalo}s.")
+
+
+
+
+
+
+
+async def cmd_parar_monitor(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    global monitorando
+    monitorando = False
+    await responder(u, await processar_diretriz("desligar monitoramento") or "Monitor desativado.")
+
+
+
+
+
+
+
+async def cmd_tela(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    await u.message.reply_text("Analisando tela...")
+    await responder(u, await processar_diretriz("olha tela") or "Análise concluída.")
+
+
+
+
+
+
+
+async def cmd_abrir(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    nome_app = " ".join(c.args).strip()
+    if not nome_app:
+        await u.message.reply_text("Use: /abrir <app>")
+        return
+    resp = await processar_diretriz(f"abrir {nome_app}")
+    if not resp:
+        from tasks.open_app import open_app
+        resp = open_app({"app_name": nome_app}) or f"Abrindo {nome_app}."
+    await responder(u, resp)
+
+
+
+
+
+
+
+async def cmd_bloquear(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    await responder(u, await processar_diretriz("bloquear") or "Bloqueado.")
+
+
+
+
+
+
+
+async def cmd_screenshot(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    await responder(u, await processar_diretriz("screenshot") or "Screenshot capturado.")
+
+
+
+
+
+
+
+async def cmd_tvligar(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    await responder(u, await processar_diretriz("ligar tv") or "Ligando TV.")
+
+
+
+
+
+
+
+async def cmd_tvdesligar(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    await responder(u, await processar_diretriz("desligar tv") or "Desligando TV.")
+
+
+
+
+
+
+
+async def cmd_volume(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    nivel = c.args[0] if c.args else ""
+    if not nivel.isdigit():
+        await u.message.reply_text("Use: /volume <0-100>")
+        return
+    await responder(u, await processar_diretriz(f"volume {nivel}") or f"Volume {nivel}.")
+
+
+
+
+
+
+
+async def cmd_trabalho(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    await responder(u, await processar_diretriz("trabalho") or "Modo trabalho ativado.")
+
+
+
+
+
+
+
+async def cmd_ia(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    modo = " ".join(c.args).strip().lower()
+    if modo not in ("ollama", "gemini", "auto"):
+        await u.message.reply_text("Use: /ia ollama | gemini | auto")
+        return
+    await responder(u, router.definir_modo(modo))
+
+
+
+
+
+
+
+async def cmd_ajuda(u: Update, c: ContextTypes.DEFAULT_TYPE):
+    await u.message.reply_text(
+        "J.A.R.V.I.S — COMANDOS\n\n"
+        "GERAL: /jarvis /status /stop\n"
+        "CLIMA: /clima /amanha\n"
+        "ALARMES: /alarme /listar /remover /paralarme\n"
+        "MÚSICA: /spotify /pausar /continuar /proxima /youtube\n"
+        "SISTEMA: /abrir /bloquear /screenshot /trabalho /volume\n"
+        "TV: /tvligar /tvdesligar\n"
+        "VISÃO: /tela /monitorar /pararmonitor\n"
+        "IA: /ia ollama|gemini|auto\n\n"
+        "Ou fale diretamente sem comandos."
+    )
+
+
+
+
+
+
+
+async def setup_comandos(app: Application):
+    await app.bot.set_my_commands([
+        BotCommand("jarvis",       "Enviar comando"),
+        BotCommand("status",       "Status do sistema"),
+        BotCommand("clima",        "Clima atual"),
+        BotCommand("amanha",       "Previsão amanhã"),
+        BotCommand("alarme",       "Criar alarme"),
+        BotCommand("listar",       "Listar alarmes"),
+        BotCommand("remover",      "Remover alarme"),
+        BotCommand("paralarme",    "Parar alarme"),
+        BotCommand("spotify",      "Tocar no Spotify"),
+        BotCommand("pausar",       "Pausar"),
+        BotCommand("continuar",    "Continuar"),
+        BotCommand("proxima",      "Próxima faixa"),
+        BotCommand("youtube",      "YouTube"),
+        BotCommand("abrir",        "Abrir app"),
+        BotCommand("bloquear",     "Bloquear tela"),
+        BotCommand("screenshot",   "Capturar tela"),
+        BotCommand("tela",         "Analisar tela"),
+        BotCommand("monitorar",    "Monitoramento"),
+        BotCommand("pararmonitor", "Parar monitor"),
+        BotCommand("tvligar",      "Ligar TV"),
+        BotCommand("tvdesligar",   "Desligar TV"),
+        BotCommand("volume",       "Volume"),
+        BotCommand("trabalho",     "Modo trabalho"),
+        BotCommand("ia",           "Trocar IA"),
+        BotCommand("stop",         "Parar voz"),
+        BotCommand("ajuda",        "Ajuda"),
+    ])
+
+
+
+
+
+
+
+def iniciar_telegram():
+    if not TOKEN:
+        print("[TELEGRAM] Token não configurado. Bot não iniciado.")
+        return
+
+    print("[TELEGRAM] Iniciando...")
+    app = Application.builder().token(TOKEN).post_init(setup_comandos).build()
+
+    handlers = [
+        ("jarvis",       cmd_jarvis),
+        ("status",       cmd_status),
+        ("clima",        cmd_clima),
+        ("amanha",       cmd_amanha),
+        ("stop",         cmd_stop),
+        ("ajuda",        cmd_ajuda),
+        ("alarme",       cmd_alarme),
+        ("listar",       cmd_listar),
+        ("remover",      cmd_remover),
+        ("paralarme",    cmd_parar_alarme),
+        ("spotify",      cmd_spotify),
+        ("pausar",       cmd_pausar),
+        ("continuar",    cmd_continuar),
+        ("proxima",      cmd_proxima),
+        ("youtube",      cmd_youtube),
+        ("abrir",        cmd_abrir),
+        ("bloquear",     cmd_bloquear),
+        ("screenshot",   cmd_screenshot),
+        ("trabalho",     cmd_trabalho),
+        ("volume",       cmd_volume),
+        ("tvligar",      cmd_tvligar),
+        ("tvdesligar",   cmd_tvdesligar),
+        ("tela",         cmd_tela),
+        ("monitorar",    cmd_monitorar),
+        ("pararmonitor", cmd_parar_monitor),
+        ("ia",           cmd_ia),
+    ]
+
+    for nome_handler, fn in handlers:
+        app.add_handler(CommandHandler(nome_handler, fn))
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_livre))
+
+    app.run_polling()

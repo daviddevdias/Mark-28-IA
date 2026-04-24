@@ -5,15 +5,15 @@ import logging
 import webbrowser
 from typing import Callable
 
-from tasks.browser import _jarvis_web
+from tasks.browser import jarvis_web
 from tasks.spotify_manager import spotify_stark
 from tasks.open_app import open_app
 from tasks.weather import obter_previsao_hoje, verificar_chuva_amanha
 from tasks.alarm import adicionar_alarme, listar_alarmes, remover_alarme
 from tasks.computer_control import computer_settings
 from storage.memory_manager import load_memory, update_memory
-from engine.cmd_security import avaliar_comando, executar_seguro, CmdCategoria
-from engine.tool_cache import despachar_ferramenta, stats_cache, invalidar_cache_tool
+from engine.cmd_security import avaliar_comando, executar_seguro
+from engine.tool_cache import stats_cache, invalidar_cache_tool
 
 log = logging.getLogger("jarvis.tools_mapper")
 
@@ -40,7 +40,7 @@ def gerenciador_web(argumentos: dict) -> str:
     pesquisa = argumentos.get("query", "").strip()
     if not pesquisa:
         return "Nenhum termo de pesquisa informado."
-    return _jarvis_web.run(_jarvis_web.smart_search(pesquisa)) or "Sem resultados na web."
+    return jarvis_web.run(jarvis_web.smart_search(pesquisa)) or "Sem resultados na web."
 
 
 
@@ -82,7 +82,7 @@ def gerenciador_youtube(argumentos: dict) -> str:
     if not pesquisa:
         return "Nenhum termo informado para YouTube."
     return (
-        _jarvis_web.run(_jarvis_web.tocar_youtube(pesquisa))
+        jarvis_web.run(jarvis_web.tocar_youtube(pesquisa))
         or "Nada encontrado no YouTube."
     )
 
@@ -301,6 +301,10 @@ def gerenciador_cache_status(argumentos: dict) -> str:
         f"Cache — Hits: {stats['hits']} | Misses: {stats['misses']} | "
         f"Taxa: {stats['taxa_hit']} | Entradas ativas: {stats['entradas_vivas']}"
     )
+
+
+
+
 
 EXECUTOR_FERRAMENTAS: dict[str, Callable[[dict], str]] = {
     "open_app":         open_app,

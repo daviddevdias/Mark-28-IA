@@ -4,100 +4,77 @@ import re
 import shlex
 import subprocess
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
-from typing import Optional
+from typing import Optional, Callable
+
 
 log = logging.getLogger("jarvis.cmd_security")
 
 
-
-
-
-
-
-class CmdCategoria(Enum):
-    LEITURA = "leitura"
-    SISTEMA = "sistema"
-    REDE = "rede"
+class Categoria(Enum):
+    LEITURA   = "leitura"
+    SISTEMA   = "sistema"
+    REDE      = "rede"
     DESTRUTIVO = "destrutivo"
     BLOQUEADO = "bloqueado"
 
 
-
-
-
-
-
 @dataclass
-class RegraCmd:
+class Regra:
     padrao: re.Pattern
-    categoria: CmdCategoria
-    shell_permitido: bool = False
-    descricao: str = ""
-
-
-
-
-
+    categoria: Categoria
+    shell: bool = False
 
 
 @dataclass
-class ResultadoSeguranca:
+class Avaliacao:
     permitido: bool
-    requer_confirmacao: bool = False
-    categoria: CmdCategoria = CmdCategoria.BLOQUEADO
-    motivo: str = ""
-    comando_sanitizado: Optional[str] = None
+    confirmar: bool      = False
+    categoria: Categoria = Categoria.BLOQUEADO
+    motivo: str          = ""
+    cmd: Optional[str]   = None
 
-_BLOQUEADOS_ABSOLUTOS = [
-    r"rm\s+-rf\s+/",
-    r"rm\s+-rf\s+~",
-    r"rm\s+-rf\s+\$HOME",
-    r"mkfs",
-    r"dd\s+if=",
+
+BLOQUEIOS = [
+    r"rm\s+-rf\s+[/~\$]",
+    r"mkfs", r"dd\s+if=",
     r":\(\)\{.*\}",
     r"chmod\s+-R\s+777\s+/",
-    r"wget.+\|\s*(bash|sh|python)",
-    r"curl.+\|\s*(bash|sh|python)",
+    r"(wget|curl).+\|\s*(bash|sh|python)",
     r">\s*/dev/sda",
-    r"format\s+c:",
-    r"del\s+/f\s+/s\s+/q\s+[cC]:",
+    r"format\s+c:", r"del\s+/f\s+/s\s+/q\s+[cC]:",
     r"rd\s+/s\s+/q\s+[cC]:\\",
     r"Remove-Item\s+-Recurse\s+-Force\s+[cC]:",
     r"shutdown\s+/[fsr]",
-    r"halt\b",
-    r"poweroff\b",
-    r"reboot\b",
+    r"\b(halt|poweroff|reboot)\b",
     r"systemctl\s+(halt|poweroff|reboot)",
-    r"import\s+os.*system",
-    r"__import__",
-    r"eval\s*\(",
-    r"exec\s*\(",
+    r"__import__", r"eval\s*\(", r"exec\s*\(",
     r"base64\s+-d.*\|\s*(bash|sh)",
-    r"nc\s+-[el]",
-    r"netcat",
-    r"/etc/passwd",
-    r"/etc/shadow",
-    r"sudo\s+su",
-    r"sudo\s+-s",
+    r"nc\s+-[el]", r"netcat",
+    r"/etc/(passwd|shadow)",
+    r"sudo\s+(su|-s)",
 ]
 
-_REGRAS: list[RegraCmd] = [
-    RegraCmd(re.compile(r"^(ls|dir|echo|pwd|whoami|date|uptime|df|du|free|ps|top|cat\s+\S+\.txt|cat\s+\S+\.log|cat\s+\S+\.json|type\s+\S+)"), CmdCategoria.LEITURA, shell_permitido=False, descricao="leitura segura"),
-    RegraCmd(re.compile(r"^(python|python3|node|npm|pip)\s+"), CmdCategoria.SISTEMA, shell_permitido=False, descricao="runtime"),
-    RegraCmd(re.compile(r"^(mkdir|touch|cp|mv)\s+"), CmdCategoria.SISTEMA, shell_permitido=False, descricao="manipulação de arquivos"),
-    RegraCmd(re.compile(r"^(ping|nslookup|curl\s+https?://|wget\s+https?://)\s+"), CmdCategoria.REDE, shell_permitido=False, descricao="rede básica"),
-    RegraCmd(re.compile(r"^(tasklist|taskkill|Get-Process|Stop-Process|systemctl\s+status|service\s+\S+\s+status)"), CmdCategoria.SISTEMA, shell_permitido=True, descricao="processos"),
-    RegraCmd(re.compile(r"^(rm|del|rmdir|rd|Remove-Item|shred)\s+"), CmdCategoria.DESTRUTIVO, shell_permitido=True, descricao="remoção de arquivos"),
-    RegraCmd(re.compile(r"^(kill|taskkill\s+/f|Stop-Process\s+-Force)\s+"), CmdCategoria.DESTRUTIVO, shell_permitido=True, descricao="encerrar processo"),
-    RegraCmd(re.compile(r"^(pip\s+install|npm\s+install|apt\s+install|brew\s+install|winget\s+install)"), CmdCategoria.SISTEMA, shell_permitido=True, descricao="instalação de pacotes"),
-    RegraCmd(re.compile(r"^(powershell|cmd|bash|sh|zsh|fish)\s+"), CmdCategoria.SISTEMA, shell_permitido=True, descricao="subshell"),
-    RegraCmd(re.compile(r"^(netsh|iptables|ufw|firewall-cmd)\s+"), CmdCategoria.DESTRUTIVO, shell_permitido=True, descricao="firewall/rede"),
-    RegraCmd(re.compile(r"^(reg\s+|regedit|regedt32)"), CmdCategoria.DESTRUTIVO, shell_permitido=True, descricao="registro Windows"),
+
+
+
+REGRAS: list[Regra] = [
+    Regra(re.compile(r"^(ls|dir|echo|pwd|whoami|date|uptime|df|du|free|ps|top|cat\s+\S+\.(txt|log|json)|type\s+\S+)"), Categoria.LEITURA),
+    Regra(re.compile(r"^(python3?|node|npm|pip)\s+"),            Categoria.SISTEMA),
+    Regra(re.compile(r"^(mkdir|touch|cp|mv)\s+"),                Categoria.SISTEMA),
+    Regra(re.compile(r"^(ping|nslookup|curl\s+https?://|wget\s+https?://)\s+"), Categoria.REDE),
+    Regra(re.compile(r"^(tasklist|taskkill|Get-Process|Stop-Process|systemctl\s+status|service\s+\S+\s+status)"), Categoria.SISTEMA, shell=True),
+    Regra(re.compile(r"^(rm|del|rmdir|rd|Remove-Item|shred)\s+"), Categoria.DESTRUTIVO, shell=True),
+    Regra(re.compile(r"^(kill|taskkill\s+/f|Stop-Process\s+-Force)\s+"), Categoria.DESTRUTIVO, shell=True),
+    Regra(re.compile(r"^(pip\s+install|npm\s+install|apt\s+install|brew\s+install|winget\s+install)"), Categoria.SISTEMA, shell=True),
+    Regra(re.compile(r"^(powershell|cmd|bash|sh|zsh|fish)\s+"), Categoria.SISTEMA, shell=True),
+    Regra(re.compile(r"^(netsh|iptables|ufw|firewall-cmd)\s+"), Categoria.DESTRUTIVO, shell=True),
+    Regra(re.compile(r"^(reg\s+|regedit|regedt32)"),            Categoria.DESTRUTIVO, shell=True),
 ]
 
-_BLOQUEADOS_COMPILADOS = [re.compile(p, re.IGNORECASE) for p in _BLOQUEADOS_ABSOLUTOS]
+BLOQUEIOS_COMPILADOS = [re.compile(p, re.IGNORECASE) for p in BLOQUEIOS]
+INJECOES = [";", "&&", "||", "`", "$(", ">{", "<(", "2>&1 |"]
 
 
 
@@ -105,10 +82,8 @@ _BLOQUEADOS_COMPILADOS = [re.compile(p, re.IGNORECASE) for p in _BLOQUEADOS_ABSO
 
 
 
-def _contem_injecao(cmd: str) -> bool:
-    suspeitos = [";", "&&", "||", "`", "$(",  "$(", ">{", "<(", "2>&1 |"]
-    cmd_lower = cmd.lower()
-    return any(s in cmd_lower for s in suspeitos)
+def sanitizar(cmd: str) -> str:
+    return re.sub(r"\s+", " ", cmd.strip())
 
 
 
@@ -116,10 +91,8 @@ def _contem_injecao(cmd: str) -> bool:
 
 
 
-def _sanitizar(cmd: str) -> str:
-    cmd = cmd.strip()
-    cmd = re.sub(r"\s+", " ", cmd)
-    return cmd
+def tem_injecao(cmd: str) -> bool:
+    return any(s in cmd.lower() for s in INJECOES)
 
 
 
@@ -127,48 +100,32 @@ def _sanitizar(cmd: str) -> str:
 
 
 
-def avaliar_comando(comando: str) -> ResultadoSeguranca:
-    cmd = _sanitizar(comando)
+def avaliar(comando: str) -> Avaliacao:
+    cmd = sanitizar(comando)
 
     if not cmd:
-        return ResultadoSeguranca(permitido=False, motivo="Comando vazio.")
+        return Avaliacao(permitido=False, motivo="Comando vazio.")
 
-    for padrao in _BLOQUEADOS_COMPILADOS:
+    for padrao in BLOQUEIOS_COMPILADOS:
         if padrao.search(cmd):
-            log.warning("Comando bloqueado (padrão absoluto): %s", cmd[:80])
-            return ResultadoSeguranca(
-                permitido=False,
-                categoria=CmdCategoria.BLOQUEADO,
-                motivo=f"Comando bloqueado por política de segurança: padrão proibido detectado.",
-            )
+            log.warning("Bloqueado: %s", cmd[:80])
+            return Avaliacao(permitido=False, motivo="Padrão proibido detectado.")
 
-    if _contem_injecao(cmd):
-        log.warning("Possível injeção detectada: %s", cmd[:80])
-        return ResultadoSeguranca(
-            permitido=False,
-            categoria=CmdCategoria.BLOQUEADO,
-            motivo="Comando contém operadores de encadeamento suspeitos (;, &&, ||, backtick).",
-        )
+    if tem_injecao(cmd):
+        log.warning("Injeção detectada: %s", cmd[:80])
+        return Avaliacao(permitido=False, motivo="Operadores de encadeamento suspeitos (;, &&, ||).")
 
-    for regra in _REGRAS:
+    for regra in REGRAS:
         if regra.padrao.match(cmd):
-            requer_conf = regra.categoria == CmdCategoria.DESTRUTIVO
-            return ResultadoSeguranca(
+            return Avaliacao(
                 permitido=True,
-                requer_confirmacao=requer_conf,
+                confirmar=regra.categoria == Categoria.DESTRUTIVO,
                 categoria=regra.categoria,
-                motivo=regra.descricao,
-                comando_sanitizado=cmd,
+                cmd=cmd,
             )
 
-    log.info("Comando não mapeado, requer confirmação: %s", cmd[:80])
-    return ResultadoSeguranca(
-        permitido=True,
-        requer_confirmacao=True,
-        categoria=CmdCategoria.SISTEMA,
-        motivo="Comando não catalogado — confirmação necessária.",
-        comando_sanitizado=cmd,
-    )
+    return Avaliacao(permitido=True, confirmar=True, categoria=Categoria.SISTEMA, cmd=cmd,
+                     motivo="Comando não catalogado.")
 
 
 
@@ -176,61 +133,50 @@ def avaliar_comando(comando: str) -> ResultadoSeguranca:
 
 
 
-def executar_seguro(
-    comando: str,
-    timeout: int = 15,
-    confirmar_fn=None,
-) -> str:
-    avaliacao = avaliar_comando(comando)
+def executar(comando: str, timeout: int = 15, confirmar_fn: Optional[Callable] = None) -> str:
+    av = avaliar(comando)
 
-    if not avaliacao.permitido:
-        return f"Bloqueado: {avaliacao.motivo}"
+    if not av.permitido:
+        return f"Bloqueado: {av.motivo}"
 
-    if avaliacao.requer_confirmacao:
+    if av.confirmar:
         if confirmar_fn is None:
-            return (
-                f"Comando '{avaliacao.categoria.value}' requer confirmação explícita.\n"
-                f"Motivo: {avaliacao.motivo}\n"
-                f"Para executar, confirme com: executar_confirmado('{comando}')"
-            )
-        if not confirmar_fn(comando, avaliacao):
-            return "Execução cancelada pelo usuário."
+            return (f"Comando '{av.categoria.value}' requer confirmação.\n"
+                    f"Use: executar_confirmado('{comando}')")
+        if not confirmar_fn(comando, av):
+            return "Execução cancelada."
 
-    cmd = avaliacao.comando_sanitizado or comando
+    cmd = av.cmd or comando
+    usar_shell = any(r.shell and r.padrao.match(cmd) for r in REGRAS)
 
-    usar_shell = any(r.shell_permitido and r.padrao.match(cmd) for r in _REGRAS)
+
+
+
+
 
     try:
         if usar_shell:
-            resultado = subprocess.run(
-                cmd,
-                shell=True,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
+            res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=timeout)
         else:
             try:
                 args = shlex.split(cmd)
             except ValueError:
                 args = cmd.split()
-            resultado = subprocess.run(
-                args,
-                shell=False,
-                capture_output=True,
-                text=True,
-                timeout=timeout,
-            )
+            res = subprocess.run(args, shell=False, capture_output=True, text=True, timeout=timeout)
 
-        saida = (resultado.stdout or resultado.stderr or "Comando executado sem saída.").strip()
-        if resultado.returncode != 0:
-            log.warning("Comando retornou código %d: %s", resultado.returncode, cmd[:60])
+        saida = (res.stdout or res.stderr or "Executado sem saída.").strip()
+        if res.returncode != 0:
+            log.warning("Código %d: %s", res.returncode, cmd[:60])
         return saida[:600]
 
+
+
+
+
     except subprocess.TimeoutExpired:
-        return f"Timeout: comando excedeu {timeout}s."
+        return f"Timeout: excedeu {timeout}s."
     except FileNotFoundError as e:
         return f"Comando não encontrado: {e}"
     except Exception as e:
         log.error("Erro ao executar '%s': %s", cmd[:60], e)
-        return f"Erro na execução: {e}"
+        return f"Erro: {e}"
