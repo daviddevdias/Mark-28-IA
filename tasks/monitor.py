@@ -13,6 +13,7 @@ _ALERTAS = {
     "rede": False,
     "ram": False,
 }
+
 _inicio_sessao = datetime.now()
 _INTERVALO_S = 10
 _TEMP_CRITICA = 82
@@ -76,20 +77,10 @@ def checar_temperatura() -> None:
         return
     if temp >= _TEMP_CRITICA and not _ALERTAS["temp"]:
         print(f"[!] CRITICO: CPU a {temp:.0f}C")
-        (f"Alerta termico. Nucleo a {int(temp)} graus. Reduza a carga.")
+        falar(f"Alerta termico. Nucleo a {int(temp)} graus. Reduza a carga.")
         _ALERTAS["temp"] = True
     elif temp < _TEMP_OK:
         _ALERTAS["temp"] = False
-
-
-# def _checar_ram() -> None:
-#     pct = psutil.virtual_memory().percent
-#     if pct >= _RAM_CRITICA and not _ALERTAS["ram"]:
-#         print(f"[!] RAM critica: {pct:.0f}%")
-#         _falar(f"Memoria RAM em {int(pct)} por cento. Considere fechar aplicativos.")
-#         _ALERTAS["ram"] = True
-#     elif pct < _RAM_CRITICA - 5:
-#         _ALERTAS["ram"] = False
 
 
 def checar_bateria() -> None:
@@ -116,16 +107,7 @@ def monitorar_proativo() -> None:
 
 def iniciar_sentinela() -> None:
     print(
-        "-                                             -\n"
-        "-                                              -\n"
-        "-                                               -\n"
-        "-                                                -\n"
-        "[Jarvis] Motor Sentinela - Ativado verificando tudo\n"
-        "-                                                  -\n"
-        "-                                                   -\n"
-        "-                                                    -\n"
-        "-                                                     -\n"
-        "-                                                      -\n"
+        "[Jarvis] Motor Sentinela - Ativado verificando tudo"
     )
     t = threading.Thread(target=monitorar_proativo, daemon=True, name="Sentinela")
     t.start()

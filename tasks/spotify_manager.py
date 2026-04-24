@@ -11,11 +11,13 @@ from typing import Optional
 class SpotifyManager:
     _instance: Optional["SpotifyManager"] = None
 
+
     def __new__(cls) -> "SpotifyManager":
         if cls._instance is None:
             cls._instance = super(SpotifyManager, cls).__new__(cls)
             cls._instance._inicializado = False
         return cls._instance
+
 
     def __init__(self) -> None:
         if hasattr(self, "_inicializado") and self._inicializado:
@@ -47,7 +49,8 @@ class SpotifyManager:
 
         self._inicializado: bool = True
 
-    def focar_spotify(self) -> bool:
+
+    def _focar_spotify(self) -> bool:
         try:
             janelas = [
                 w for w in gw.getAllWindows()
@@ -64,6 +67,7 @@ class SpotifyManager:
         except Exception as e:
             print(f"[SPOTIFY] Erro window manager: {e}")
             return False
+
 
     def listar_e_tocar_playlist(self, nome_busca: str = "") -> str:
         if not self.sp:
@@ -102,6 +106,7 @@ class SpotifyManager:
             print(f"[SPOTIFY] Erro critico: {e}")
             return "Erro nos protocolos de audio."
 
+
     def abrir_e_buscar(self, termo: str) -> str:
         termo_formatado = termo.replace(" ", "%20")
         os.system(f"start spotify:search:{termo_formatado}")
@@ -112,6 +117,7 @@ class SpotifyManager:
             return f"Busca por {termo} concluida no player."
         return "Spotify aberto. Busca pode precisar de interacao manual."
 
+
     def tocar_minhas_favoritas(self) -> str:
         os.system("start spotify:collection:tracks")
         time.sleep(3)
@@ -120,6 +126,7 @@ class SpotifyManager:
             pyautogui.press("enter")
             return "Playlist de favoritas em execucao."
         return "Spotify aberto com favoritas."
+
 
     def controlar_reproducao(self, acao: str = "playpause") -> str:
         mapa_teclado = {
@@ -160,6 +167,7 @@ class SpotifyManager:
         else:
             pyautogui.press(tecla)
         return ""
+
 
     def adicionar_aos_favoritos(self) -> str:
         if not self.sp:

@@ -71,6 +71,25 @@ async def falar(texto: str) -> None:
 
     arquivo = os.path.join(config.ASSETS_DIR, "output.mp3")
 
+    # --- INÍCIO DA BLINDAGEM CONTRA O ERRO 13 ---
+    # 1. Força o pygame a soltar qualquer arquivo que esteja preso na memória
+    if pygame.mixer.get_init():
+        pygame.mixer.music.stop()
+        try:
+            pygame.mixer.music.unload()
+        except Exception:
+            pass
+
+    # 2. Tenta apagar o arquivo antigo. O loop garante que, se o SO demorar, ele tenta de novo.
+    for _ in range(3):
+        try:
+            if os.path.exists(arquivo):
+                os.remove(arquivo)
+            break
+        except PermissionError:
+            await asyncio.sleep(0.2)
+    # --- FIM DA BLINDAGEM ---
+
     try:
         os.makedirs(config.ASSETS_DIR, exist_ok=True)
         comm = edge_tts.Communicate(texto, config.voz_atual)

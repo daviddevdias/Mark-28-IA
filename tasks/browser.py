@@ -6,10 +6,7 @@ from playwright.async_api import async_playwright
 import re
 
 
-
 class JarvisWeb:
-
-
 
 
     def __init__(self):
@@ -22,16 +19,12 @@ class JarvisWeb:
         self.browser = None
 
 
-
-
     def start_system(self):
         if self.browser_thread and self.browser_thread.is_alive():
             return
         self.browser_thread = threading.Thread(target=self._run_loop, daemon=True)
         self.browser_thread.start()
         self.ready.wait(timeout=15)
-
-
 
 
     def _run_loop(self):
@@ -46,8 +39,6 @@ class JarvisWeb:
             self.ready.set()
 
 
-
-
     def run(self, coro):
         self.start_system()
         if not self.loop or not self.loop.is_running():
@@ -58,13 +49,9 @@ class JarvisWeb:
             return f"Erro execucao: {e}"
 
 
-
-
     async def _boot_sequence(self):
         if not self.pw:
             self.pw = await async_playwright().start()
-
-        profile = os.path.join(os.getcwd(), "logs", "jarvis_profile")
 
         chrome_path = (
             shutil.which("chrome")
@@ -75,12 +62,10 @@ class JarvisWeb:
         try:
             self.browser = await self.pw.chromium.launch(
                 headless=False,
-                executable_path=chrome_path
+                executable_path=chrome_path,
             )
 
-            self.ctx = await self.browser.new_context(
-                viewport=None
-            )
+            self.ctx = await self.browser.new_context(viewport=None)
 
             self.page = await self.ctx.new_page()
 
@@ -91,11 +76,9 @@ class JarvisWeb:
                 self.pw = None
 
 
-
-
     async def _ensure_alive(self):
         try:
-            if not self.browser or self.browser.is_connected() is False:
+            if not self.browser or not self.browser.is_connected():
                 await self._boot_sequence()
                 return
 
@@ -109,12 +92,14 @@ class JarvisWeb:
             await self._boot_sequence()
 
 
-
-
     async def smart_search(self, termo, private=False):
         await self._ensure_alive()
 
-        ctx = self.browser.new_context() if private else self.ctx
+        if private:
+            ctx = await self.browser.new_context()
+        else:
+            ctx = self.ctx
+
         page = await ctx.new_page()
 
         try:
@@ -132,18 +117,14 @@ class JarvisWeb:
             await page.close()
 
 
-
-
     async def _extract_google_result(self, page):
         try:
             rhs = page.locator("#rhs")
             if await rhs.count() > 0:
                 return (await rhs.inner_text())[:400]
             return (await page.inner_text("body"))[:500]
-        except:
+        except Exception:
             return "Sem resultado"
-
-
 
 
     async def tocar_youtube(self, termo):
@@ -152,7 +133,7 @@ class JarvisWeb:
         try:
             await self.page.goto(
                 f"https://www.youtube.com/results?search_query={termo}",
-                timeout=15000
+                timeout=15000,
             )
 
             video = self.page.locator("a#video-title").first
@@ -164,8 +145,6 @@ class JarvisWeb:
             return f"Erro YouTube: {e}"
 
 
-
-
     async def fechar_aba(self):
         if self.page and not self.page.is_closed():
             await self.page.close()
@@ -173,11 +152,7 @@ class JarvisWeb:
         return "Nenhuma aba ativa"
 
 
-
-
 _jarvis_web = JarvisWeb()
-
-
 
 
 async def web_controller(command: str):
@@ -194,7 +169,6 @@ async def web_controller(command: str):
     if "youtube" in cmd:
         termo = re.sub(r"^(pesquisar|pesquisa|buscar|busca)?\s*(no\s*)?youtube\s*", "", cmd).strip()
         termo = re.sub(r"^(tocar)\s*", "", termo).strip()
-
         if termo:
             return _jarvis_web.run(_jarvis_web.tocar_youtube(termo))
 
