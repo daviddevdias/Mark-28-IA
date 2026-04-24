@@ -14,7 +14,7 @@ from telegram.ext import (
 from engine.controller import processar_diretriz
 from engine.ia_router import router
 from storage.memory_manager import get_nome
-from tasks.alarm import adicionar_alarme, listar_alarmes, remover_alarme
+from tasks.alarm import adicionar_alarme, listar_alarmes, remover_alarme, parar_alarme_total
 from tasks.weather import obter_previsao_hoje, verificar_chuva_amanha
 from audio.audio import falar, interromper_voz
 import config
@@ -30,7 +30,7 @@ def _nome() -> str:
     return get_nome() or "Chefe"
 
 
-def _cidade_padrao() -> str:
+def cidade_padrao() -> str:
     try:
         dados = config._carregar_json(config.API_DIR / "config_core.json")
         return dados.get("cidade_padrao", "São Paulo")
@@ -38,7 +38,7 @@ def _cidade_padrao() -> str:
         return "São Paulo"
 
 
-async def _responder_e_falar(update: Update, texto: str):
+async def responder_e_falar(update: Update, texto: str):
     if not texto:
         return
     await update.message.reply_text(str(texto))
@@ -56,7 +56,7 @@ async def cmd_jarvis(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not resposta:
         resposta = await router.responder(texto, nome=_nome())
 
-    await _responder_e_falar(update, resposta)
+    await responder_e_falar(update, resposta)
 
 
 async def cmd_texto_livre(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -69,7 +69,7 @@ async def cmd_texto_livre(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not resposta:
         resposta = await router.responder(texto, nome=_nome())
 
-    await _responder_e_falar(update, resposta)
+    await responder_e_falar(update, resposta)
 
 
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -88,25 +88,25 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def cmd_clima(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cidade = " ".join(context.args).strip() if context.args else ""
     if not cidade:
-        cidade = _cidade_padrao()
+        cidade = cidade_padrao()
 
     await update.message.reply_text(f"Consultando clima em {cidade}...")
 
     loop = asyncio.get_event_loop()
     resposta = await loop.run_in_executor(None, obter_previsao_hoje, cidade)
 
-    await _responder_e_falar(update, resposta)
+    await responder_e_falar(update, resposta)
 
 
 async def cmd_clima_amanha(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cidade = " ".join(context.args).strip() if context.args else ""
     if not cidade:
-        cidade = _cidade_padrao()
+        cidade = cidade_padrao()
 
     loop = asyncio.get_event_loop()
     resposta = await loop.run_in_executor(None, verificar_chuva_amanha, cidade)
 
-    await _responder_e_falar(update, resposta)
+    await responder_e_falar(update, resposta)
 
 
 async def cmd_alarme_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -118,7 +118,7 @@ async def cmd_alarme_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     missao = " ".join(context.args[1:])
     resposta = adicionar_alarme(hora, missao)
 
-    await _responder_e_falar(update, resposta)
+    await responder_e_falar(update, resposta)
 
 
 async def cmd_alarme_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -143,7 +143,12 @@ async def cmd_alarme_remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
     missao = " ".join(context.args[1:])
     resposta = remover_alarme(hora, missao)
 
-    await _responder_e_falar(update, resposta)
+    await responder_e_falar(update, resposta)
+
+
+async def cmd_parar_alarme(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    resposta = parar_alarme_total()
+    await responder_e_falar(update, resposta)
 
 
 async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -161,22 +166,22 @@ async def cmd_spotify(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not resposta:
         resposta = "Comando enviado ao Spotify."
 
-    await _responder_e_falar(update, resposta)
+    await responder_e_falar(update, resposta)
 
 
 async def cmd_pausar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     resposta = await processar_diretriz("pausar")
-    await _responder_e_falar(update, resposta or "Música pausada.")
+    await responder_e_falar(update, resposta or "Música pausada.")
 
 
 async def cmd_continuar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     resposta = await processar_diretriz("continuar")
-    await _responder_e_falar(update, resposta or "Reprodução retomada.")
+    await responder_e_falar(update, resposta or "Reprodução retomada.")
 
 
 async def cmd_proxima(update: Update, context: ContextTypes.DEFAULT_TYPE):
     resposta = await processar_diretriz("proxima")
-    await _responder_e_falar(update, resposta or "Próxima faixa.")
+    await responder_e_falar(update, resposta or "Próxima faixa.")
 
 
 async def cmd_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -186,7 +191,7 @@ async def cmd_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     resposta = await processar_diretriz(f"youtube {termo}")
-    await _responder_e_falar(update, resposta or "Abrindo YouTube.")
+    await responder_e_falar(update, resposta or "Abrindo YouTube.")
 
 
 async def cmd_monitorar(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -198,7 +203,7 @@ async def cmd_monitorar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _monitorando = True
     resposta = await processar_diretriz(f"monitorar tela {intervalo}")
 
-    await _responder_e_falar(update, resposta or f"Monitoramento ativo. Intervalo: {intervalo}s.")
+    await responder_e_falar(update, resposta or f"Monitoramento ativo. Intervalo: {intervalo}s.")
 
 
 async def cmd_parar_monitor(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -206,14 +211,14 @@ async def cmd_parar_monitor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     _monitorando = False
 
     resposta = await processar_diretriz("desligar monitoramento")
-    await _responder_e_falar(update, resposta or "Monitoramento desativado.")
+    await responder_e_falar(update, resposta or "Monitoramento desativado.")
 
 
 async def cmd_tela(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Capturando e analisando a tela...")
 
     resposta = await processar_diretriz("olha tela")
-    await _responder_e_falar(update, resposta or "Análise concluída.")
+    await responder_e_falar(update, resposta or "Análise concluída.")
 
 
 async def cmd_abrir(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -227,27 +232,27 @@ async def cmd_abrir(update: Update, context: ContextTypes.DEFAULT_TYPE):
         from tasks.open_app import open_app
         resposta = open_app({"app_name": app_nome}) or f"Abrindo {app_nome}."
 
-    await _responder_e_falar(update, resposta)
+    await responder_e_falar(update, resposta)
 
 
 async def cmd_bloquear(update: Update, context: ContextTypes.DEFAULT_TYPE):
     resposta = await processar_diretriz("bloquear")
-    await _responder_e_falar(update, resposta or "Tela bloqueada.")
+    await responder_e_falar(update, resposta or "Tela bloqueada.")
 
 
 async def cmd_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     resposta = await processar_diretriz("screenshot")
-    await _responder_e_falar(update, resposta or "Screenshot capturado.")
+    await responder_e_falar(update, resposta or "Screenshot capturado.")
 
 
 async def cmd_tv_ligar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     resposta = await processar_diretriz("ligar tv")
-    await _responder_e_falar(update, resposta or "Ligando TV.")
+    await responder_e_falar(update, resposta or "Ligando TV.")
 
 
 async def cmd_tv_desligar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     resposta = await processar_diretriz("desligar tv")
-    await _responder_e_falar(update, resposta or "Desligando TV.")
+    await responder_e_falar(update, resposta or "Desligando TV.")
 
 
 async def cmd_volume(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -257,12 +262,12 @@ async def cmd_volume(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     resposta = await processar_diretriz(f"volume {nivel}")
-    await _responder_e_falar(update, resposta or f"Volume ajustado para {nivel}.")
+    await responder_e_falar(update, resposta or f"Volume ajustado para {nivel}.")
 
 
 async def cmd_trabalho(update: Update, context: ContextTypes.DEFAULT_TYPE):
     resposta = await processar_diretriz("trabalho")
-    await _responder_e_falar(update, resposta or "Modo trabalho ativado.")
+    await responder_e_falar(update, resposta or "Modo trabalho ativado.")
 
 
 async def cmd_ia(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -272,7 +277,7 @@ async def cmd_ia(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     msg = router.definir_modo(modo)
-    await _responder_e_falar(update, msg)
+    await responder_e_falar(update, msg)
 
 
 async def cmd_ajuda(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -288,7 +293,8 @@ async def cmd_ajuda(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "ALARMES\n"
         "/alarme HH:MM descricao\n"
         "/listar         — listar alarmes\n"
-        "/remover HH:MM descricao\n\n"
+        "/remover HH:MM descricao\n"
+        "/paralarme      — parar alarme tocando\n\n"
         "MÚSICA\n"
         "/spotify <busca>\n"
         "/pausar\n"
@@ -324,6 +330,7 @@ async def _configurar_comandos(application: Application):
         BotCommand("alarme",       "Criar alarme HH:MM desc"),
         BotCommand("listar",       "Listar alarmes"),
         BotCommand("remover",      "Remover alarme"),
+        BotCommand("paralarme",    "Parar alarme tocando"),
         BotCommand("spotify",      "Tocar no Spotify"),
         BotCommand("pausar",       "Pausar música"),
         BotCommand("continuar",    "Continuar música"),
@@ -367,6 +374,7 @@ def iniciar_telegram():
     app.add_handler(CommandHandler("alarme",       cmd_alarme_add))
     app.add_handler(CommandHandler("listar",       cmd_alarme_list))
     app.add_handler(CommandHandler("remover",      cmd_alarme_remove))
+    app.add_handler(CommandHandler("paralarme",    cmd_parar_alarme))
 
     app.add_handler(CommandHandler("spotify",      cmd_spotify))
     app.add_handler(CommandHandler("pausar",       cmd_pausar))

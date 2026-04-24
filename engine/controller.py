@@ -1,30 +1,35 @@
-
 from __future__ import annotations
-
 import asyncio
 import re
 from typing import Awaitable, Callable, Dict, Optional
-
 from audio.audio import falar, interromper_voz
 from tasks.spotify_manager import spotify_stark
 from tasks.smart_home import enviar_comando_tv, ligar_tv
 from tasks.open_app import open_app
 from tasks.computer_control import fechar_janela, minimizar_tudo, print_tela, bloquear_tela, limpar_lixeira
-
+from tasks.alarm import adicionar_alarme, parar_alarme_total
 
 SHUTDOWN_EVENT = asyncio.Event()
 Handler = Callable[[str], Awaitable[Optional[str]]]
+
+
+
+
+
 
 
 def get_shutdown_event() -> asyncio.Event:
     return SHUTDOWN_EVENT
 
 
+
+
+
+
+
 def normalizar(texto: str) -> str:
-    """Lowercase + colapsa espaços + remove acentos comuns."""
     t = texto.lower().strip()
     t = re.sub(r"\s+", " ", t)
-    # normalização leve de acentos para matching
     for src, dst in [("ã","a"),("â","a"),("á","a"),("à","a"),
                      ("ê","e"),("é","e"),("è","e"),
                      ("í","i"),("î","i"),
@@ -34,13 +39,20 @@ def normalizar(texto: str) -> str:
     return t
 
 
+
+
+
+
+
 def extrair_numero(texto: str) -> Optional[int]:
     m = re.search(r"\d+", texto)
     return int(m.group()) if m else None
 
 
 
-# Prefixos de voz a remover antes de extrair o termo de busca
+
+
+
 
 _PREFIXOS_SPOTIFY = [
     "buscar no spotify", "busca no spotify", "tocar no spotify", "toca no spotify",
@@ -66,6 +78,11 @@ _PREFIXOS_WEB = [
 ]
 
 
+
+
+
+
+
 def extrair_termo(cmd: str, prefixos: list) -> str:
     texto = cmd.strip()
     for p in sorted(prefixos, key=len, reverse=True):
@@ -76,7 +93,8 @@ def extrair_termo(cmd: str, prefixos: list) -> str:
 
 
 
-# Handlers
+
+
 
 
 async def encerrar(cmd: str) -> str:
@@ -85,10 +103,20 @@ async def encerrar(cmd: str) -> str:
     return ""
 
 
+
+
+
+
+
 async def desligar_inteligente(cmd: str) -> str:
     if any(p in cmd for p in ("tv", "televisao")):
         return await tv_desligar(cmd)
     return await encerrar(cmd)
+
+
+
+
+
 
 
 async def silencio(cmd: str) -> str:
@@ -96,9 +124,19 @@ async def silencio(cmd: str) -> str:
     return ""
 
 
+
+
+
+
+
 async def bloquear(cmd: str) -> str:
     bloquear_tela()
     return "Tela bloqueada."
+
+
+
+
+
 
 
 async def minimizar(cmd: str) -> str:
@@ -106,9 +144,19 @@ async def minimizar(cmd: str) -> str:
     return "Janelas minimizadas."
 
 
+
+
+
+
+
 async def fechar(cmd: str) -> str:
     fechar_janela()
     return "Janela fechada."
+
+
+
+
+
 
 
 async def comando_print(cmd: str) -> str:
@@ -116,9 +164,19 @@ async def comando_print(cmd: str) -> str:
     return "Screenshot capturado."
 
 
+
+
+
+
+
 async def limpar_lixo(cmd: str) -> str:
     limpar_lixeira()
     return "Lixeira limpa."
+
+
+
+
+
 
 
 async def modo_trabalho(cmd: str) -> str:
@@ -127,12 +185,27 @@ async def modo_trabalho(cmd: str) -> str:
     return "Modo trabalho ativado."
 
 
+
+
+
+
+
 async def tv_ligar(cmd: str) -> str:
     return "TV ligada." if ligar_tv() else "Falha ao ligar TV."
 
 
+
+
+
+
+
 async def tv_desligar(cmd: str) -> str:
     return "TV desligada." if enviar_comando_tv("off", "switch") else "Erro ao desligar TV."
+
+
+
+
+
 
 
 async def tv_volume(cmd: str) -> str:
@@ -144,6 +217,11 @@ async def tv_volume(cmd: str) -> str:
     return f"Volume ajustado para {nivel}." if ok else "Erro no volume."
 
 
+
+
+
+
+
 async def musica_spotify(cmd: str) -> str:
     cmd_limpo = re.sub(r"\bspotify\b", "", cmd)
     cmd_limpo = re.sub(r"\s+", " ", cmd_limpo).strip()
@@ -153,6 +231,11 @@ async def musica_spotify(cmd: str) -> str:
     return spotify_stark.abrir_e_buscar(termo)
 
 
+
+
+
+
+
 async def musica(cmd: str) -> str:
     termo = extrair_termo(cmd, _PREFIXOS_SPOTIFY)
     if not termo:
@@ -160,13 +243,28 @@ async def musica(cmd: str) -> str:
     return spotify_stark.abrir_e_buscar(termo)
 
 
+
+
+
+
+
 async def playlist(cmd: str) -> str:
     termo = re.sub(r"\bplaylist\b", "", cmd).strip()
     return spotify_stark.listar_e_tocar_playlist(termo)
 
 
+
+
+
+
+
 async def favoritas(cmd: str) -> str:
     return spotify_stark.tocar_minhas_favoritas()
+
+
+
+
+
 
 
 async def pausar(cmd: str) -> str:
@@ -174,9 +272,19 @@ async def pausar(cmd: str) -> str:
     return ""
 
 
+
+
+
+
+
 async def continuar(cmd: str) -> str:
     spotify_stark.controlar_reproducao("play")
     return ""
+
+
+
+
+
 
 
 async def proxima(cmd: str) -> str:
@@ -184,9 +292,19 @@ async def proxima(cmd: str) -> str:
     return ""
 
 
+
+
+
+
+
 async def anterior(cmd: str) -> str:
     spotify_stark.controlar_reproducao("anterior")
     return ""
+
+
+
+
+
 
 
 async def youtube(cmd: str) -> str:
@@ -197,6 +315,11 @@ async def youtube(cmd: str) -> str:
     return _jarvis_web.run(_jarvis_web.tocar_youtube(termo))
 
 
+
+
+
+
+
 async def pesquisa(cmd: str) -> str:
     from tasks.browser import _jarvis_web
     termo = extrair_termo(cmd, _PREFIXOS_WEB)
@@ -205,10 +328,20 @@ async def pesquisa(cmd: str) -> str:
     return _jarvis_web.run(_jarvis_web.smart_search(termo))
 
 
+
+
+
+
+
 async def monitorar_tela(cmd: str) -> str:
     from engine.core import ligar_monitoramento
     await ligar_monitoramento(cmd)
     return ""
+
+
+
+
+
 
 
 async def desligar_monitor(cmd: str) -> str:
@@ -217,10 +350,20 @@ async def desligar_monitor(cmd: str) -> str:
     return ""
 
 
+
+
+
+
+
 async def status_monitor(cmd: str) -> str:
     from engine.core import status_do_sistema
     await status_do_sistema()
     return ""
+
+
+
+
+
 
 
 async def olha_tela(cmd: str) -> str:
@@ -232,13 +375,42 @@ async def olha_tela(cmd: str) -> str:
 
 
 
+
+
+async def comando_alarme(cmd: str) -> str:
+    match = re.search(r"(\d{1,2})[:h](\d{2})", cmd.replace(" e ", ":"))
+    if not match:
+        match = re.search(r"(\d{1,2})", cmd)
+        if match:
+            hora = f"{int(match.group(1)):02d}:00"
+        else:
+            return "Por favor, me informe a hora do alarme."
+    else:
+        hora = f"{int(match.group(1)):02d}:{int(match.group(2)):02d}"
+    return adicionar_alarme(hora, "Alarme programado por voz")
+
+
+
+
+
+
+
+async def comando_parar_alarme(cmd: str) -> str:
+    return parar_alarme_total()
+
+
+
+
+
+
+
 _ROUTES: list[tuple[tuple[str, ...], Handler]] = [
-    # Sistema
     (("encerrar",),              encerrar),
     (("desligar", "sistema"),    encerrar),
     (("desligar",),              desligar_inteligente),
     (("silencio",),              silencio),
     (("mutar",),                 silencio),
+
     (("bloquear",),              bloquear),
     (("lock",),                  bloquear),
     (("minimizar",),             minimizar),
@@ -248,8 +420,6 @@ _ROUTES: list[tuple[tuple[str, ...], Handler]] = [
     (("limpar", "lixeira"),      limpar_lixo),
     (("limpar",),                limpar_lixo),
     (("trabalho",),              modo_trabalho),
-
-    # TV
     (("ligar", "tv"),            tv_ligar),
     (("liga", "tv"),             tv_ligar),
     (("tv", "ligar"),            tv_ligar),
@@ -257,11 +427,7 @@ _ROUTES: list[tuple[tuple[str, ...], Handler]] = [
     (("desliga", "tv"),          tv_desligar),
     (("tv", "desligar"),         tv_desligar),
     (("volume",),                tv_volume),
-
-    # Spotify explícito
     (("spotify",),               musica_spotify),
-
-    # Música genérica
     (("tocar", "musica"),        musica),
     (("toca", "musica"),         musica),
     (("colocar", "musica"),      musica),
@@ -272,17 +438,11 @@ _ROUTES: list[tuple[tuple[str, ...], Handler]] = [
     (("continuar",),             continuar),
     (("proxima",),               proxima),
     (("anterior",),              anterior),
-
-    # YouTube
     (("youtube",),               youtube),
-
-    # Web
     (("pesquisar", "google"),    pesquisa),
     (("pesquisar", "web"),       pesquisa),
     (("pesquisar",),             pesquisa),
     (("pesquisa",),              pesquisa),
-
-    # Monitor/Visão
     (("monitorar", "tela"),      monitorar_tela),
     (("monitorar",),             monitorar_tela),
     (("desligar", "monitor"),    desligar_monitor),
@@ -290,19 +450,31 @@ _ROUTES: list[tuple[tuple[str, ...], Handler]] = [
     (("monitor", "status"),      status_monitor),
     (("olha", "tela"),           olha_tela),
     (("analisa", "tela"),        olha_tela),
+    (("agendar", "alarme"),      comando_alarme),
+    (("agendar", "horario"),     comando_alarme),
+    (("criar", "alarme"),        comando_alarme),
+    (("despertar",),             comando_alarme),
+    (("parar", "alarme"),        comando_parar_alarme),
+    (("parar", "musica"),        comando_parar_alarme),
+    (("desligar", "alarme"),     comando_parar_alarme),
+    (("acordei",),               comando_parar_alarme),
+    (("ja", "acordei"),          comando_parar_alarme),
 ]
 
-
 _PREFIXO_PARA_CHAVE: dict[str, str] = {}
+
 for _route in _ROUTES:
     for _kw in _route[0]:
-
         for _n in range(4, len(_kw) + 1):
             _PREFIXO_PARA_CHAVE.setdefault(_kw[:_n], _kw)
 
 
-def expandir(cmd: str) -> str:
 
+
+
+
+
+def expandir(cmd: str) -> str:
     tokens = cmd.split()
     expandido = []
     for tok in tokens:
@@ -310,14 +482,22 @@ def expandir(cmd: str) -> str:
     return " ".join(expandido)
 
 
+
+
+
+
+
 def buscar_comando(cmd: str) -> Optional[Handler]:
-   
-   
     cmd_exp = expandir(cmd)
     for keywords, handler in _ROUTES:
         if all(kw in cmd_exp for kw in keywords):
             return handler
     return None
+
+
+
+
+
 
 
 async def processar_diretriz(texto: str) -> Optional[str]:

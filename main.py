@@ -6,6 +6,7 @@ import json
 import subprocess
 import requests
 import time
+import shutil
 
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
@@ -30,11 +31,13 @@ os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-logging"
 QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
 app = QApplication(sys.argv)
 
-_processando = False
+
+
+
+
+
 
 def _encontrar_ollama() -> str | None:
-    import shutil
-
     candidatos = [
         shutil.which("ollama"),
         r"C:\Users\{}\AppData\Local\Programs\Ollama\ollama.exe".format(os.environ.get("USERNAME", "")),
@@ -42,12 +45,15 @@ def _encontrar_ollama() -> str | None:
         r"C:\Program Files (x86)\Ollama\ollama.exe",
         os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Ollama", "ollama.exe"),
     ]
-
     for caminho in candidatos:
         if caminho and os.path.isfile(caminho):
             return caminho
-
     return None
+
+
+
+
+
 
 
 def iniciar_ollama() -> bool:
@@ -58,15 +64,11 @@ def iniciar_ollama() -> bool:
         return True
     except Exception:
         pass
-
     ollama_exe = _encontrar_ollama()
-
     if not ollama_exe:
         print("[OLLAMA] Executavel nao encontrado. Instale em https://ollama.com")
         return False
-
     print(f"[OLLAMA] Iniciando servico via: {ollama_exe}")
-
     try:
         subprocess.Popen(
             [ollama_exe, "serve"],
@@ -77,7 +79,6 @@ def iniciar_ollama() -> bool:
     except Exception as e:
         print(f"[OLLAMA] Erro ao iniciar processo: {e}")
         return False
-
     for _ in range(15):
         time.sleep(1)
         try:
@@ -90,15 +91,19 @@ def iniciar_ollama() -> bool:
             return True
         except Exception:
             continue
-
     print("[OLLAMA] AVISO: servico nao respondeu apos 15s.")
     return False
+
+
+
+
+
+
 
 def _iniciar_subsistemas():
     sincronizar_config()
     iniciar_sentinela()
     iniciar_sistema_alarmes()
-
     t_telegram = threading.Thread(
         target=iniciar_telegram,
         daemon=True,
@@ -106,8 +111,13 @@ def _iniciar_subsistemas():
     )
     t_telegram.start()
 
+
+
+
+
+
+
 async def _executar_comando(resultado: str, ui: PainelCore) -> None:
-    global _processando
     try:
         processou = await processar_comando(resultado)
         if processou:
@@ -115,36 +125,55 @@ async def _executar_comando(resultado: str, ui: PainelCore) -> None:
                 json.dumps({"resposta": f"Executado: {resultado}"})
             )
     except Exception as e:
-        print(f"[COMANDO] Erro: {e}")
-    finally:
-        _processando = False
+        print(f"[COMANDO] Erro crítico: {e}")
+
+
+
+
+
+
 
 async def engine_core_async(ui: PainelCore):
-    # Agora a IA inicializa sabendo que o Ollama foi chamado
     await inicializar_ia()
     _iniciar_subsistemas()
-
+    
+    loop = asyncio.get_running_loop()
+    registrar_falar_alarme(lambda texto: asyncio.run_coroutine_threadsafe(falar(texto), loop))
+    
     shutdown_evt = get_shutdown_event()
-
     while not shutdown_evt.is_set():
         try:
-            resultado = await asyncio.wait_for(ouvir_comando(), timeout=1.0)
-            if not resultado: continue
-
-            global _processando
-            if _processando: continue
-
-            ativo, comando = processar_wake(resultado)
-            if not ativo or not comando: continue
-
-            _processando = True
-            asyncio.create_task(_executar_comando(comando, ui))
-
-        except asyncio.TimeoutError:
-            continue
+            resultado = await ouvir_comando()
+            if not resultado: 
+                continue
+            
+            texto_lower = resultado.lower()
+            comando_pronto = ""
+            
+            if "jarvis" in texto_lower:
+                comando_pronto = texto_lower.replace("jarvis", "").strip()
+            else:
+                ativo, cmd_wake = processar_wake(resultado)
+                if ativo and cmd_wake:
+                    comando_pronto = cmd_wake
+                    
+            if not comando_pronto:
+                continue
+            
+            try:
+                await asyncio.wait_for(_executar_comando(comando_pronto, ui), timeout=45.0)
+            except asyncio.TimeoutError:
+                print("\n[SISTEMA] O comando demorou demais e foi cancelado para evitar travamentos.")
+            
         except Exception as e:
             print(f"[LOOP] Erro: {e}")
             await asyncio.sleep(0.3)
+
+
+
+
+
+
 
 def engine_core_wrapper(ui: PainelCore):
     loop = asyncio.new_event_loop()
@@ -155,33 +184,30 @@ def engine_core_wrapper(ui: PainelCore):
     finally:
         loop.close()
 
-def iniciar_sistema():
-    # 1. PASSO CRUCIAL: Iniciar o Ollama antes de tudo
-    iniciar_ollama()
 
+
+
+
+
+
+def iniciar_sistema():
+    iniciar_ollama()
     try:
         ui = PainelCore()
-        ui.show()
-
         def ocultar_painel(event):
             event.ignore()
             ui.hide()
-
         ui.closeEvent = ocultar_painel
         hud = JarvisUI()
-
         def mostrar_painel_web():
             ui.show()
             ui.raise_()
             ui.activateWindow()
-
         try:
             hud.btn_code.clicked.disconnect()
         except TypeError: pass
-
         hud.btn_code.clicked.connect(mostrar_painel_web)
         hud.show()
-
         t = threading.Thread(
             target=engine_core_wrapper,
             args=(ui,),
@@ -189,12 +215,16 @@ def iniciar_sistema():
             name="CoreEngine",
         )
         t.start()
-
         sys.exit(app.exec())
-
     except Exception as e:
         print(f"[SISTEMA] Erro fatal: {e}")
         sys.exit(1)
+
+
+
+
+
+
 
 if __name__ == "__main__":
     iniciar_sistema()

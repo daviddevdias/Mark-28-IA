@@ -13,6 +13,7 @@ from engine.ia_router import (
     _detectar_modelo,
 )
 from engine.controller import processar_diretriz
+from tasks.alarm import alarme_ativo, parar_alarme_total
 
 AGUARDANDO_CONFIRMACAO = False
 ULTIMA_ANALISE_OBJ = None
@@ -32,18 +33,33 @@ ALERTAS_POR_TIPO = {
 }
 
 
+
+
+
+
+
 def registrar_ui_bridge(bridge) -> None:
     global _ui_bridge
     _ui_bridge = bridge
 
 
-def _emitir_para_ui(dados: dict) -> None:
+
+
+
+
+
+def emitir_para_ui(dados: dict) -> None:
     if _ui_bridge is None:
         return
     try:
         _ui_bridge.dados_para_ui.emit(json.dumps(dados))
     except Exception:
         pass
+
+
+
+
+
 
 
 def contexto() -> str:
@@ -55,8 +71,18 @@ def contexto() -> str:
     return ctx
 
 
+
+
+
+
+
 async def inicializar_ia() -> None:
     await _detectar_modelo()
+
+
+
+
+
 
 
 async def analisar_tela_agora() -> None:
@@ -80,7 +106,7 @@ async def analisar_tela_agora() -> None:
 
     resultado = _parse_resultado(raw, img_b64)
 
-    _emitir_para_ui({
+    emitir_para_ui({
         "visao_img": img_b64,
         "visao_status": "Análise concluída.",
         "visao_resultado": resultado.resumo,
@@ -98,7 +124,7 @@ async def analisar_tela_agora() -> None:
         dica = await gerar_dica_profunda(img_b64, resultado.problema, resultado.tipo)
         resultado.dica_profunda = dica
 
-        _emitir_para_ui({
+        emitir_para_ui({
             "monitor_dica": dica,
             "monitor_tipo": resultado.tipo,
         })
@@ -111,10 +137,14 @@ async def analisar_tela_agora() -> None:
         await falar(resultado.resumo)
 
 
+
+
+
+
+
 async def ligar_monitoramento(comando: str) -> None:
     from vision.capture import MonitorConfig, parar_monitor, _monitor_state
 
-    # FIX: Garante que monitor anterior foi encerrado antes de religar
     if _monitor_state.rodando:
         parar_monitor()
         await asyncio.sleep(0.5)
@@ -137,7 +167,7 @@ async def ligar_monitoramento(comando: str) -> None:
     loop = asyncio.get_running_loop()
     await iniciar_monitor(cfg)
 
-    _emitir_para_ui({
+    emitir_para_ui({
         "monitor_status": "ativo",
         "monitor_intervalo": int(intervalo),
     })
@@ -145,13 +175,18 @@ async def ligar_monitoramento(comando: str) -> None:
     await falar(f"Monitoramento ativo, senhor. Intervalo de {int(intervalo)} segundos.")
 
 
+
+
+
+
+
 async def desligar_monitoramento() -> None:
     global AGUARDANDO_CONFIRMACAO
-    AGUARDANDO_CONFIRMACAO = False  # FIX: reseta flag ao desligar
+    AGUARDANDO_CONFIRMACAO = False
 
     stats = parar_hardware_monitor()
 
-    _emitir_para_ui({
+    emitir_para_ui({
         "monitor_status": "inativo",
         "monitor_stats": stats,
     })
@@ -171,6 +206,11 @@ async def desligar_monitoramento() -> None:
     )
 
 
+
+
+
+
+
 async def status_do_sistema() -> None:
     s = obter_status_hardware()
     if s["rodando"]:
@@ -184,11 +224,31 @@ async def status_do_sistema() -> None:
     await falar(msg)
 
 
+
+
+
+
+
+def quer_parar_alarme(comando: str) -> bool:
+    cmd = comando.lower()
+    return any(p in cmd for p in ("parar", "desligar", "acordei", "chega", "ok"))
+
+
+
+
+
+
+
 async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) -> bool:
     global AGUARDANDO_CONFIRMACAO, ULTIMA_ANALISE_OBJ
 
     if not comando.strip() and not imagem_monitor:
         return False
+
+    if alarme_ativo and quer_parar_alarme(comando):
+        resposta = parar_alarme_total()
+        await falar(resposta)
+        return True
 
     if AGUARDANDO_CONFIRMACAO:
         cmd_lower = comando.lower()
@@ -206,7 +266,7 @@ async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) 
                     memoria=contexto(),
                 )
 
-            _emitir_para_ui({
+            emitir_para_ui({
                 "monitor_dica": dica,
                 "monitor_tipo": obj.tipo if obj else "erro",
             })
@@ -220,8 +280,6 @@ async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) 
             await falar("Entendido, senhor. Monitoramento continua.")
             return True
 
-        # FIX: se aguardando confirmação, qualquer outro comando ainda processa normalmente
-        # mas notifica que há uma confirmação pendente
         await falar("Senhor, ainda aguardo sua confirmação sobre o problema detectado. Diga 'sim' ou 'não'.")
         return True
 
@@ -248,6 +306,11 @@ async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) 
     return True
 
 
+
+
+
+
+
 async def loop_monitoramento_automatico(resultado) -> None:
     global AGUARDANDO_CONFIRMACAO, ULTIMA_ANALISE_OBJ, ULTIMA_SUGESTAO
 
@@ -256,14 +319,12 @@ async def loop_monitoramento_automatico(resultado) -> None:
     if not isinstance(resultado, ResultadoAnalise):
         return
 
-    # FIX: se aguardando confirmação, NÃO emite novos alertas — pausa completa
     if AGUARDANDO_CONFIRMACAO:
         return
 
     agora = time.time()
 
-    # Sempre emite o evento para o painel (inclusive OK)
-    _emitir_para_ui({
+    emitir_para_ui({
         "monitor_evento": {
             "ok":             resultado.ok,
             "tipo":           resultado.tipo,
@@ -275,8 +336,7 @@ async def loop_monitoramento_automatico(resultado) -> None:
     })
 
     if resultado.ok:
-        # Emite status OK também para o painel ver
-        _emitir_para_ui({"monitor_ultimo_ok": resultado.resumo})
+        emitir_para_ui({"monitor_ultimo_ok": resultado.resumo})
         return
 
     if (agora - ULTIMA_SUGESTAO) < 45.0:
@@ -289,7 +349,7 @@ async def loop_monitoramento_automatico(resultado) -> None:
     alerta = ALERTAS_POR_TIPO.get(resultado.tipo, "Senhor, detectei algo incomum na tela.")
 
     if resultado.dica_profunda:
-        _emitir_para_ui({
+        emitir_para_ui({
             "monitor_dica":  resultado.dica_profunda,
             "monitor_tipo":  resultado.tipo,
             "monitor_alerta": alerta,
@@ -299,7 +359,7 @@ async def loop_monitoramento_automatico(resultado) -> None:
         print(f"[Jarvis - DICA]: {resultado.dica_profunda}\n")
         await falar(f"{alerta} {resultado.sugestao_rapida}. Deseja a análise completa?")
     else:
-        _emitir_para_ui({
+        emitir_para_ui({
             "monitor_alerta": alerta,
             "monitor_tipo":   resultado.tipo,
             "aguardando_confirmacao": True,

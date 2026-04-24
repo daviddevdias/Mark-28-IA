@@ -11,12 +11,22 @@ from typing import Optional
 log = logging.getLogger("jarvis.cmd_security")
 
 
+
+
+
+
+
 class CmdCategoria(Enum):
     LEITURA = "leitura"
     SISTEMA = "sistema"
     REDE = "rede"
     DESTRUTIVO = "destrutivo"
     BLOQUEADO = "bloqueado"
+
+
+
+
+
 
 
 @dataclass
@@ -27,6 +37,11 @@ class RegraCmd:
     descricao: str = ""
 
 
+
+
+
+
+
 @dataclass
 class ResultadoSeguranca:
     permitido: bool
@@ -34,7 +49,6 @@ class ResultadoSeguranca:
     categoria: CmdCategoria = CmdCategoria.BLOQUEADO
     motivo: str = ""
     comando_sanitizado: Optional[str] = None
-
 
 _BLOQUEADOS_ABSOLUTOS = [
     r"rm\s+-rf\s+/",
@@ -86,16 +100,31 @@ _REGRAS: list[RegraCmd] = [
 _BLOQUEADOS_COMPILADOS = [re.compile(p, re.IGNORECASE) for p in _BLOQUEADOS_ABSOLUTOS]
 
 
+
+
+
+
+
 def _contem_injecao(cmd: str) -> bool:
     suspeitos = [";", "&&", "||", "`", "$(",  "$(", ">{", "<(", "2>&1 |"]
     cmd_lower = cmd.lower()
     return any(s in cmd_lower for s in suspeitos)
 
 
+
+
+
+
+
 def _sanitizar(cmd: str) -> str:
     cmd = cmd.strip()
     cmd = re.sub(r"\s+", " ", cmd)
     return cmd
+
+
+
+
+
 
 
 def avaliar_comando(comando: str) -> ResultadoSeguranca:
@@ -140,6 +169,11 @@ def avaliar_comando(comando: str) -> ResultadoSeguranca:
         motivo="Comando não catalogado — confirmação necessária.",
         comando_sanitizado=cmd,
     )
+
+
+
+
+
 
 
 def executar_seguro(

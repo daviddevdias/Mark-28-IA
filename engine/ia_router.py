@@ -47,8 +47,20 @@ _SYSTEM = (
     "6. Seja conversacional, se o usuário puxar assunto, responda como uma verdadeira IA."
 )
 
+
+
+
+
+
+
 def _system_msg(ctx: str) -> str:
     return _SYSTEM.format(ctx=ctx[:300] if ctx else "Sem contexto")
+
+
+
+
+
+
 
 def _modelo_suporta_tools(modelo: str) -> bool:
     if not modelo:
@@ -57,6 +69,12 @@ def _modelo_suporta_tools(modelo: str) -> bool:
     suportados = ["qwen", "phi3", "mixtral", "mistral", "llama3.1", "llama3.2"]
     return any(m in modelo for m in suportados)
 
+
+
+
+
+
+
 def ligar_monitor(intervalo_s: float = 10.0, callback=None) -> None:
     cfg = MonitorConfig(intervalo_s=intervalo_s, callback=callback)
     try:
@@ -64,6 +82,12 @@ def ligar_monitor(intervalo_s: float = 10.0, callback=None) -> None:
         asyncio.run_coroutine_threadsafe(_iniciar_monitor_raw(cfg), loop)
     except Exception as e:
         log.error("Erro ao ligar monitor: %s", e)
+
+
+
+
+
+
 
 async def _detectar_modelo() -> bool:
     global _MODELO_DETECTADO, _DISPONIVEL, _ULTIMO_CHECK
@@ -97,12 +121,24 @@ async def _detectar_modelo() -> bool:
         _DISPONIVEL = False
         return False
 
+
+
+
+
+
+
 async def _check_if_needed(force: bool = False) -> None:
     global _ULTIMO_CHECK, _DISPONIVEL
     agora = time.time()
     if not force and _DISPONIVEL and (agora - _ULTIMO_CHECK) < _CHECK_COOL:
         return
     await _detectar_modelo()
+
+
+
+
+
+
 
 class Historico:
     def __init__(self) -> None:
@@ -128,6 +164,12 @@ class Historico:
 
     def clear(self) -> None:
         self._turns.clear()
+
+
+
+
+
+
 
 class IARRouter:
     def __init__(self) -> None:

@@ -4,7 +4,7 @@ import unicodedata
 
 
 WAKE_WORDS = {
-    "jarvis", "core", "assistente", "acorda", "acorde",
+    "jarvis", "assistente", "acorda", "acorde",
     "modo escuta", "ativar sistema", "ei jarvis", "hey jarvis",
     "ola jer", "ola je", "ola jar", "jar", "jers", "james",
     "ola jarvis", "jefferson", "germes", "jabes", "germe",
