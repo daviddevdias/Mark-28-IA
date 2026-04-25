@@ -206,7 +206,7 @@ async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) 
 
     if AGUARDANDO_CONFIRMACAO:
         cmd = comando.lower()
-        if any(p in cmd for p in ("sim", "pode", "analisa", "continua", "vai")):
+        if any(p in cmd for p in ("sim", "pode", "analisa","analisar","resolver", "continua", "vai")):
             AGUARDANDO_CONFIRMACAO = False
             obj = ULTIMA_ANALISE_OBJ
             if obj and obj.img_b64:

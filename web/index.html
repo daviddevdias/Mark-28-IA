@@ -10,32 +10,48 @@
 
 <div id="app">
 
-    <nav id="sidebar">
-        <div class="sidebar-header">
-            <div class="logo-ring">
-                <div class="logo-inner">
-                    <span class="logo-icon">◈</span>
-                </div>
+    <header id="topnav" class="topnav">
+        <div class="topnav-brand">
+            <div class="arc-reactor" aria-hidden="true" title="Núcleo J.A.R.V.I.S">
+                <svg viewBox="0 0 64 64" class="arc-reactor-svg">
+                    <defs>
+                        <radialGradient id="arcGrad" cx="50%" cy="50%" r="50%">
+                            <stop offset="0%" style="stop-color:#fff2cc;stop-opacity:1" />
+                            <stop offset="45%" style="stop-color:#ffb400;stop-opacity:1" />
+                            <stop offset="100%" style="stop-color:#cc5500;stop-opacity:0.9" />
+                        </radialGradient>
+                    </defs>
+                    <circle class="arc-ring arc-r3" cx="32" cy="32" r="28" fill="none" />
+                    <circle class="arc-ring arc-r2" cx="32" cy="32" r="20" fill="none" />
+                    <circle class="arc-ring arc-r1" cx="32" cy="32" r="12" fill="none" />
+                    <circle cx="32" cy="32" r="6" fill="url(#arcGrad)" class="arc-core" />
+                </svg>
             </div>
-            <h1 class="logo-title">J.A.R.V.I.S</h1>
-            <p class="logo-sub">MARK XXVIII · NEURAL OS</p>
+            <div class="topnav-titles">
+                <h1 class="logo-title">J.A.R.V.I.S</h1>
+                <p class="logo-sub">MARK XXVIII · NEURAL OS</p>
+            </div>
         </div>
 
-        <div class="sidebar-sep"></div>
+        <div class="topnav-nav-cluster">
+            <button type="button" class="nav-scroll-fab" id="navScrollLeft" aria-label="Menu para a esquerda">◀</button>
+            <nav class="topnav-scroll" id="topnavScroll">
+                <div class="sidebar-nav" id="navBtns"></div>
+            </nav>
+            <button type="button" class="nav-scroll-fab" id="navScrollRight" aria-label="Menu para a direita">▶</button>
+        </div>
 
-        <nav class="sidebar-nav" id="navBtns"></nav>
-
-        <div class="sidebar-footer">
+        <div class="topnav-end">
             <div class="sys-status">
                 <span class="status-dot"></span>
                 <span class="status-txt">SISTEMA ONLINE</span>
             </div>
             <div class="sidebar-meta" id="sidebarMeta">HOST · CORE-SYSTEM</div>
-            <button class="btn-power" onclick="confirmarDesligamento()">
+            <button class="btn-power" type="button" onclick="confirmarDesligamento()">
                 <span>⏻</span> ENCERRAR
             </button>
         </div>
-    </nav>
+    </header>
 
     <main id="main">
         <header class="topbar">

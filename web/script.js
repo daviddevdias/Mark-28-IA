@@ -7,17 +7,17 @@ const PG = {
 window.PG = PG;
 
 const PAGES = [
-    { id: 'weather',  label: 'CLIMA',        icon: '◎'  },
-    { id: 'dash',     label: 'DIAGNÓSTICO',  icon: '◉'  },
-    { id: 'cmds',     label: 'COMANDOS',     icon: '📚' },
-    { id: 'voz',      label: 'VOZ',          icon: '🎙' },
-    { id: 'visao',    label: 'VISÃO IA',     icon: '👁️' },
-    { id: 'monitor',  label: 'MONITOR',      icon: '⬡'  },
-    { id: 'chat',     label: 'CHAT IA',      icon: '◈'  },
-    { id: 'notas',    label: 'NOTAS',        icon: '◑'  },
-    { id: 'ia',       label: 'MODELO',       icon: '◒'  },
-    { id: 'config',   label: 'CONFIG',       icon: '⊙'  },
-    { id: 'temas',    label: 'VISUAL',       icon: '◓'  },
+    { id: 'weather',  label: 'CLIMA',        icon: '◍'  },
+    { id: 'dash',     label: 'DIAGNÓSTICO',  icon: '⟡'  },
+    { id: 'cmds',     label: 'COMANDOS',     icon: '⌬'  },
+    { id: 'voz',      label: 'VOZ',          icon: '◉'  },
+    { id: 'visao',    label: 'VISÃO IA',     icon: '◬'  },
+    { id: 'monitor',  label: 'MONITOR',      icon: '⬢'  },
+    { id: 'chat',     label: 'CHAT IA',      icon: '◇'  },
+    { id: 'notas',    label: 'NOTAS',        icon: '⋮'  },
+    { id: 'ia',       label: 'MODELO',       icon: '⟢'  },
+    { id: 'config',   label: 'CONFIG',       icon: '⛭'  },
+    { id: 'temas',    label: 'VISUAL',       icon: '◈'  },
 ];
 
 const state = {
@@ -25,7 +25,7 @@ const state = {
     theme: '',
     themes: {},
     notas: '',
-    apis: { gemini: '', qwen: '', smartthings: '', spotify_id: '', spotify_sec: '', nome_mestre: '', cidade_padrao: '' },
+    apis: { gemini: '', qwen: '', smartthings: '', smartthings_tv_id: '', spotify_id: '', spotify_sec: '', nome_mestre: '', cidade_padrao: '' },
     ia: { modo: 'ollama', modelo: '', ollama: false },
     configEdit: false,
 
@@ -66,11 +66,8 @@ const state = {
     voz: {
         speaking: false,
         vol: 0.1,
-        vozAtual: 'pt-BR-AntonioNeural',
         deviceIndex: 0,
-        silencioso: false,
         microfones: [],
-        vozesEdge: [],
     },
     cmdLibrary: [],
     cmdFilter: '',
@@ -588,7 +585,7 @@ async function pgComandos(wrap) {
     wrap.innerHTML = `
         <div class="page-header">
             <div>
-                <div class="page-title">BIBLIOTECA DE COMANDOS</div>
+                <div class="page-title">⌬ BIBLIOTECA DE COMANDOS</div>
                 <div class="page-sub">Rotas de voz e atalhos reconhecidos pelo núcleo</div>
             </div>
             <input class="input" id="cmdFilterIn" placeholder="Filtrar…" style="max-width:280px;"
@@ -665,15 +662,12 @@ function pgVoz(wrap) {
             return `<option value="${safeIdx}" ${sel}>${esc(m)}</option>`;
         }).join('')
         : '<option value="0">Dispositivo padrão</option>';
-    const vozes = (v.vozesEdge || []).map(o =>
-        `<option value="${esc(o.id)}" ${o.id === v.vozAtual ? 'selected' : ''}>${esc(o.label)}</option>`
-    ).join('');
 
     wrap.innerHTML = `
         <div class="page-header">
             <div>
                 <div class="page-title">PROTOCOLO DE VOZ</div>
-                <div class="page-sub">Edge TTS, microfone e estado em tempo real</div>
+                <div class="page-sub">Entrada de áudio · síntese em tempo real · consola mostra «escutando…» e o texto ouvido</div>
             </div>
         </div>
 
@@ -685,29 +679,22 @@ function pgVoz(wrap) {
                     ${Array.from({ length: 16 }, () => '<div class="voz-bar"></div>').join('')}
                 </div>
                 <div class="voice-meter-legend">
-                    ${v.speaking ? '<span style="color:var(--accent2);">● A falar</span>' : '<span style="color:var(--text3);">○ Idle</span>'}
+                    ${v.speaking ? '<span style="color:var(--accent2);">● A falar</span>' : '<span style="color:var(--text3);">○ Pronto</span>'}
                 </div>
             </div>
 
             <div class="card" style="padding:22px;flex:1;">
                 <div class="card-accent" style="background:linear-gradient(90deg,var(--accent2),transparent);"></div>
                 <div class="voice-field">
-                    <label>Voz (Edge TTS)</label>
-                    <select class="input" id="selVozEdge">${vozes || '<option value="pt-BR-AntonioNeural">Antonio</option>'}</select>
-                </div>
-                <div class="voice-field">
                     <label>Microfone</label>
                     <select class="input" id="selMicDev">${mics}</select>
-                </div>
-                <div class="voice-field row">
-                    <label><input type="checkbox" id="chkSilencioso" ${v.silencioso ? 'checked' : ''}> Modo silencioso (sem TTS)</label>
                 </div>
                 <div class="voice-actions">
                     <button type="button" class="btn btn-accent" id="btnTestVoz">▶ TESTAR VOZ</button>
                     <button type="button" class="btn btn-warn" id="btnStopVoz">■ PARAR</button>
                     <button type="button" class="btn btn-ghost" id="btnSaveVoz">💾 GUARDAR</button>
                 </div>
-                <p class="voice-hint">O medidor reage quando o Jarvis fala (motor principal). Use «Testar voz» para validar Edge TTS.</p>
+                <p class="voice-hint">TTS usa a voz padrão do sistema (Edge). O medidor anima quando o motor fala. Na consola só aparece <strong>ouvido: «…»</strong> quando o microfone reconhece fala (ex.: após «oi jarvis»).</p>
             </div>
         </div>`;
 
@@ -720,16 +707,10 @@ function pgVoz(wrap) {
     });
     document.getElementById('btnSaveVoz')?.addEventListener('click', () => {
         if (!window.jarvis) { toast('Bridge não conectada.', 'err'); return; }
-        const voice = document.getElementById('selVozEdge')?.value || v.vozAtual;
         const idx = parseInt(document.getElementById('selMicDev')?.value || '0', 10) || 0;
-        const sil = document.getElementById('chkSilencioso')?.checked;
-        window.jarvis.salvar_configuracao('voz', voice);
         window.jarvis.salvar_configuracao('device_index', String(idx));
-        window.jarvis.salvar_configuracao('modo_silencioso', sil ? 'true' : 'false');
-        state.voz.vozAtual = voice;
         state.voz.deviceIndex = idx;
-        state.voz.silencioso = !!sil;
-        toast('Configuração de voz guardada.');
+        toast('Microfone guardado.');
     });
 
     atualizarMedidorVoz();
@@ -740,10 +721,10 @@ function pgVisao(wrap) {
     wrap.innerHTML = `
         <div class="page-header">
             <div>
-                <div class="page-title">MÓDULO DE VISÃO COMPUTACIONAL</div>
+                <div class="page-title">◬ MÓDULO DE VISÃO COMPUTACIONAL</div>
                 <div class="page-sub">Monitorização óptica via Qwen VL Multimodal</div>
             </div>
-            <button class="btn btn-accent" onclick="iniciarAnaliseVisual()">📸 INICIAR VARREDURA</button>
+            <button class="btn btn-accent" onclick="iniciarAnaliseVisual()">⌾ INICIAR VARREDURA</button>
         </div>
 
         <div style="display:flex;gap:20px;margin-top:20px;height:calc(100vh - 250px);">
@@ -757,7 +738,7 @@ function pgVisao(wrap) {
                 </div>
                 <img id="visaoFrame" src=""
                      style="display:none;max-width:100%;max-height:100%;
-                            border-radius:6px;box-shadow:0 0 20px rgba(0,200,255,.1);" />
+                            border-radius:6px;box-shadow:0 0 20px rgba(255,160,0,.12);" />
             </div>
 
             <div class="card" style="flex:1;padding:22px;display:flex;flex-direction:column;">
@@ -852,11 +833,8 @@ async function loadData() {
         if (vozRaw) {
             try {
                 const v = JSON.parse(vozRaw);
-                state.voz.vozAtual = v.voz || state.voz.vozAtual;
                 state.voz.deviceIndex = Number(v.device_index) || 0;
-                state.voz.silencioso = !!v.modo_silencioso;
                 state.voz.microfones = Array.isArray(v.microfones) ? v.microfones : [];
-                state.voz.vozesEdge = Array.isArray(v.vozes_edge) ? v.vozes_edge : [];
             } catch (e) {}
         }
 
@@ -882,6 +860,7 @@ async function loadData() {
         addLog('warn', 'Dados do sistema indisponíveis — usando padrões');
     }
     renderPage();
+    setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
 }
 
 
@@ -905,6 +884,7 @@ function bridgeCall(method, arg) {
 
 function boot() {
     buildNav();
+    setupNavScrollArrows();
     startClock();
     startMetricSimulation();
     injetarCSS();
@@ -912,6 +892,48 @@ function boot() {
     document.addEventListener('keydown', konamiHandler);
     addLog('ok', 'J.A.R.V.I.S MARK XXVIII inicializado');
     addLog('info', 'Aguardando bridge Qt...');
+}
+
+
+function setupNavScrollArrows() {
+    const sc = document.getElementById('topnavScroll');
+    const L = document.getElementById('navScrollLeft');
+    const R = document.getElementById('navScrollRight');
+    if (!sc || !L || !R) return;
+
+    const step = () => Math.max(120, Math.floor(sc.clientWidth * 0.55));
+
+    const sync = () => {
+        const max = Math.max(0, sc.scrollWidth - sc.clientWidth - 1);
+        const x = sc.scrollLeft;
+        L.disabled = max <= 0 || x <= 1;
+        R.disabled = max <= 0 || x >= max - 1;
+    };
+
+    const tapAnim = (btn) => {
+        if (!btn || btn.disabled) return;
+        btn.classList.remove('tap-anim');
+        void btn.offsetWidth;
+        btn.classList.add('tap-anim');
+    };
+
+    L.addEventListener('click', () => {
+        tapAnim(L);
+        sc.scrollBy({ left: -step(), behavior: 'smooth' });
+    });
+    R.addEventListener('click', () => {
+        tapAnim(R);
+        sc.scrollBy({ left: step(), behavior: 'smooth' });
+    });
+    sc.addEventListener('scroll', sync, { passive: true });
+    window.addEventListener('resize', sync, { passive: true });
+    if (typeof ResizeObserver !== 'undefined') {
+        try {
+            new ResizeObserver(sync).observe(sc);
+        } catch (e) { /* ignore */ }
+    }
+    queueMicrotask(sync);
+    setTimeout(sync, 400);
 }
 
 
@@ -936,7 +958,6 @@ function buildNav() {
         btn.id = `nb${i}`;
         btn.innerHTML = `<span class="nav-icon">${p.icon}</span>${p.label}`;
         btn.onclick = () => navegarPara(i);
-        btn.style.animation = `navIn .3s var(--ease) ${i * 0.04}s both`;
         nav.appendChild(btn);
     });
 }
@@ -1249,12 +1270,12 @@ function pgDash(wrap) {
         </div>
 
         <div class="quick-grid">
-            ${quickBtn('🔒','BLOQUEAR TELA', 'bloquear',       'var(--purple)', 'rgba(136,85,255,.05)')}
-            ${quickBtn('📸','CAPTURAR TELA', 'captura',        'var(--accent)', 'rgba(0,200,255,.05)')}
-            ${quickBtn('🗑️','LIMPAR LIXEIRA','limpar lixeira', 'var(--red)',    'rgba(255,34,85,.05)')}
-            ${quickBtn('🖥️','MINIMIZAR TUDO','minimizar',      'var(--accent2)','rgba(0,255,157,.05)')}
-            ${quickBtn('❌','FECHAR JANELA', 'fechar',         'var(--orange)', 'rgba(255,122,0,.05)')}
-            ${quickBtn('💼','MODO TRABALHO', 'trabalho',       'var(--yellow)', 'rgba(255,199,0,.05)')}
+            ${quickBtn('⛨','BLOQUEAR TELA', 'bloquear',       'var(--purple)', 'rgba(136,85,255,.05)')}
+            ${quickBtn('⌾','CAPTURAR TELA', 'captura',        'var(--accent)', 'rgba(255,160,0,.08)')}
+            ${quickBtn('⌦','LIMPAR LIXEIRA','limpar lixeira', 'var(--red)',    'rgba(255,34,85,.05)')}
+            ${quickBtn('▣','MINIMIZAR TUDO','minimizar',      'var(--accent2)','rgba(255,160,0,.07)')}
+            ${quickBtn('⨯','FECHAR JANELA', 'fechar',         'var(--orange)', 'rgba(255,122,0,.05)')}
+            ${quickBtn('⌁','MODO TRABALHO', 'trabalho',       'var(--yellow)', 'rgba(255,199,0,.05)')}
         </div>
     `;
 
@@ -1290,12 +1311,20 @@ function spec(k, v) {
 function quickBtn(icon, label, cmd, col, bg) {
     return `
         <div class="quick-btn" style="--hover-col:${bg};color:${col};border-color:var(--border);"
-             onclick="enviarComando('${cmd}')"
+             onclick="${cmd === 'fechar' ? 'ocultarPainelQt()' : `enviarComando('${cmd}')`}"
              onmouseover="this.style.borderColor='${col}40'"
              onmouseout="this.style.borderColor='var(--border)'">
             <span class="quick-icon">${icon}</span>
             <span class="quick-label" style="color:${col};">${label}</span>
         </div>`;
+}
+
+function ocultarPainelQt() {
+    // Fecha/oculta SOMENTE o painel (janela Qt). Não encerra o Jarvis.
+    try {
+        if (window.jarvis?.ocultar_painel) { window.jarvis.ocultar_painel(); return; }
+    } catch(e) {}
+    toast('Bridge não conectada.', 'warn');
 }
 
 
@@ -1559,6 +1588,7 @@ function pgConfig(wrap) {
         { key:'gemini',      label:'GEMINI API KEY',    tip:'Google AI Studio'  },
         { key:'qwen',        label:'QWEN API KEY',      tip:'Alibaba Cloud'     },
         { key:'smartthings', label:'SMARTTHINGS TOKEN', tip:'SmartThings API'   },
+        { key:'smartthings_tv_id', label:'SMARTTHINGS — ID DA TV (opcional)', tip:'Cole o deviceId (app SmartThings → TV → três pontos → Informação)' },
         { key:'spotify_id',  label:'SPOTIFY CLIENT ID', tip:'Spotify Dashboard' },
         { key:'spotify_sec', label:'SPOTIFY SECRET',    tip:'Spotify Dashboard' },
     ];
@@ -1587,7 +1617,7 @@ function pgConfig(wrap) {
                             <div class="api-label">${f.label}</div>
                             <div class="api-status ${state.apis[f.key] ? 'ok' : ''}" id="dot_${f.key}"></div>
                         </div>
-                        <input class="api-input" id="api_${f.key}" type="password"
+                        <input class="api-input" id="api_${f.key}" type="${f.key === 'smartthings_tv_id' ? 'text' : 'password'}"
                                placeholder="${f.tip}"
                                value="${esc(state.apis[f.key] || '')}"
                                ${state.configEdit ? '' : 'readonly'}
@@ -1647,7 +1677,7 @@ function onApiInput(key, val) {
 
 function salvarConfig() {
     if (!window.jarvis) { toast('Bridge não conectada.', 'err'); return; }
-    const keys = ['gemini','qwen','smartthings','spotify_id','spotify_sec','nome_mestre','cidade_padrao'];
+    const keys = ['gemini','qwen','smartthings','smartthings_tv_id','spotify_id','spotify_sec','nome_mestre','cidade_padrao'];
     let saved = 0;
     keys.forEach(k => {
         if (state.apis[k] !== undefined) { window.jarvis.salvar_configuracao(k, state.apis[k]); saved++; }
@@ -1679,12 +1709,14 @@ function pgTemas(wrap) {
                     const a1     = t.accent    || '#00c8ff';
                     const a2     = t.secondary || '#00ff9d';
                     const a3     = t.danger    || '#ff2255';
+                    const bgGrad = t.bg_grad || `linear-gradient(135deg, ${a1}33 0%, ${a2}1f 55%, ${a3}24 100%)`;
                     const active = state.theme === id;
                     return `
                         <div class="theme-card ${active ? 'active-theme' : ''}"
                              style="border-color:${active ? a1 : 'var(--border)'};"
                              onclick="aplicarTema('${id}')">
                             <div class="theme-preview">
+                                <div class="theme-swatch" style="background:${bgGrad};flex:3;"></div>
                                 <div class="theme-swatch" style="background:${a1};"></div>
                                 <div class="theme-swatch" style="background:${a2};"></div>
                                 <div class="theme-swatch" style="background:${a3};"></div>
@@ -1725,9 +1757,11 @@ function applyTheme(id) {
     const t = state.themes[id];
     if (!t) return;
     const r = document.documentElement;
-    r.style.setProperty('--accent',  t.accent    || '#00c8ff');
-    r.style.setProperty('--accent2', t.secondary || '#00ff9d');
+    r.style.setProperty('--accent',  t.accent    || '#ffb400');
+    r.style.setProperty('--accent2', t.secondary || '#ff6a00');
     r.style.setProperty('--bg',      t.bg);
+    if (t.bg_grad) r.style.setProperty('--bg-grad', t.bg_grad);
+    else r.style.removeProperty('--bg-grad');
     r.style.setProperty('--card',    t.card);
     r.style.setProperty('--border',  t.border);
     r.style.setProperty('--border2', t.border);
@@ -1848,9 +1882,8 @@ function confirmarDesligamento() { abrirModal('modalShutdown'); }
 
 function fecharPainel() {
     fecharModal('modalClose');
-    document.body.style.transition = 'opacity .4s ease';
-    document.body.style.opacity    = '0';
-    setTimeout(() => { document.body.style.display = 'none'; }, 420);
+    // Oculta a janela Qt (painel). Não encerra o Jarvis.
+    ocultarPainelQt();
 }
 
 

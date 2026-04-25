@@ -52,6 +52,7 @@ def definir_valor_ui(chave: str, valor: str) -> None:
         "spotify_id": "SPOTIFY_ID",
         "spotify_sec": "SPOTIFY_SECRET",
         "smartthings": "SMARTTHINGS_TOKEN",
+        "smartthings_tv_id": "SMARTTHINGS_TV_DEVICE_ID",
         "nome_mestre": "NOME_MESTRE",
         "voz": "voz_atual",
         "device_index": "DEVICE_INDEX",
@@ -62,9 +63,6 @@ def definir_valor_ui(chave: str, valor: str) -> None:
             globals()["DEVICE_INDEX"] = int(valor)
         except ValueError:
             globals()["DEVICE_INDEX"] = 0
-        return
-    if alvo == "modo_silencioso":
-        globals()["modo_silencioso"] = str(valor).lower() in ("1", "true", "sim", "yes")
         return
     if alvo in globals():
         globals()[alvo] = valor
@@ -125,11 +123,11 @@ SPOTIFY_ID = cfg.get("spotify_id", "")
 SPOTIFY_SECRET = cfg.get("spotify_sec", "")
 SPOTIFY_REDIRECT_URI = "http://127.0.0.1:8888/callback"
 SMARTTHINGS_TOKEN = cfg.get("smartthings", "")
+SMARTTHINGS_TV_DEVICE_ID = str(cfg.get("smartthings_tv_id", "")).strip()
 TELEGRAM_TOKEN = cfg.get("telegram_token", "")
 NOME_MESTRE = cfg.get("nome_mestre", "Usuário")
 voz_atual = cfg.get("voz", "pt-BR-AntonioNeural")
 DEVICE_INDEX = cfg.get("device_index", 0)
-modo_silencioso = cfg.get("modo_silencioso", False)
-tema_ativo = cfg.get("tema_ativo", "default")
+tema_ativo = cfg.get("tema_ativo", "MIDNIGHT_MINIMAL")
 notas = cfg.get("notas", "")
 cidade_padrao = cfg.get("cidade_padrao", "")

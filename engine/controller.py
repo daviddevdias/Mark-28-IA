@@ -17,7 +17,7 @@ from engine.tools import TOOL_DECLARATIONS
 from vision.capture import iniciar_monitor as iniciar_monitor_raw, parar_monitor, status_monitor, MonitorConfig
 from audio.audio import falar, interromper_voz
 from tasks.spotify_manager import spotify_stark
-from tasks.smart_home import enviar_comando_tv, ligar_tv
+from tasks.smart_home import abrir_youtube_tv, desligar_tv, energia_tv, enviar_comando_tv, msg_tv_nao_encontrada
 from tasks.open_app import open_app
 from tasks.computer_control import fechar_janela, minimizar_tudo, print_tela, bloquear_tela, limpar_lixeira
 from tasks.alarm import adicionar_alarme, parar_alarme_total
@@ -526,7 +526,13 @@ async def modo_trabalho(cmd: str) -> str:
 
 
 async def tv_ligar(cmd: str) -> str:
-    return "TV ligada." if ligar_tv() else "Falha ao ligar TV."
+    if energia_tv(True):
+        return "TV ligada."
+    from tasks.smart_home import buscar_id_tv
+
+    if not buscar_id_tv():
+        return msg_tv_nao_encontrada()
+    return "Falha ao ligar a TV. Verifique o dispositivo no SmartThings."
 
 
 
@@ -535,7 +541,13 @@ async def tv_ligar(cmd: str) -> str:
 
 
 async def tv_desligar(cmd: str) -> str:
-    return "TV desligada." if enviar_comando_tv("off", "switch") else "Erro ao desligar TV."
+    if desligar_tv():
+        return "TV desligada."
+    from tasks.smart_home import buscar_id_tv
+
+    if not buscar_id_tv():
+        return msg_tv_nao_encontrada()
+    return "Erro ao desligar a TV. Verifique o dispositivo no SmartThings."
 
 
 
@@ -633,6 +645,10 @@ async def anterior(cmd: str) -> str:
 
 
 
+
+
+async def tv_youtube_app(cmd: str) -> str:
+    return abrir_youtube_tv()
 
 
 async def youtube(cmd: str) -> str:
@@ -748,6 +764,11 @@ ROUTES: list[tuple[tuple[str, ...], Handler]] = [
     (("liga", "tv"),           tv_ligar),
     (("desligar", "tv"),       tv_desligar),
     (("desliga", "tv"),        tv_desligar),
+    (("abrir", "youtube", "tv"), tv_youtube_app),
+    (("youtube", "na", "tv"),    tv_youtube_app),
+    (("abrir", "youtube", "na", "tv"), tv_youtube_app),
+    (("youtube", "na", "televisao"), tv_youtube_app),
+    (("abrir", "youtube", "televisao"), tv_youtube_app),
     (("volume",),              tv_volume),
     (("spotify",),             musica_spotify),
     (("tocar", "musica"),      musica),
@@ -803,10 +824,15 @@ def expandir(cmd: str) -> str:
 
 
 
+def route_matches(exp: str, keywords: tuple[str, ...]) -> bool:
+    tokens = exp.split()
+    return all(kw in tokens for kw in keywords)
+
+
 def buscar_handler(cmd: str) -> Optional[Handler]:
     exp = expandir(cmd)
     for keywords, handler in ROUTES:
-        if all(kw in exp for kw in keywords):
+        if route_matches(exp, keywords):
             return handler
     return None
 

@@ -214,29 +214,37 @@ def gerenciador_visao(argumentos: dict) -> str:
 
 
 def gerenciador_casa_inteligente(argumentos: dict) -> str:
-    from tasks.smart_home import enviar_comando_tv, ligar_tv, ligar_lampada, desligar_lampada, ajustar_brilho
+    from tasks.smart_home import (
+        abrir_youtube_tv,
+        buscar_id_tv,
+        energia_tv,
+        msg_tv_nao_encontrada,
+        status_tv,
+    )
+
     dispositivo = argumentos.get("device", "").lower()
-    acao        = argumentos.get("action", "").lower()
-    valor       = argumentos.get("value")
+    acao = argumentos.get("action", "").lower()
+    valor = argumentos.get("value")
 
     if "tv" in dispositivo:
+        if acao in ("youtube", "abrir_youtube", "app_youtube"):
+            return abrir_youtube_tv()
         if acao == "on":
-            return "TV ligada." if ligar_tv() else "Falha ao ligar TV."
+            if energia_tv(True):
+                return "TV ligada."
+            if not buscar_id_tv():
+                return msg_tv_nao_encontrada()
+            return "Falha ao ligar a TV (comando ou modelo incompatível)."
         if acao == "off":
-            return "TV desligada." if enviar_comando_tv("off", "switch") else "Erro ao desligar TV."
+            if energia_tv(False):
+                return "TV desligada."
+            if not buscar_id_tv():
+                return msg_tv_nao_encontrada()
+            return "Erro ao desligar a TV."
         if acao == "status":
-            from tasks.smart_home import status_tv
             return status_tv()
 
-    if "lamp" in dispositivo or "luz" in dispositivo:
-        if acao == "on":
-            return ligar_lampada(dispositivo)
-        if acao == "off":
-            return desligar_lampada(dispositivo)
-        if acao == "brilho" and valor is not None:
-            return ajustar_brilho(dispositivo, int(valor))
-
-    return "Dispositivo ou ação não reconhecidos."
+    return "Use smart_home apenas para a TV (device 'tv'). Lâmpadas foram desativadas nesta build."
 
 
 

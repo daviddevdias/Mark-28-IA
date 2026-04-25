@@ -4,7 +4,7 @@ from pathlib import Path
 
 import config
 import psutil
-from PyQt6.QtCore import QObject, QTimer, QUrl, pyqtSignal, pyqtSlot
+from PyQt6.QtCore import QObject, QTimer, QUrl, Qt, pyqtSignal, pyqtSlot
 from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWidgets import QApplication, QMainWindow
@@ -18,7 +18,6 @@ CAMPOS_CONFIG_CORE = {
     "cidade_padrao",
     "voz",
     "device_index",
-    "modo_silencioso",
     "tema_ativo",
     "THEME_ACTIVE",
     "tema",
@@ -31,6 +30,7 @@ CAMPOS_CONFIG_CORE = {
     "spotify_id",
     "spotify_sec",
     "smartthings",
+    "smartthings_tv_id",
 }
 
 
@@ -116,18 +116,6 @@ def montar_biblioteca_comandos() -> list[dict]:
     return biblioteca
 
 
-EDGE_VOZES = [
-    {"id": "pt-BR-AntonioNeural", "label": "Antonio (Brasil)"},
-    {"id": "pt-BR-FranciscaNeural", "label": "Francisca (Brasil)"},
-    {"id": "pt-PT-RaquelNeural", "label": "Raquel (Portugal)"},
-    {"id": "en-US-GuyNeural", "label": "Guy (EN-US)"},
-    {"id": "en-US-JennyNeural", "label": "Jenny (EN-US)"},
-    {"id": "es-ES-AlvaroNeural", "label": "Álvaro (ES)"},
-    {"id": "fr-FR-HenriNeural", "label": "Henri (FR)"},
-    {"id": "de-DE-ConradNeural", "label": "Conrad (DE)"},
-]
-
-
 async def run_test_voice() -> None:
     from audio.audio import falar
 
@@ -141,6 +129,16 @@ class JarvisBridge(QObject):
         super().__init__()
         self.cpu_atual = 0.0
         self.ram_atual = 0.0
+        self._window_ref = None
+
+    def bind_window(self, w: QMainWindow) -> None:
+        self._window_ref = w
+
+    @pyqtSlot()
+    def ocultar_painel(self):
+        w = self._window_ref
+        if w is not None:
+            w.hide()
 
     @pyqtSlot(str)
     def executar_comando(self, cmd: str):
@@ -199,6 +197,7 @@ class JarvisBridge(QObject):
                 "spotify_id": config.SPOTIFY_ID,
                 "spotify_sec": config.SPOTIFY_SECRET,
                 "smartthings": config.SMARTTHINGS_TOKEN,
+                "smartthings_tv_id": getattr(config, "SMARTTHINGS_TV_DEVICE_ID", "") or "",
                 "nome_mestre": config.NOME_MESTRE,
                 "ia_mode": router.status.get("modelo", "ollama"),
                 "notas": config.notas,
@@ -233,11 +232,8 @@ class JarvisBridge(QObject):
             mics = []
         return json.dumps(
             {
-                "voz": getattr(config, "voz_atual", "pt-BR-AntonioNeural"),
                 "device_index": int(getattr(config, "DEVICE_INDEX", 0) or 0),
-                "modo_silencioso": bool(getattr(config, "modo_silencioso", False)),
                 "microfones": mics,
-                "vozes_edge": EDGE_VOZES,
             }
         )
 
@@ -331,10 +327,21 @@ class PainelCore(QMainWindow):
         super().__init__()
         self.setWindowTitle("J.A.R.V.I.S ◈ MARK XXVIII")
         self.resize(1480, 750)
+        try:
+            app = QApplication.instance()
+            if app is not None:
+                app.setQuitOnLastWindowClosed(False)
+        except Exception:
+            pass
+        try:
+            self.setAttribute(Qt.WidgetAttribute.WA_QuitOnClose, False)
+        except Exception:
+            pass
         self.view = QWebEngineView()
         self.setCentralWidget(self.view)
         self.channel = QWebChannel()
         self.bridge = JarvisBridge()
+        self.bridge.bind_window(self)
         self.channel.registerObject("jarvis", self.bridge)
         self.view.page().setWebChannel(self.channel)
         caminho_html = Path(__file__).resolve().parent / "web" / "index.html"
@@ -360,8 +367,11 @@ class PainelCore(QMainWindow):
                 )
             except Exception:
                 pass
-
         config.registrar_callback_voz_painel(hook_voz)
+
+    def closeEvent(self, event) -> None:
+        self.hide()
+        event.ignore()
 
     def enviar_para_html(self, json_str: str):
         script = f"if(window.receberDoJarvis){{window.receberDoJarvis({json_str});}}"

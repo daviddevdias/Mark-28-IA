@@ -131,8 +131,6 @@ async def falar(texto: str) -> None:
 
 async def falar_impl(texto: str) -> None:
     print(f"Jarvis: {texto}")
-    if getattr(config, "modo_silencioso", False):
-        return
     arquivo = os.path.join(config.ASSETS_DIR, "output.mp3")
 
     with audio_io_lock:
@@ -178,7 +176,10 @@ def captura_sync() -> str:
                     pass
                 audio = reconhecedor.listen(source, timeout=5, phrase_time_limit=6)
                 texto = reconhecedor.recognize_google(audio, language="pt-BR")
-                return texto.lower().strip()
+                tx = texto.lower().strip()
+                if tx:
+                    print(f"ouvido: {tx!r}")
+                return tx
         except Exception:
             return ""
 

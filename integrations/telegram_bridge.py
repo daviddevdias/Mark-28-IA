@@ -528,8 +528,6 @@ def iniciar_telegram():
         print("[TELEGRAM] Token ausente.")
         return
 
-    # run_polling() precisa de event loop nesta thread (TelegramBot); sem isto o PTB falha com
-    # "There is no current event loop in thread 'TelegramBot'".
     asyncio.set_event_loop(asyncio.new_event_loop())
 
     print("[TELEGRAM] Jarvis FULL iniciado")

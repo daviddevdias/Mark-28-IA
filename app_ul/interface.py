@@ -150,13 +150,16 @@ class JarvisUI(QWidget):
         st = self._settings
         nome = tema
         if nome is None:
-            tv = st.value("theme", "PHANTOM")
-            nome = str(tv) if tv else "PHANTOM"
+            tv = st.value("theme", "LARANJA_MESA")
+            nome = str(tv) if tv else "LARANJA_MESA"
+        if nome == "PHANTOM":
+            nome = "LARANJA_MESA"
         if nome not in TEMAS_CORE:
-            nome = "PHANTOM"
+            nome = "LARANJA_MESA"
         self._tema_nome = nome
         self._raw = TEMAS_CORE[self._tema_nome]
         self._kit = kit_pintura(self._tema_nome)
+        self.setWindowIcon(svg_para_icone(svg_panel(), 32))
         self.centralizar_janela()
         vp = st.value("win_pos")
         if isinstance(vp, QPoint):

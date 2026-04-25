@@ -34,6 +34,10 @@ os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-logging"
 
 QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
 app = QApplication(sys.argv)
+try:
+    app.setQuitOnLastWindowClosed(False)
+except Exception:
+    pass
 _log = logging.getLogger(__name__)
 
 
@@ -45,6 +49,12 @@ def achar_ollama() -> str | None:
         os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Ollama", "ollama.exe"),
     ]
     return next((c for c in candidatos if c and os.path.isfile(c)), None)
+
+
+
+
+
+
 
 
 def iniciar_ollama():
@@ -67,6 +77,12 @@ def iniciar_ollama():
         time.sleep(3)
 
 
+
+
+
+
+
+
 async def executar(comando: str, ui: PainelCore):
     if not isinstance(comando, str):
         return
@@ -75,6 +91,12 @@ async def executar(comando: str, ui: PainelCore):
     texto = await processar_comando(comando)
     if texto:
         ui.bridge.dados_para_ui.emit(json.dumps({"resposta": texto}))
+
+
+
+
+
+
 
 
 async def engine(ui: PainelCore):
@@ -113,6 +135,12 @@ async def engine(ui: PainelCore):
             await asyncio.sleep(0.3)
 
 
+
+
+
+
+
+
 def engine_thread(ui: PainelCore):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -125,11 +153,16 @@ def engine_thread(ui: PainelCore):
         loop.close()
 
 
+
+
+
+
+
+
 def iniciar_sistema():
     iniciar_ollama()
     try:
         ui = PainelCore()
-        ui.closeEvent = lambda e: (e.ignore(), ui.hide())
 
         hud = JarvisUI()
         try:

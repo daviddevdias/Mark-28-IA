@@ -142,12 +142,12 @@ TOOL_DECLARATIONS = [
         "type": "function",
         "function": {
             "name": "smart_home",
-            "description": "Controla dispositivos inteligentes via SmartThings: TV, lâmpadas, tomadas.",
+            "description": "Controla a TV Samsung via SmartThings (ligar, desligar, status, abrir YouTube).",
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "device":     {"type": "string", "description": "Dispositivo: 'tv', 'lampada_sala', 'all_lights'."},
-                    "action":     {"type": "string", "description": "'on', 'off', 'toggle', 'status'."},
+                    "device":     {"type": "string", "description": "Use 'tv'."},
+                    "action":     {"type": "string", "description": "'on', 'off', 'status' ou 'youtube' para abrir o app YouTube na TV."},
                     "value":      {"type": "integer", "description": "Valor numérico (volume, brilho). Opcional."},
                     "capability": {"type": "string",  "description": "Capacidade SmartThings. Opcional."},
                 },

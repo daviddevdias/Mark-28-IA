@@ -94,12 +94,6 @@ FIELD_MAP: Final[tuple[FieldSpec, ...]] = (
         default=None,
     ),
     FieldSpec(
-        mem_path=("preferences", "modo_silencioso"),
-        config_attr="modo_silencioso",
-        coerce=coerce_bool,
-        default=False,
-    ),
-    FieldSpec(
         mem_path=("preferences", "idioma"),
         config_attr="idioma",
         coerce=lambda v: coerce_str(v, min_len=2, max_len=10),
