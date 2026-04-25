@@ -1,7 +1,9 @@
+import asyncio
+import inspect
 import psutil
-import time
-import threading
 import socket
+import threading
+import time
 from datetime import datetime
 
 
@@ -23,6 +25,7 @@ CPU_CRITICO = 95.0
 BAT_CRITICA = 20
 
 falar_callback = None
+_monitor_async_loop = None
 
 
 
@@ -35,17 +38,38 @@ def registrar_falar(fn):
     falar_callback = fn
 
 
+def registrar_loop_monitor_voz(loop):
+    global _monitor_async_loop
+    _monitor_async_loop = loop
+
+
 
 
 
 
 
 def falar(texto: str) -> None:
-    if falar_callback:
-        try:
+    if not falar_callback:
+        return
+    try:
+        if inspect.iscoroutinefunction(falar_callback):
+            loop = _monitor_async_loop
+            if loop is None or loop.is_closed():
+                print("[SENTINELA] Voz: loop asyncio nao registrado.")
+                return
+
+            def _log_err(fut: asyncio.Future) -> None:
+                try:
+                    fut.result()
+                except Exception as e:
+                    print(f"[SENTINELA] Voz indisponivel: {e}")
+
+            fut = asyncio.run_coroutine_threadsafe(falar_callback(texto), loop)
+            fut.add_done_callback(_log_err)
+        else:
             falar_callback(texto)
-        except Exception:
-            print(f"[SENTINELA] Voz indisponivel:")
+    except Exception as e:
+        print(f"[SENTINELA] Voz indisponivel: {e}")
 
 
 

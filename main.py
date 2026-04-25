@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import os
+
+os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "hide")
+
 import asyncio
 import json
 import logging
-import os
 import shutil
 import subprocess
 import sys
@@ -20,7 +23,7 @@ from audio.audio import ouvir_comando, falar
 from engine.core import processar_comando, inicializar_ia
 from engine.controller import get_shutdown_event
 from storage.memory_bridge import sincronizar_config
-from tasks.monitor import iniciar_sentinela, registrar_falar
+from tasks.monitor import iniciar_sentinela, registrar_falar, registrar_loop_monitor_voz
 from tasks.alarm import iniciar_sistema_alarmes, registrar_falar_alarme, registrar_loop_alarme
 from app_ul.interface import JarvisUI
 from storage.wake import processar_wake, resposta_ativacao_aleatoria
@@ -115,6 +118,7 @@ def engine_thread(ui: PainelCore):
     asyncio.set_event_loop(loop)
     set_loop(loop)
     registrar_loop_alarme(loop)
+    registrar_loop_monitor_voz(loop)
     try:
         loop.run_until_complete(engine(ui))
     finally:
