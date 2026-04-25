@@ -1,6 +1,9 @@
-import os
+from __future__ import annotations
+
 import asyncio
+import os
 import queue
+import tempfile
 import threading
 import time
 
@@ -9,12 +12,14 @@ import speech_recognition as sr
 import edge_tts
 import config
 
-
 audio_io_lock = threading.RLock()
 
 _mic_cmd: queue.Queue = queue.Queue()
 _mic_rpy: queue.Queue = queue.Queue()
 _mic_thread: threading.Thread | None = None
+
+_tts_queue: asyncio.Queue = asyncio.Queue()
+_tts_worker_started = False
 
 
 def suspender_pygame_mixer_para_capture() -> None:
@@ -53,11 +58,9 @@ def ui_falar(on: bool, vol: float = 1.0) -> None:
     try:
         if on:
             from app_ul.interface import falar_on
-
             falar_on(vol)
         else:
             from app_ul.interface import falar_off
-
             falar_off()
     except Exception:
         pass
@@ -72,6 +75,8 @@ reconhecedor.dynamic_energy_threshold = False
 sleep_event = threading.Event()
 falando = False
 interrompido = False
+_barge_stop_event = threading.Event()
+_barge_thread: threading.Thread | None = None
 
 
 def esta_falando() -> bool:
@@ -91,6 +96,54 @@ def interromper_voz() -> None:
         pass
 
 
+def barge_loop() -> None:
+    idx = normalizar_indice_microfone(getattr(config, "DEVICE_INDEX", None))
+    rec = sr.Recognizer()
+    rec.pause_threshold = 0.2
+    rec.non_speaking_duration = 0.1
+    rec.dynamic_energy_threshold = True
+    rec.energy_threshold = 220
+    while not _barge_stop_event.is_set():
+        if not falando or interrompido:
+            break
+        try:
+            kwargs: dict = {}
+            if idx is not None:
+                kwargs["device_index"] = idx
+            with sr.Microphone(**kwargs) as source:
+                try:
+                    rec.adjust_for_ambient_noise(source, duration=0.08)
+                except Exception:
+                    pass
+                try:
+                    audio = rec.listen(source, timeout=0.35, phrase_time_limit=1.0)
+                except sr.WaitTimeoutError:
+                    continue
+                try:
+                    txt = rec.recognize_google(audio, language="pt-BR").strip().lower()
+                except Exception:
+                    txt = ""
+                if txt:
+                    print(f"ouvido durante fala: {txt!r}")
+                    interromper_voz()
+                    break
+        except Exception:
+            time.sleep(0.08)
+
+
+def iniciar_listener_interrupcao() -> None:
+    global _barge_thread
+    _barge_stop_event.clear()
+    if _barge_thread is not None and _barge_thread.is_alive():
+        return
+    _barge_thread = threading.Thread(target=barge_loop, daemon=True, name="JarvisBargeIn")
+    _barge_thread.start()
+
+
+def parar_listener_interrupcao() -> None:
+    _barge_stop_event.set()
+
+
 def reproduzir_sync(arquivo: str) -> None:
     global falando, interrompido
     with audio_io_lock:
@@ -104,6 +157,7 @@ def reproduzir_sync(arquivo: str) -> None:
             interrompido = False
             sleep_event.clear()
             pygame.mixer.music.play()
+            iniciar_listener_interrupcao()
             while pygame.mixer.music.get_busy():
                 if interrompido:
                     break
@@ -115,23 +169,43 @@ def reproduzir_sync(arquivo: str) -> None:
             except Exception:
                 pass
         finally:
+            parar_listener_interrupcao()
             globals()["falando"] = False
             ui_falar(False)
+            try:
+                os.unlink(arquivo)
+            except Exception:
+                pass
 
 
-_tts_lock = asyncio.Lock()
+async def _tts_worker() -> None:
+    while True:
+        texto = await _tts_queue.get()
+        try:
+            await _falar_impl(texto)
+        except Exception as e:
+            print(f"[TTS] Erro no worker: {e}")
+        finally:
+            _tts_queue.task_done()
+
+
+def _garantir_worker(loop: asyncio.AbstractEventLoop) -> None:
+    global _tts_worker_started
+    if not _tts_worker_started:
+        _tts_worker_started = True
+        loop.create_task(_tts_worker())
 
 
 async def falar(texto: str) -> None:
     if not texto or not texto.strip():
         return
-    async with _tts_lock:
-        await falar_impl(texto.strip())
+    loop = asyncio.get_running_loop()
+    _garantir_worker(loop)
+    await _tts_queue.put(texto.strip())
 
 
-async def falar_impl(texto: str) -> None:
+async def _falar_impl(texto: str) -> None:
     print(f"Jarvis: {texto}")
-    arquivo = os.path.join(config.ASSETS_DIR, "output.mp3")
 
     with audio_io_lock:
         if pygame.mixer.get_init():
@@ -141,23 +215,48 @@ async def falar_impl(texto: str) -> None:
             except Exception:
                 pass
 
-    for i in range(3):
-        try:
-            if os.path.exists(arquivo):
-                os.remove(arquivo)
-            break
-        except PermissionError:
-            await asyncio.sleep(0.2)
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+    arquivo = tmp.name
+    tmp.close()
 
     try:
-        os.makedirs(config.ASSETS_DIR, exist_ok=True)
         await edge_tts.Communicate(texto, config.voz_atual).save(arquivo)
     except Exception as e:
-        print(f"[TTS] Erro: {e}")
+        print(f"[TTS] Erro edge_tts: {e}")
+        try:
+            os.unlink(arquivo)
+        except Exception:
+            pass
         return
 
     loop = asyncio.get_running_loop()
     await loop.run_in_executor(None, reproduzir_sync, arquivo)
+
+
+def _reconhecer_offline(audio) -> str:
+    try:
+        import vosk
+        import json as _json
+        model_path = getattr(config, "VOSK_MODEL_PATH", "vosk-model-small-pt")
+        if not os.path.exists(model_path):
+            return ""
+        model = vosk.Model(model_path)
+        rec = vosk.KaldiRecognizer(model, 16000)
+        raw = audio.get_raw_data(convert_rate=16000, convert_width=2)
+        rec.AcceptWaveform(raw)
+        result = _json.loads(rec.Result())
+        return result.get("text", "").strip()
+    except Exception:
+        pass
+    try:
+        import faster_whisper
+        model = faster_whisper.WhisperModel("small", device="cpu", compute_type="int8")
+        raw = audio.get_wav_data()
+        import io
+        segments, _ = model.transcribe(io.BytesIO(raw), language="pt")
+        return " ".join(s.text for s in segments).strip()
+    except Exception:
+        return ""
 
 
 def captura_sync() -> str:
@@ -165,6 +264,7 @@ def captura_sync() -> str:
     with audio_io_lock:
         suspender_pygame_mixer_para_capture()
         time.sleep(0.08)
+        print("\n\n\nEscutando...\n\n\n")
         try:
             kwargs: dict = {}
             if idx is not None:
@@ -175,11 +275,20 @@ def captura_sync() -> str:
                 except Exception:
                     pass
                 audio = reconhecedor.listen(source, timeout=5, phrase_time_limit=6)
-                texto = reconhecedor.recognize_google(audio, language="pt-BR")
-                tx = texto.lower().strip()
-                if tx:
-                    print(f"ouvido: {tx!r}")
-                return tx
+                try:
+                    texto = reconhecedor.recognize_google(audio, language="pt-BR")
+                    tx = texto.lower().strip()
+                    if tx:
+                        print(f"ouvido: {tx!r}")
+                    return tx
+                except sr.UnknownValueError:
+                    return ""
+                except sr.RequestError:
+                    print("[STT] Google offline, tentando fallback local...")
+                    tx = _reconhecer_offline(audio).lower().strip()
+                    if tx:
+                        print(f"ouvido (offline): {tx!r}")
+                    return tx
         except Exception:
             return ""
 

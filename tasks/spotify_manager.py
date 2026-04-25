@@ -14,7 +14,7 @@ from typing import Optional
 
 
 class SpotifyManager:
-    _instance: Optional["SpotifyManager"] = None
+    instancia_unica: Optional["SpotifyManager"] = None
 
 
 
@@ -23,10 +23,10 @@ class SpotifyManager:
 
 
     def __new__(cls) -> "SpotifyManager":
-        if cls._instance is None:
-            cls._instance = super(SpotifyManager, cls).__new__(cls)
-            cls._instance.inicializado = False
-        return cls._instance
+        if cls.instancia_unica is None:
+            cls.instancia_unica = super(SpotifyManager, cls).__new__(cls)
+            cls.instancia_unica.inicializado = False
+        return cls.instancia_unica
 
 
 
@@ -57,7 +57,7 @@ class SpotifyManager:
                 )
             )
         except Exception:
-            print(f"[SPOTIFY] Falha ao inicializar API:")
+            pass
         self.inicializado: bool = True
 
 
@@ -81,7 +81,6 @@ class SpotifyManager:
             win.activate()
             return True
         except Exception:
-            print(f"[SPOTIFY] Erro window manager:")
             return False
 
 
@@ -90,7 +89,7 @@ class SpotifyManager:
 
 
 
-    def play_backstage(self, termo: str) -> bool:
+    def executar_via_api(self, termo: str) -> bool:
         if not self.sp:
             return False
         try:
@@ -101,7 +100,6 @@ class SpotifyManager:
                 return True
             return False
         except Exception:
-            print(f"[SPOTIFY] Erro na API (Backstage):")
             return False
 
 
@@ -112,7 +110,7 @@ class SpotifyManager:
 
     def listar_e_tocar_playlist(self, nome_busca: str = "") -> str:
         if not self.sp:
-            return "API do Spotify não configurada no Painel."
+            return "API do Spotify não configurada."
         try:
             playlists = self.sp.current_user_playlists(limit=50)
             uri_escolhida = "spotify:user:me:collection"
@@ -125,7 +123,7 @@ class SpotifyManager:
                         break
             try:
                 self.sp.start_playback(context_uri=uri_escolhida)
-                return f"Executando {nome_exibicao}, Chefe."
+                return f"Executando a playlist {nome_exibicao} via API."
             except Exception:
                 os.system(f"start {uri_escolhida}")
                 time.sleep(7)
@@ -135,11 +133,10 @@ class SpotifyManager:
                     pyautogui.press("playpause")
                     time.sleep(0.5)
                     pyautogui.press("space")
-                    return f"Spotify despertado. {nome_exibicao} em execucao."
-                return "Spotify aberto, mas o foco da janela falhou."
+                    return f"Spotify ativado manualmente para tocar {nome_exibicao}."
+                return "Spotify aberto, mas não consegui iniciar a música."
         except Exception:
-            print(f"[SPOTIFY] Erro critico:")
-            return "Erro nos protocolos de audio."
+            return "Ocorreu um erro ao conectar com o Spotify."
 
 
 
@@ -148,16 +145,16 @@ class SpotifyManager:
 
 
     def abrir_e_buscar(self, termo: str) -> str:
-        if self.play_backstage(termo):
-            return f"Tocando {termo} via API."
+        if self.executar_via_api(termo):
+            return f"Tocando {termo} imediatamente pela integração direta."
         termo_formatado = termo.replace(" ", "%20")
         os.system(f"start spotify:search:{termo_formatado}")
         time.sleep(4)
         if self.focar_spotify():
             pyautogui.press("tab", presses=2, interval=0.2)
             pyautogui.press("enter")
-            return f"Busca por {termo} concluida no player."
-        return "Spotify aberto. Busca pode precisar de interacao manual."
+            return f"Busca local por {termo} executada."
+        return "Aplicativo iniciado, mas necessita intervenção para tocar."
 
 
 
@@ -166,17 +163,19 @@ class SpotifyManager:
 
 
     def tocar_minhas_favoritas(self) -> str:
+        if not self.sp:
+            return "API ausente."
         try:
             self.sp.start_playback(context_uri="spotify:user:me:collection")
-            return "Favorim execucao via API."
+            return "Sua biblioteca de favoritas está tocando."
         except Exception:
             os.system("start spotify:collection:tracks")
             time.sleep(3)
             if self.focar_spotify():
                 pyautogui.press("tab", presses=3, interval=0.1)
                 pyautogui.press("enter")
-                return "Playlist de favorim execucao via teclado."
-            return "Spotify aberto com favoritas."
+                return "Favoritas ativadas pelo modo de segurança."
+            return "Abri a lista de favoritas na sua tela."
 
 
 
@@ -210,7 +209,7 @@ class SpotifyManager:
                         self.sp.pause_playback()
                     else:
                         self.sp.start_playback()
-                return ""
+                return "Comando de reprodução aceito."
             except Exception:
                 pass
         tecla = mapa_teclado.get(acao.lower(), "playpause")
@@ -220,7 +219,7 @@ class SpotifyManager:
             pyautogui.press(tecla)
         else:
             pyautogui.press(tecla)
-        return ""
+        return "Comando de teclado enviado ao sistema."
 
 
 
@@ -230,7 +229,7 @@ class SpotifyManager:
 
     def adicionar_aos_favoritos(self) -> str:
         if not self.sp:
-            return "API do Spotify nao configurada."
+            return "Inviável sem integração direta configurada."
         try:
             atual = self.sp.current_playback()
             if atual and atual["item"]:
@@ -238,13 +237,12 @@ class SpotifyManager:
                 track_name = atual["item"]["name"]
                 check = self.sp.current_user_saved_tracks_contains(track_id)
                 if check[0]:
-                    return f"A faixa '{track_name}' ja consta na base de dados."
+                    return f"A faixa '{track_name}' já é sua favorita."
                 self.sp.current_user_saved_tracks_add(track_id)
-                return f"'{track_name}' adicionada aos favoritos."
-            return ""
+                return f"Concluído. '{track_name}' guardada na biblioteca."
+            return "Nenhuma música sendo reconhecida no momento."
         except Exception:
-            print(f"[SPOTIFY] Erro favoritos:")
-            return ""
+            return "Houve um bloqueio ao processar o salvamento."
 
 
 

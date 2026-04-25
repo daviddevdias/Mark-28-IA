@@ -1,19 +1,67 @@
 from __future__ import annotations
 
+import os
 import re
 import shlex
+import sqlite3
 import subprocess
 import logging
 from dataclasses import dataclass
+from datetime import datetime
 from enum import Enum
 from typing import Optional, Callable
 
 log = logging.getLogger("jarvis.cmd_security")
 
+_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "audit.db")
 
 
+def _get_conn() -> sqlite3.Connection:
+    os.makedirs(os.path.dirname(_DB_PATH), exist_ok=True)
+    conn = sqlite3.connect(_DB_PATH, check_same_thread=False, timeout=5)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS audit_log (
+            id         INTEGER PRIMARY KEY AUTOINCREMENT,
+            ts         TEXT    NOT NULL,
+            origem     TEXT    DEFAULT 'cmd',
+            ferramenta TEXT    DEFAULT '',
+            comando    TEXT    NOT NULL,
+            resultado  TEXT    DEFAULT '',
+            bloqueado  INTEGER DEFAULT 0,
+            motivo     TEXT    DEFAULT ''
+        )
+    """)
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_ts ON audit_log(ts)")
+    conn.commit()
+    return conn
 
 
+def _audit(
+    comando: str,
+    resultado: str = "",
+    bloqueado: bool = False,
+    motivo: str = "",
+    origem: str = "cmd",
+    ferramenta: str = "",
+) -> None:
+    try:
+        with _get_conn() as conn:
+            conn.execute(
+                "INSERT INTO audit_log (ts, origem, ferramenta, comando, resultado, bloqueado, motivo) "
+                "VALUES (?,?,?,?,?,?,?)",
+                (
+                    datetime.now().isoformat(timespec="seconds"),
+                    origem,
+                    ferramenta,
+                    comando[:500],
+                    resultado[:500],
+                    int(bloqueado),
+                    motivo[:200],
+                ),
+            )
+            conn.commit()
+    except Exception as e:
+        log.error("[Audit] Falha ao registrar: %s", e)
 
 
 class Categoria(Enum):
@@ -24,21 +72,11 @@ class Categoria(Enum):
     BLOQUEADO  = "bloqueado"
 
 
-
-
-
-
-
 @dataclass
 class Regra:
     padrao:    re.Pattern
     categoria: Categoria
     shell:     bool = False
-
-
-
-
-
 
 
 @dataclass
@@ -87,27 +125,12 @@ BLOQUEIOS_COMPILADOS = [re.compile(p, re.IGNORECASE) for p in BLOQUEIOS]
 INJECOES             = [";", "&&", "||", "`", "$(", ">{", "<(", "2>&1 |"]
 
 
-
-
-
-
-
 def sanitizar(cmd: str) -> str:
     return re.sub(r"\s+", " ", cmd.strip())
 
 
-
-
-
-
-
 def tem_injecao(cmd: str) -> bool:
     return any(s in cmd.lower() for s in INJECOES)
-
-
-
-
-
 
 
 def avaliar(comando: str) -> Avaliacao:
@@ -119,10 +142,12 @@ def avaliar(comando: str) -> Avaliacao:
     for padrao in BLOQUEIOS_COMPILADOS:
         if padrao.search(cmd):
             log.warning("Bloqueado: %s", cmd[:80])
+            _audit(cmd, bloqueado=True, motivo="Padrão proibido detectado.")
             return Avaliacao(permitido=False, motivo="Padrão proibido detectado.")
 
     if tem_injecao(cmd):
         log.warning("Injeção detectada: %s", cmd[:80])
+        _audit(cmd, bloqueado=True, motivo="Operadores de encadeamento suspeitos.")
         return Avaliacao(permitido=False, motivo="Operadores de encadeamento suspeitos (;, &&, ||).")
 
     for regra in REGRAS:
@@ -143,15 +168,18 @@ def avaliar(comando: str) -> Avaliacao:
     )
 
 
-
-
-
-
-
-def executar(comando: str, timeout: int = 15, confirmar_fn: Optional[Callable] = None) -> str:
+def executar(
+    comando: str,
+    timeout: int = 15,
+    confirmar_fn: Optional[Callable] = None,
+    origem: str = "cmd",
+    ferramenta: str = "",
+) -> str:
     av = avaliar(comando)
 
     if not av.permitido:
+        _audit(comando, resultado=f"BLOQUEADO: {av.motivo}", bloqueado=True,
+               motivo=av.motivo, origem=origem, ferramenta=ferramenta)
         return f"Bloqueado: {av.motivo}"
 
     if av.confirmar:
@@ -161,6 +189,7 @@ def executar(comando: str, timeout: int = 15, confirmar_fn: Optional[Callable] =
                 f"Use: executar_confirmado('{comando}')"
             )
         if not confirmar_fn(comando, av):
+            _audit(comando, resultado="CANCELADO pelo usuário", origem=origem, ferramenta=ferramenta)
             return "Execução cancelada."
 
     cmd        = av.cmd or comando
@@ -179,15 +208,38 @@ def executar(comando: str, timeout: int = 15, confirmar_fn: Optional[Callable] =
         saida = (res.stdout or res.stderr or "Executado sem saída.").strip()
         if res.returncode != 0:
             log.warning("Código %d: %s", res.returncode, cmd[:60])
-        return saida[:600]
+
+        saida_truncada = saida[:600]
+        _audit(cmd, resultado=saida_truncada, origem=origem, ferramenta=ferramenta)
+        return saida_truncada
 
     except subprocess.TimeoutExpired:
-        return f"Timeout: excedeu {timeout}s."
+        msg = f"Timeout: excedeu {timeout}s."
+        _audit(cmd, resultado=msg, origem=origem, ferramenta=ferramenta)
+        return msg
     except FileNotFoundError:
-        return f"Comando não encontrado: "
-    except Exception:
-        log.error("Erro ao executar '%s': %s", cmd[:60], )
-        return f"Erro: "
+        msg = f"Comando não encontrado: {cmd.split()[0]}"
+        _audit(cmd, resultado=msg, origem=origem, ferramenta=ferramenta)
+        return msg
+    except Exception as e:
+        msg = f"Erro: {e}"
+        log.error("Erro ao executar '%s': %s", cmd[:60], e)
+        _audit(cmd, resultado=msg, origem=origem, ferramenta=ferramenta)
+        return msg
 
-avaliar_comando  = avaliar
-executar_seguro  = executar
+
+def audit_recente(limite: int = 50) -> list[dict]:
+    try:
+        with _get_conn() as conn:
+            rows = conn.execute(
+                "SELECT ts, origem, ferramenta, comando, resultado, bloqueado, motivo "
+                "FROM audit_log ORDER BY id DESC LIMIT ?",
+                (limite,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+    except Exception:
+        return []
+
+
+avaliar_comando = avaliar
+executar_seguro = executar

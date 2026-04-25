@@ -5,14 +5,14 @@ import logging
 import webbrowser
 from typing import Any, Callable
 
-from tasks.browser import jarvis_web
+from tasks.browser import jarvis_web, busca_web_sync
 from tasks.spotify_manager import spotify_stark
 from tasks.open_app import open_app
 from tasks.weather import obter_previsao_hoje, verificar_chuva_amanha
 from tasks.alarm import adicionar_alarme, listar_alarmes, remover_alarme
 from tasks.computer_control import computer_settings
 from storage.memory_manager import load_memory, update_memory
-from engine.cmd_security import avaliar, executar
+from engine.cmd_security import avaliar, executar, audit_recente
 from engine.tool_cache import despachar as cache_despachar, stats_cache, invalidar_cache_tool
 
 log = logging.getLogger("jarvis.tools_mapper")
@@ -23,10 +23,11 @@ log = logging.getLogger("jarvis.tools_mapper")
 
 
 
-def executar_corotina(coro) -> Any:
+def executar_no_loop_atual(coro) -> Any:
     try:
         loop = asyncio.get_running_loop()
-        return asyncio.run_coroutine_threadsafe(coro, loop).result()
+        fut = asyncio.run_coroutine_threadsafe(coro, loop)
+        return fut.result(timeout=30)
     except RuntimeError:
         return asyncio.run(coro)
 
@@ -40,7 +41,10 @@ def gerenciador_web(argumentos: dict) -> str:
     pesquisa = argumentos.get("query", "").strip()
     if not pesquisa:
         return "Nenhum termo de pesquisa informado."
-    return jarvis_web.run(jarvis_web.smart_search(pesquisa)) or "Sem resultados na web."
+    resultado = busca_web_sync(pesquisa)
+    if not resultado or resultado.startswith("Sem resultados"):
+        resultado = jarvis_web.run(jarvis_web.smart_search(pesquisa))
+    return resultado or "Sem resultados na web."
 
 
 
@@ -161,7 +165,7 @@ def gerenciador_plano(argumentos: dict) -> str:
     if not objetivo:
         return "Objetivo não informado."
     coro = router.responder(f"Crie um plano objetivo para: {objetivo}. Contexto: {contexto}")
-    return executar_corotina(coro) or "Não foi possível criar o plano."
+    return executar_no_loop_atual(coro) or "Não foi possível criar o plano."
 
 
 
@@ -180,20 +184,20 @@ def gerenciador_computador(argumentos: dict) -> str:
 
 def gerenciador_codigo(argumentos: dict) -> str:
     from engine.ia_router import router
-    descricao   = argumentos.get("description", "")
-    linguagem   = argumentos.get("language", "python")
-    codigo_base = argumentos.get("code", "")
-    executar_flag = argumentos.get("execute", False)
+    descricao      = argumentos.get("description", "")
+    linguagem      = argumentos.get("language", "python")
+    codigo_base    = argumentos.get("code", "")
+    executar_flag  = argumentos.get("execute", False)
     if not descricao:
         return "Descrição do código ausente."
     comando_ia    = f"Gere APENAS código {linguagem}: {descricao}. {codigo_base}"
-    codigo_gerado = executar_corotina(router.responder(comando_ia))
+    codigo_gerado = executar_no_loop_atual(router.responder(comando_ia))
     if executar_flag and codigo_gerado:
         cmd = f"python -c {codigo_gerado}" if linguagem == "python" else f"bash -c {codigo_gerado}"
         av  = avaliar(cmd)
         if not av.permitido:
             return f"Bloqueado por segurança: {av.motivo}"
-        return executar(cmd, timeout=15)
+        return executar(cmd, timeout=15, ferramenta="code_helper")
     return codigo_gerado or "Falha ao gerar código."
 
 
@@ -205,7 +209,7 @@ def gerenciador_codigo(argumentos: dict) -> str:
 def gerenciador_visao(argumentos: dict) -> str:
     from vision.capture import analisar_tela
     pergunta = argumentos.get("question", "O que está na tela?")
-    return executar_corotina(analisar_tela(pergunta)) or "Falha na análise visual."
+    return executar_no_loop_atual(analisar_tela(pergunta)) or "Falha na análise visual."
 
 
 
@@ -218,13 +222,12 @@ def gerenciador_casa_inteligente(argumentos: dict) -> str:
         abrir_youtube_tv,
         buscar_id_tv,
         energia_tv,
-        msg_tv_nao_encontrada,
+        diagnosticar_falha_tv,
         status_tv,
     )
 
     dispositivo = argumentos.get("device", "").lower()
     acao = argumentos.get("action", "").lower()
-    valor = argumentos.get("value")
 
     if "tv" in dispositivo:
         if acao in ("youtube", "abrir_youtube", "app_youtube"):
@@ -233,18 +236,18 @@ def gerenciador_casa_inteligente(argumentos: dict) -> str:
             if energia_tv(True):
                 return "TV ligada."
             if not buscar_id_tv():
-                return msg_tv_nao_encontrada()
+                return diagnosticar_falha_tv()
             return "Falha ao ligar a TV (comando ou modelo incompatível)."
         if acao == "off":
             if energia_tv(False):
                 return "TV desligada."
             if not buscar_id_tv():
-                return msg_tv_nao_encontrada()
+                return diagnosticar_falha_tv()
             return "Erro ao desligar a TV."
         if acao == "status":
             return status_tv()
 
-    return "Use smart_home apenas para a TV (device 'tv'). Lâmpadas foram desativadas nesta build."
+    return "Use smart_home apenas para a TV (device 'tv')."
 
 
 
@@ -275,9 +278,9 @@ def gerenciador_cmd(argumentos: dict) -> str:
             "Responda somente com o comando puro, sem explicação, sem markdown, sem backticks."
         )
         try:
-            comando = executar_corotina(router.responder(prompt)).strip().strip("`").strip()
-        except Exception:
-            return f"Erro ao gerar comando:"
+            comando = executar_no_loop_atual(router.responder(prompt)).strip().strip("`").strip()
+        except Exception as e:
+            return f"Erro ao gerar comando: {e}"
 
     if not comando:
         return "Nenhum comando gerado ou informado."
@@ -295,7 +298,7 @@ def gerenciador_cmd(argumentos: dict) -> str:
             f"Para executar, diga: 'confirmar e executar: {comando}'"
         )
 
-    return executar(comando, timeout=20)
+    return executar(comando, timeout=20, ferramenta="cmd_control")
 
 
 
@@ -311,6 +314,12 @@ def gerenciador_cache_status(argumentos: dict) -> str:
     if acao == "invalidar":
         tool = argumentos.get("tool", "")
         return invalidar_cache_tool(tool) if tool else "Informe o nome da ferramenta."
+    if acao == "audit":
+        registros = audit_recente(20)
+        if not registros:
+            return "Nenhum registro de auditoria."
+        linhas = [f"[{r['ts']}] {r['ferramenta'] or r['origem']} — {r['comando'][:60]}" for r in registros]
+        return "\n".join(linhas)
     stats = stats_cache()
     return (
         f"Cache — Hits: {stats['hits']} | Misses: {stats['misses']} | "

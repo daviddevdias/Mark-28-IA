@@ -27,7 +27,7 @@ from tasks.monitor import iniciar_sentinela, registrar_falar, registrar_loop_mon
 from tasks.alarm import iniciar_sistema_alarmes, registrar_falar_alarme, registrar_loop_alarme
 from app_ul.interface import JarvisUI
 from storage.wake import processar_wake, resposta_ativacao_aleatoria
-from integrations.telegram_bridge import iniciar_telegram
+from integrations.telegram_bridge_auth_patch import iniciar_telegram
 
 os.environ["QT_LOGGING_RULES"] = "qt.qpa.window=false"
 os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-logging"
@@ -65,9 +65,9 @@ def iniciar_ollama():
 
     try:
         requests.get("http://localhost:11434/api/tags", timeout=2)
-        print("[OLLAMA] Já ativo.")
+        print("OLLAMA Já ativo.")
     except Exception:
-        print("[OLLAMA] Iniciando serviço...")
+        print("OLLAMA Iniciando serviço...")
         subprocess.Popen(
             [caminho, "serve"],
             stdout=subprocess.DEVNULL,
@@ -109,7 +109,7 @@ async def engine(ui: PainelCore):
 
     threading.Thread(target=iniciar_telegram, daemon=True, name="TelegramBot").start()
 
-    print("[Jarvis] Motor Sentinela - Ativado verificando tudo")
+    print("Jarvis Motor Sentinela - Ativado verificando tudo")
 
     while not get_shutdown_event().is_set():
         try:

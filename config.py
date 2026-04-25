@@ -8,6 +8,11 @@ API_DIR.mkdir(exist_ok=True)
 ASSETS_DIR.mkdir(exist_ok=True)
 
 
+
+
+
+
+
 def ler_json(caminho: Path) -> dict:
     if not caminho.exists():
         return {}
@@ -16,6 +21,11 @@ def ler_json(caminho: Path) -> dict:
     except Exception as e:
         print(f"[CONFIG] Erro ao ler {caminho.name}: {e}")
         return {}
+
+
+
+
+
 
 
 def salvar_json(nome_arquivo: str, dados: dict) -> bool:
@@ -37,12 +47,22 @@ def salvar_json(nome_arquivo: str, dados: dict) -> bool:
         return False
 
 
+
+
+
+
+
 def carregar_tudo() -> dict:
     arquivos = ["config_smart.json", "api_keys.json", "config_core.json", "notas.json"]
     dados = {}
     for nome in arquivos:
         dados.update(ler_json(API_DIR / nome))
     return dados
+
+
+
+
+
 
 
 def definir_valor_ui(chave: str, valor: str) -> None:
@@ -71,7 +91,6 @@ def definir_valor_ui(chave: str, valor: str) -> None:
     if chave == "nome_mestre":
         try:
             from storage.memory_manager import update_memory
-
             patch = {"identity": {"mestre": {"value": str(valor).strip()[:256]}}}
             update_memory(patch)
         except Exception:
@@ -79,29 +98,42 @@ def definir_valor_ui(chave: str, valor: str) -> None:
     if chave == "cidade_padrao":
         try:
             from storage.memory_manager import update_memory
-
             patch = {"preferences": {"cidade": {"value": str(valor).strip()[:256]}}}
             update_memory(patch)
         except Exception:
             pass
 
+voz_ui_cb = None
 
-_voz_ui_cb = None
+
+
+
+
 
 
 def registrar_callback_voz_painel(cb):
-    global _voz_ui_cb
-    _voz_ui_cb = cb
+    global voz_ui_cb
+    voz_ui_cb = cb
+
+
+
+
+
 
 
 def notificar_voz_painel(on: bool, vol: float = 1.0) -> None:
-    fn = _voz_ui_cb
+    fn = voz_ui_cb
     if fn is None:
         return
     try:
         fn(bool(on), float(vol))
     except Exception:
         pass
+
+
+
+
+
 
 
 def recarregar_identidade_painel() -> None:
@@ -114,18 +146,29 @@ def recarregar_identidade_painel() -> None:
         globals()["cidade_padrao"] = str(cp).strip()[:256]
 
 
+
+
 cfg = carregar_tudo()
+
 QWEN_API_KEY = cfg.get("qwen", "")
 GEMINI_API_KEY = cfg.get("gemini", "")
 CURRENT_MODEL = cfg.get("current_model", "qwen/qwen-vl-max")
 BASE_URL = "https://openrouter.ai/api/v1"
+
 SPOTIFY_ID = cfg.get("spotify_id", "")
 SPOTIFY_SECRET = cfg.get("spotify_sec", "")
 SPOTIFY_REDIRECT_URI = "http://127.0.0.1:8888/callback"
+
 SMARTTHINGS_TOKEN = cfg.get("smartthings", "")
 SMARTTHINGS_TV_DEVICE_ID = str(cfg.get("smartthings_tv_id", "")).strip()
+
 TELEGRAM_TOKEN = cfg.get("telegram_token", "")
-NOME_MESTRE = cfg.get("nome_mestre", "Usuário")
+TELEGRAM_AUTH_TOKEN = cfg.get("telegram_auth_token", "")
+TELEGRAM_ALLOWED_IDS = cfg.get("telegram_allowed_ids", [])
+
+OPENWEATHER_API_KEY = cfg.get("openweather_api_key", "")
+
+NOME_MESTRE = cfg.get("nome_mestre", "Chefe")
 voz_atual = cfg.get("voz", "pt-BR-AntonioNeural")
 DEVICE_INDEX = cfg.get("device_index", 0)
 tema_ativo = cfg.get("tema_ativo", "MIDNIGHT_MINIMAL")

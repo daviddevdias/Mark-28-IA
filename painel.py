@@ -34,6 +34,11 @@ CAMPOS_CONFIG_CORE = {
 }
 
 
+
+
+
+
+
 def resolver_arquivo(chave: str) -> str:
     if chave == "notas":
         return NOTAS_FILE
@@ -42,12 +47,22 @@ def resolver_arquivo(chave: str) -> str:
     return SMART_FILE
 
 
+
+
+
+
+
 def limpar_prefixo(cmd: str) -> str:
     c = cmd.strip().lower()
     for prefixo in ("core,", "core"):
         if c.startswith(prefixo):
             c = c[len(prefixo) :].strip()
     return c
+
+
+
+
+
 
 
 def montar_biblioteca_comandos() -> list[dict]:
@@ -116,29 +131,63 @@ def montar_biblioteca_comandos() -> list[dict]:
     return biblioteca
 
 
+
+
+
+
+
 async def run_test_voice() -> None:
     from audio.audio import falar
 
     await falar("Teste de síntese de voz. Painel JARVIS operacional.")
 
 
+
+
+
+
+
 class JarvisBridge(QObject):
     dados_para_ui = pyqtSignal(str)
+
+
+
+
+
+
 
     def __init__(self):
         super().__init__()
         self.cpu_atual = 0.0
         self.ram_atual = 0.0
-        self._window_ref = None
+        self.window_ref = None
+
+
+
+
+
+
 
     def bind_window(self, w: QMainWindow) -> None:
-        self._window_ref = w
+        self.window_ref = w
+
+
+
+
+
+
 
     @pyqtSlot()
     def ocultar_painel(self):
-        w = self._window_ref
+        w = self.window_ref
         if w is not None:
             w.hide()
+
+
+
+
+
+
 
     @pyqtSlot(str)
     def executar_comando(self, cmd: str):
@@ -146,6 +195,12 @@ class JarvisBridge(QObject):
         diretriz = limpar_prefixo(cmd)
         if main_async_loop is not None and not main_async_loop.is_closed():
             asyncio.run_coroutine_threadsafe(self.executar_e_emitir(diretriz), main_async_loop)
+
+
+
+
+
+
 
     async def executar_e_emitir(self, diretriz: str):
         try:
@@ -157,6 +212,12 @@ class JarvisBridge(QObject):
         except Exception as e:
             self.dados_para_ui.emit(json.dumps({"erro": str(e)}))
 
+
+
+
+
+
+
     @pyqtSlot(str, result=str)
     def alternar_ia(self, modo: str) -> str:
         from engine.ia_router import router
@@ -166,11 +227,23 @@ class JarvisBridge(QObject):
         self.dados_para_ui.emit(json.dumps({"resposta": msg, "ia_status": status}))
         return json.dumps({"ok": True, "modo": modo, "msg": msg})
 
+
+
+
+
+
+
     @pyqtSlot(result=str)
     def obter_ia_status(self) -> str:
         from engine.ia_router import router
 
         return json.dumps(router.status)
+
+
+
+
+
+
 
     @pyqtSlot(str, str)
     def salvar_configuracao(self, chave: str, valor: str):
@@ -181,9 +254,21 @@ class JarvisBridge(QObject):
         except Exception:
             pass
 
+
+
+
+
+
+
     @pyqtSlot(result=str)
     def obter_biblioteca_comandos(self) -> str:
         return json.dumps(montar_biblioteca_comandos())
+
+
+
+
+
+
 
     @pyqtSlot(result=str)
     def obter_configuracoes_atuais(self) -> str:
@@ -192,18 +277,24 @@ class JarvisBridge(QObject):
         dados = config.ler_json(config.API_DIR / CONFIG_CORE_FILE)
         return json.dumps(
             {
-                "gemini": config.GEMINI_API_KEY,
-                "qwen": config.QWEN_API_KEY,
-                "spotify_id": config.SPOTIFY_ID,
-                "spotify_sec": config.SPOTIFY_SECRET,
-                "smartthings": config.SMARTTHINGS_TOKEN,
+                "gemini": getattr(config, "GEMINI_API_KEY", ""),
+                "qwen": getattr(config, "QWEN_API_KEY", ""),
+                "spotify_id": getattr(config, "SPOTIFY_ID", ""),
+                "spotify_sec": getattr(config, "SPOTIFY_SECRET", ""),
+                "smartthings": getattr(config, "SMARTTHINGS_TOKEN", ""),
                 "smartthings_tv_id": getattr(config, "SMARTTHINGS_TV_DEVICE_ID", "") or "",
-                "nome_mestre": config.NOME_MESTRE,
+                "nome_mestre": getattr(config, "NOME_MESTRE", ""),
                 "ia_mode": router.status.get("modelo", "ollama"),
-                "notas": config.notas,
+                "notas": getattr(config, "notas", ""),
                 "cidade_padrao": dados.get("cidade_padrao", "São Paulo"),
             }
         )
+
+
+
+
+
+
 
     @pyqtSlot(result=str)
     def obter_temas_sistema(self) -> str:
@@ -214,6 +305,12 @@ class JarvisBridge(QObject):
         except Exception:
             return json.dumps({})
 
+
+
+
+
+
+
     @pyqtSlot(result=str)
     def obter_tema_ativo(self) -> str:
         dados = config.ler_json(config.API_DIR / CONFIG_CORE_FILE)
@@ -221,6 +318,12 @@ class JarvisBridge(QObject):
         if isinstance(tema, dict):
             return json.dumps(tema)
         return json.dumps(str(tema) if tema else "")
+
+
+
+
+
+
 
     @pyqtSlot(result=str)
     def obter_config_voz(self) -> str:
@@ -237,11 +340,23 @@ class JarvisBridge(QObject):
             }
         )
 
+
+
+
+
+
+
     @pyqtSlot()
     def testar_voz_painel(self):
         global main_async_loop
         if main_async_loop is not None and not main_async_loop.is_closed():
             asyncio.run_coroutine_threadsafe(run_test_voice(), main_async_loop)
+
+
+
+
+
+
 
     @pyqtSlot()
     def interromper_voz_painel(self):
@@ -251,6 +366,12 @@ class JarvisBridge(QObject):
             interromper_voz()
         except Exception:
             pass
+
+
+
+
+
+
 
     @pyqtSlot()
     def desligar_sistema(self):
@@ -264,15 +385,33 @@ class JarvisBridge(QObject):
         if app is not None:
             app.quit()
 
+
+
+
+
+
+
     @pyqtSlot(result=str)
     def get_status(self) -> str:
         return json.dumps({"cpu": self.cpu_atual, "ram": self.ram_atual, "online": True})
+
+
+
+
+
+
 
     @pyqtSlot()
     def solicitar_analise_visual(self):
         global main_async_loop
         if main_async_loop is not None and not main_async_loop.is_closed():
             asyncio.run_coroutine_threadsafe(self.rotina_visao_ui(), main_async_loop)
+
+
+
+
+
+
 
     async def rotina_visao_ui(self):
         try:
@@ -299,6 +438,12 @@ class JarvisBridge(QObject):
         except Exception as e:
             self.dados_para_ui.emit(json.dumps({"visao_erro": str(e)}))
 
+
+
+
+
+
+
     @pyqtSlot(str)
     def solicitar_clima(self, cidade: str):
         if not cidade:
@@ -309,6 +454,12 @@ class JarvisBridge(QObject):
         global main_async_loop
         if main_async_loop is not None and not main_async_loop.is_closed():
             asyncio.run_coroutine_threadsafe(self.rotina_clima(cidade), main_async_loop)
+
+
+
+
+
+
 
     async def rotina_clima(self, cidade: str):
         try:
@@ -322,7 +473,19 @@ class JarvisBridge(QObject):
             self.dados_para_ui.emit(json.dumps({"erro": f"Clima: {e}"}))
 
 
+
+
+
+
+
 class PainelCore(QMainWindow):
+
+
+
+
+
+
+
     def __init__(self):
         super().__init__()
         self.setWindowTitle("J.A.R.V.I.S ◈ MARK XXVIII")
@@ -369,13 +532,31 @@ class PainelCore(QMainWindow):
                 pass
         config.registrar_callback_voz_painel(hook_voz)
 
+
+
+
+
+
+
     def closeEvent(self, event) -> None:
         self.hide()
         event.ignore()
 
+
+
+
+
+
+
     def enviar_para_html(self, json_str: str):
         script = f"if(window.receberDoJarvis){{window.receberDoJarvis({json_str});}}"
         self.view.page().runJavaScript(script)
+
+
+
+
+
+
 
     def atualizar_hardware(self):
         try:
@@ -387,6 +568,12 @@ class PainelCore(QMainWindow):
         except Exception:
             pass
 
+
+
+
+
+
+
     def atualizar_ia_status(self):
         try:
             from engine.ia_router import router
@@ -394,6 +581,11 @@ class PainelCore(QMainWindow):
             self.enviar_para_html(json.dumps({"ia_status": router.status}))
         except Exception:
             pass
+
+
+
+
+
 
 
 def set_loop(loop: asyncio.AbstractEventLoop):

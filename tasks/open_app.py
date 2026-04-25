@@ -2,8 +2,7 @@ import time
 import subprocess
 import platform
 import shutil
-
-
+import psutil
 
 APP_ALIASES = {
     "whatsapp": {"Windows": "WhatsApp", "Darwin": "WhatsApp", "Linux": "whatsapp"},
@@ -51,7 +50,23 @@ APP_ALIASES = {
 
 
 
-def normalize(raw: str) -> str:
+def verificar_processo_ativo(app_name: str) -> bool:
+    target = app_name.lower().replace(".exe", "")
+    for proc in psutil.process_iter(['name']):
+        try:
+            if target in proc.info['name'].lower():
+                return True
+        except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
+            pass
+    return False
+
+
+
+
+
+
+
+def padronizar_nome(raw: str) -> str:
     system = platform.system()
     key = raw.lower().strip()
     if key in APP_ALIASES:
@@ -67,8 +82,7 @@ def normalize(raw: str) -> str:
 
 
 
-def launch_windows(app_name: str) -> bool:
-
+def disparar_no_windows(app_name: str) -> bool:
     if shutil.which(app_name):
         try:
             subprocess.Popen([app_name], shell=False,
@@ -76,14 +90,12 @@ def launch_windows(app_name: str) -> bool:
             return True
         except Exception:
             pass
-
     try:
         subprocess.Popen(app_name, shell=True,
                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
     except Exception:
         pass
-
     try:
         import pyautogui
         pyautogui.press("win")
@@ -101,7 +113,7 @@ def launch_windows(app_name: str) -> bool:
 
 
 
-def launch_macos(app_name: str) -> bool:
+def disparar_no_mac(app_name: str) -> bool:
     try:
         res = subprocess.run(["open", "-a", app_name], capture_output=True, timeout=8)
         if res.returncode == 0:
@@ -125,7 +137,7 @@ def launch_macos(app_name: str) -> bool:
 
 
 
-def launch_linux(app_name: str) -> bool:
+def disparar_no_linux(app_name: str) -> bool:
     binary = shutil.which(app_name) or shutil.which(app_name.lower())
     if binary:
         try:
@@ -150,29 +162,30 @@ def open_app(parameters=None, **kwargs) -> str:
     app_name = (parameters or {}).get("app_name", "").strip()
 
     if not app_name:
-        return "Qual aplicativo devo abrir, Chefe?"
+        return "Qual aplicativo devo providenciar a abertura?"
+
+    if verificar_processo_ativo(app_name):
+        return f"O processo ligado a {app_name} já se encontra ativo na memória."
 
     system = platform.system()
-    normalized = normalize(app_name)
+    normalized = padronizar_nome(app_name)
 
     launchers = {
-        "Windows": launch_windows,
-        "Darwin": launch_macos,
-        "Linux": launch_linux,
+        "Windows": disparar_no_windows,
+        "Darwin": disparar_no_mac,
+        "Linux": disparar_no_linux,
     }
 
     launcher = launchers.get(system)
     if not launcher:
-        return f"Sistema {system} não suportado."
-
-    print(f"[Mark XXVIII]  Executando diretriz: {app_name} -> {normalized}")
+        return f"Sistema {system} rejeitou a operação."
 
     success = launcher(normalized)
     if not success and normalized != app_name:
         success = launcher(app_name)
 
     return (
-        f"Sucesso. O aplicativo {app_name} foi aberto."
+        f"Ação concluída. {app_name} disparado."
         if success
-        else f"Falha. Não consegui localizar o executável para {app_name}."
+        else f"Falha sistêmica ao localizar o atalho para {app_name}."
     )

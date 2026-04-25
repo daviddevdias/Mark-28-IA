@@ -17,7 +17,7 @@ from engine.tools import TOOL_DECLARATIONS
 from vision.capture import iniciar_monitor as iniciar_monitor_raw, parar_monitor, status_monitor, MonitorConfig
 from audio.audio import falar, interromper_voz
 from tasks.spotify_manager import spotify_stark
-from tasks.smart_home import abrir_youtube_tv, desligar_tv, energia_tv, enviar_comando_tv, msg_tv_nao_encontrada
+from tasks.smart_home import abrir_youtube_tv, desligar_tv, energia_tv, enviar_comando_tv, diagnosticar_falha_tv
 from tasks.open_app import open_app
 from tasks.computer_control import fechar_janela, minimizar_tudo, print_tela, bloquear_tela, limpar_lixeira
 from tasks.alarm import adicionar_alarme, parar_alarme_total
@@ -128,7 +128,7 @@ async def detectar_modelo() -> bool:
                 )
                 disponivel    = True
                 ultimo_check = time.time()
-                print(f"[OLLAMA] Modelo: {modelo}")
+                print(f"OLLAMA Modelo: {modelo}")
                 return True
     except Exception:
         disponivel = False
@@ -224,6 +224,7 @@ class IARRouter:
 
     def __init__(self):
         self.historico = Historico()
+        self.provedor = "ollama"
 
 
 
@@ -233,7 +234,7 @@ class IARRouter:
 
     @property
     def status(self) -> dict:
-        return {"modelo": modelo, "ollama": disponivel}
+        return {"modelo": modelo, "ollama": disponivel, "provedor": self.provedor}
 
 
 
@@ -243,10 +244,27 @@ class IARRouter:
 
     @property
     def modo_atual(self) -> str:
-        return modelo or "ollama"
+        return self.provedor
+
+
+
+
+
+
 
     def definir_modo(self, modo: str) -> str:
-        return f"Modo Ollama ativo. Modelo: {modelo or 'nenhum detectado'}."
+        if modo == "gemini":
+            if not config.GEMINI_API_KEY:
+                return "Chave da API do Gemini ausente no sistema."
+            self.provedor = "gemini"
+            return "Conexão estabelecida com os servidores do Google Gemini."
+        if modo == "openrouter" or modo == "auto":
+            if not config.QWEN_API_KEY:
+                return "Chave da API externa ausente no sistema."
+            self.provedor = "openrouter"
+            return "Modelos externos do OpenRouter ativados com sucesso."
+        self.provedor = "ollama"
+        return f"Processamento neural local ativado. Modelo: {modelo or 'nenhum detectado'}."
 
 
 
@@ -274,14 +292,47 @@ class IARRouter:
 
 
     async def chat(self, messages: list[dict], tools: bool = True) -> dict | None:
+        if self.provedor == "gemini":
+            url_api = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+            headers = {"Authorization": f"Bearer {config.GEMINI_API_KEY}", "Content-Type": "application/json"}
+            payload = {"model": "gemini-1.5-flash", "messages": messages, "temperature": 0.7}
+            if tools:
+                payload["tools"] = TOOL_DECLARATIONS
+            try:
+                async with aiohttp.ClientSession() as s:
+                    async with s.post(url_api, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=TIMEOUT)) as r:
+                        if r.status != 200:
+                            return None
+                        data = await r.json()
+                        return data.get("choices", [{}])[0].get("message")
+            except Exception:
+                return None
+
+        if self.provedor == "openrouter":
+            url_api = "https://openrouter.ai/api/v1/chat/completions"
+            headers = {"Authorization": f"Bearer {config.QWEN_API_KEY}", "Content-Type": "application/json"}
+            payload = {"model": config.CURRENT_MODEL, "messages": messages, "temperature": 0.7}
+            if tools:
+                payload["tools"] = TOOL_DECLARATIONS
+            try:
+                async with aiohttp.ClientSession() as s:
+                    async with s.post(url_api, headers=headers, json=payload, timeout=aiohttp.ClientTimeout(total=TIMEOUT)) as r:
+                        if r.status != 200:
+                            return None
+                        data = await r.json()
+                        return data.get("choices", [{}])[0].get("message")
+            except Exception:
+                return None
+
         if not modelo:
             return None
-        payload: dict = {"model": modelo, "messages": messages, "stream": False, "options": OPTIONS}
+
+        payload_ollama: dict = {"model": modelo, "messages": messages, "stream": False, "options": OPTIONS}
         if tools and suporta_tools(modelo):
-            payload["tools"] = TOOL_DECLARATIONS
+            payload_ollama["tools"] = TOOL_DECLARATIONS
         try:
             async with aiohttp.ClientSession() as s:
-                async with s.post(URL, json=payload,
+                async with s.post(URL, json=payload_ollama,
                                   timeout=aiohttp.ClientTimeout(total=TIMEOUT)) as r:
                     if r.status != 200:
                         return None
@@ -346,13 +397,14 @@ class IARRouter:
 
     async def responder(self, pergunta: str, nome: str = "Chefe",
                         memoria: str = "", imagem: Any = None) -> str:
-        await check()
-        if not disponivel:
-            await check(force=True)
-        if not disponivel:
-            return "Ollama offline. Rode 'ollama serve' no terminal."
-        if not modelo:
-            return "Nenhum modelo instalado. Rode: ollama pull llama3.2"
+        if self.provedor == "ollama":
+            await check()
+            if not disponivel:
+                await check(force=True)
+            if not disponivel:
+                return "Ollama offline. Rode 'ollama serve' no terminal ou mude para a nuvem."
+            if not modelo:
+                return "Nenhum modelo instalado. Rode: ollama pull llama3.2"
 
         self.historico.add("user", self.montar_content(pergunta, imagem))
         msgs = [{"role": "system", "content": system_msg(memoria)}] + self.historico.msgs()
@@ -361,7 +413,7 @@ class IARRouter:
             msg = await self.chat(msgs) or await self.chat(msgs, tools=False)
             if msg is None:
                 self.historico.pop()
-                return "Sem resposta do Ollama. Tente novamente."
+                return "Perdemos o sinal de conexão com o servidor de IA. Tente novamente."
 
             tool_calls = msg.get("tool_calls") or []
             if not tool_calls:
@@ -385,7 +437,7 @@ class IARRouter:
                 msgs.append({"role": "tool", "tool_call_id": call_id, "name": fn.get("name"), "content": result})
                 self.historico.add_tool(call_id, fn.get("name", ""), result)
 
-        return "Operação concluída."
+        return "Operação concluída nas linhas do servidor principal."
 
 
 
@@ -433,20 +485,6 @@ def extrair_termo(cmd: str, prefixos: list) -> str:
             texto = texto[len(p):].strip()
             break
     return re.sub(r"^(a musica|o|a|as|os|um|uma)\s+", "", texto).strip()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 
@@ -531,7 +569,7 @@ async def tv_ligar(cmd: str) -> str:
     from tasks.smart_home import buscar_id_tv
 
     if not buscar_id_tv():
-        return msg_tv_nao_encontrada()
+        return diagnosticar_falha_tv()
     return "Falha ao ligar a TV. Verifique o dispositivo no SmartThings."
 
 
@@ -546,7 +584,7 @@ async def tv_desligar(cmd: str) -> str:
     from tasks.smart_home import buscar_id_tv
 
     if not buscar_id_tv():
-        return msg_tv_nao_encontrada()
+        return diagnosticar_falha_tv()
     return "Erro ao desligar a TV. Verifique o dispositivo no SmartThings."
 
 
@@ -651,6 +689,11 @@ async def tv_youtube_app(cmd: str) -> str:
     return abrir_youtube_tv()
 
 
+
+
+
+
+
 async def youtube(cmd: str) -> str:
     from tasks.browser import jarvis_web
     termo = extrair_termo(cmd, PREFIXOS_YOUTUBE)
@@ -710,6 +753,11 @@ async def olha_tela(cmd: str) -> str:
     from engine.core import analisar_tela_agora
     await analisar_tela_agora()
     return ""
+
+
+
+
+
 
 
 async def olha_camera(cmd: str) -> str:
@@ -829,6 +877,11 @@ def route_matches(exp: str, keywords: tuple[str, ...]) -> bool:
     return all(kw in tokens for kw in keywords)
 
 
+
+
+
+
+
 def buscar_handler(cmd: str) -> Optional[Handler]:
     exp = expandir(cmd)
     for keywords, handler in ROUTES:
@@ -854,6 +907,11 @@ async def diretriz_clima(cmd_bruto: str, cmd: str) -> Optional[str]:
         msg = wx.obter_previsao_hoje(cidade)
     await falar(msg)
     return ""
+
+
+
+
+
 
 
 async def processar_diretriz(texto: str) -> Optional[str]:

@@ -19,6 +19,7 @@ from tasks.alarm import adicionar_alarme, listar_alarmes, remover_alarme
 from tasks.weather import obter_previsao_hoje, verificar_chuva_amanha
 from audio.audio import falar, interromper_voz
 import config
+from integrations.telegram_auth import carregar_config, requer_autorizacao
 
 TOKEN = getattr(config, "TELEGRAM_TOKEN", "")
 
@@ -69,17 +70,15 @@ async def responder_e_falar(update: Update, texto: str):
 
 
 
+@requer_autorizacao
 async def cmd_jarvis(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = " ".join(context.args)
     if not texto:
         await update.message.reply_text("Use: /jarvis <comando>")
         return
-
     resposta = await processar_diretriz(texto)
-
     if not resposta:
         resposta = await router.responder(texto, nome=nome())
-
     await responder_e_falar(update, resposta)
 
 
@@ -88,16 +87,14 @@ async def cmd_jarvis(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_texto_livre(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = update.message.text
     if not texto:
         return
-
     resposta = await processar_diretriz(texto)
-
     if not resposta:
         resposta = await router.responder(texto, nome=nome())
-
     await responder_e_falar(update, resposta)
 
 
@@ -106,6 +103,7 @@ async def cmd_texto_livre(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from engine.ia_router import _DISPONIVEL, _MODELO_DETECTADO
     modelo = _MODELO_DETECTADO or "nenhum"
@@ -124,16 +122,14 @@ async def cmd_status(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_clima(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cidade = " ".join(context.args).strip() if context.args else ""
     if not cidade:
         cidade = cidade_padrao()
-
     await update.message.reply_text(f"Consultando clima em {cidade}...")
-
     loop = asyncio.get_event_loop()
     resposta = await loop.run_in_executor(None, obter_previsao_hoje, cidade)
-
     await responder_e_falar(update, resposta)
 
 
@@ -142,14 +138,13 @@ async def cmd_clima(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_clima_amanha(update: Update, context: ContextTypes.DEFAULT_TYPE):
     cidade = " ".join(context.args).strip() if context.args else ""
     if not cidade:
         cidade = cidade_padrao()
-
     loop = asyncio.get_event_loop()
     resposta = await loop.run_in_executor(None, verificar_chuva_amanha, cidade)
-
     await responder_e_falar(update, resposta)
 
 
@@ -158,6 +153,7 @@ async def cmd_clima_amanha(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_alarme_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
         await update.message.reply_text("Use: /alarme HH:MM descricao ou /alarme YYYY-MM-DD HH:MM descricao")
@@ -177,17 +173,16 @@ async def cmd_alarme_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_alarme_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
     alarmes = listar_alarmes()
     if not alarmes:
         await update.message.reply_text("Nenhum alarme ativo.")
         return
-
     linhas = ["Alarmes ativos:\n"]
     for a in alarmes:
         d = a.get("data") or "-"
         linhas.append(f"• {d} {a['hora']} — {a['missao']}")
-
     await update.message.reply_text("\n".join(linhas))
 
 
@@ -196,15 +191,14 @@ async def cmd_alarme_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_alarme_remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
         await update.message.reply_text("Use: /remover HH:MM descricao")
         return
-
     hora = context.args[0]
     missao = " ".join(context.args[1:])
     resposta = remover_alarme(hora, missao)
-
     await responder_e_falar(update, resposta)
 
 
@@ -213,6 +207,7 @@ async def cmd_alarme_remove(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     interromper_voz()
     await update.message.reply_text("Voz interrompida.")
@@ -223,16 +218,15 @@ async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_spotify(update: Update, context: ContextTypes.DEFAULT_TYPE):
     termo = " ".join(context.args).strip()
     if not termo:
         await update.message.reply_text("Use: /spotify <musica ou artista>")
         return
-
     resposta = await processar_diretriz(f"spotify {termo}")
     if not resposta:
         resposta = "Comando enviado ao Spotify."
-
     await responder_e_falar(update, resposta)
 
 
@@ -241,6 +235,7 @@ async def cmd_spotify(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_pausar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     resposta = await processar_diretriz("pausar")
     await responder_e_falar(update, resposta or "Música pausada.")
@@ -251,6 +246,7 @@ async def cmd_pausar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_continuar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     resposta = await processar_diretriz("continuar")
     await responder_e_falar(update, resposta or "Reprodução retomada.")
@@ -261,6 +257,7 @@ async def cmd_continuar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_proxima(update: Update, context: ContextTypes.DEFAULT_TYPE):
     resposta = await processar_diretriz("proxima")
     await responder_e_falar(update, resposta or "Próxima faixa.")
@@ -271,12 +268,12 @@ async def cmd_proxima(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE):
     termo = " ".join(context.args).strip()
     if not termo:
         await update.message.reply_text("Use: /youtube <busca>")
         return
-
     resposta = await processar_diretriz(f"youtube {termo}")
     await responder_e_falar(update, resposta or "Abrindo YouTube.")
 
@@ -286,15 +283,13 @@ async def cmd_youtube(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_monitorar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global monitorando
-
     intervalo_arg = context.args[0] if context.args else "10"
     intervalo = max(5, int(intervalo_arg)) if intervalo_arg.isdigit() else 10
-
     monitorando = True
     resposta = await processar_diretriz(f"monitorar tela {intervalo}")
-
     await responder_e_falar(update, resposta or f"Monitoramento ativo. Intervalo: {intervalo}s.")
 
 
@@ -303,10 +298,10 @@ async def cmd_monitorar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_parar_monitor(update: Update, context: ContextTypes.DEFAULT_TYPE):
     global monitorando
     monitorando = False
-
     resposta = await processar_diretriz("desligar monitoramento")
     await responder_e_falar(update, resposta or "Monitoramento desativado.")
 
@@ -316,9 +311,9 @@ async def cmd_parar_monitor(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_tela(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("Capturando e analisando a tela...")
-
     resposta = await processar_diretriz("olha tela")
     await responder_e_falar(update, resposta or "Análise concluída.")
 
@@ -328,17 +323,16 @@ async def cmd_tela(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_abrir(update: Update, context: ContextTypes.DEFAULT_TYPE):
     app_nome = " ".join(context.args).strip()
     if not app_nome:
         await update.message.reply_text("Use: /abrir <nome do app>")
         return
-
     resposta = await processar_diretriz(f"abrir {app_nome}")
     if not resposta:
         from tasks.open_app import open_app
         resposta = open_app({"app_name": app_nome}) or f"Abrindo {app_nome}."
-
     await responder_e_falar(update, resposta)
 
 
@@ -347,6 +341,7 @@ async def cmd_abrir(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_bloquear(update: Update, context: ContextTypes.DEFAULT_TYPE):
     resposta = await processar_diretriz("bloquear")
     await responder_e_falar(update, resposta or "Tela bloqueada.")
@@ -357,6 +352,7 @@ async def cmd_bloquear(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
     resposta = await processar_diretriz("screenshot")
     await responder_e_falar(update, resposta or "Screenshot capturado.")
@@ -367,6 +363,7 @@ async def cmd_screenshot(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_tv_ligar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     resposta = await processar_diretriz("ligar tv")
     await responder_e_falar(update, resposta or "Ligando TV.")
@@ -377,6 +374,7 @@ async def cmd_tv_ligar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_tv_desligar(update: Update, context: ContextTypes.DEFAULT_TYPE):
     resposta = await processar_diretriz("desligar tv")
     await responder_e_falar(update, resposta or "Desligando TV.")
@@ -387,12 +385,12 @@ async def cmd_tv_desligar(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_volume(update: Update, context: ContextTypes.DEFAULT_TYPE):
     nivel = context.args[0] if context.args else ""
     if not nivel.isdigit():
         await update.message.reply_text("Use: /volume <0-100>")
         return
-
     resposta = await processar_diretriz(f"volume {nivel}")
     await responder_e_falar(update, resposta or f"Volume ajustado para {nivel}.")
 
@@ -402,6 +400,7 @@ async def cmd_volume(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_trabalho(update: Update, context: ContextTypes.DEFAULT_TYPE):
     resposta = await processar_diretriz("trabalho")
     await responder_e_falar(update, resposta or "Modo trabalho ativado.")
@@ -412,12 +411,12 @@ async def cmd_trabalho(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_ia(update: Update, context: ContextTypes.DEFAULT_TYPE):
     modo = " ".join(context.args).strip().lower()
     if modo not in ("ollama", "gemini", "auto"):
         await update.message.reply_text("Use: /ia ollama | gemini | auto")
         return
-
     msg = router.definir_modo(modo)
     await responder_e_falar(update, msg)
 
@@ -427,6 +426,7 @@ async def cmd_ia(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 
+@requer_autorizacao
 async def cmd_ajuda(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = (
         "J.A.R.V.I.S — COMANDOS DISPONÍVEIS\n\n"
@@ -511,9 +511,9 @@ async def configurar_comandos(application: Application):
 async def erro_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
     from telegram.error import Conflict
     if isinstance(context.error, Conflict):
-        print("[TELEGRAM] Conflito detectado. Tentando recuperar...")
+        print("TELEGRAM Conflito detectado. Tentando recuperar...")
     else:
-        print(f"[TELEGRAM] Erro: {context.error}")
+        print(f"TELEGRAM Erro: {context.error}")
 
 
 
@@ -523,53 +523,39 @@ async def erro_telegram(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def iniciar_telegram():
     global app
-
     if not TOKEN:
-        print("[TELEGRAM] Token ausente.")
+        print("TELEGRAM Token ausente.")
         return
-
     asyncio.set_event_loop(asyncio.new_event_loop())
-
-    print("[TELEGRAM] Jarvis FULL iniciado")
-
+    print("TELEGRAM Jarvis FULL iniciado")
     app = Application.builder().token(TOKEN).post_init(configurar_comandos).build()
-
     app.add_handler(CommandHandler("jarvis",       cmd_jarvis))
     app.add_handler(CommandHandler("status",       cmd_status))
     app.add_handler(CommandHandler("clima",        cmd_clima))
     app.add_handler(CommandHandler("amanha",       cmd_clima_amanha))
     app.add_handler(CommandHandler("stop",         cmd_stop))
     app.add_handler(CommandHandler("ajuda",        cmd_ajuda))
-
     app.add_handler(CommandHandler("alarme",       cmd_alarme_add))
     app.add_handler(CommandHandler("listar",       cmd_alarme_list))
     app.add_handler(CommandHandler("remover",      cmd_alarme_remove))
-
     app.add_handler(CommandHandler("spotify",      cmd_spotify))
     app.add_handler(CommandHandler("pausar",       cmd_pausar))
     app.add_handler(CommandHandler("continuar",    cmd_continuar))
     app.add_handler(CommandHandler("proxima",      cmd_proxima))
     app.add_handler(CommandHandler("youtube",      cmd_youtube))
-
     app.add_handler(CommandHandler("abrir",        cmd_abrir))
     app.add_handler(CommandHandler("bloquear",     cmd_bloquear))
     app.add_handler(CommandHandler("screenshot",   cmd_screenshot))
     app.add_handler(CommandHandler("trabalho",     cmd_trabalho))
     app.add_handler(CommandHandler("volume",       cmd_volume))
-
     app.add_handler(CommandHandler("tvligar",      cmd_tv_ligar))
     app.add_handler(CommandHandler("tvdesligar",   cmd_tv_desligar))
-
     app.add_handler(CommandHandler("tela",         cmd_tela))
     app.add_handler(CommandHandler("monitorar",    cmd_monitorar))
     app.add_handler(CommandHandler("pararmonitor", cmd_parar_monitor))
-
     app.add_handler(CommandHandler("ia",           cmd_ia))
-
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, cmd_texto_livre))
-
     app.add_error_handler(erro_telegram)
-
     try:
         app.run_polling(drop_pending_updates=True, close_loop=True)
     except Exception as e:

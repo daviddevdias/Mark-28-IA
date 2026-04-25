@@ -5,11 +5,10 @@ import re
 import threading
 import time
 import unicodedata
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 
 try:
     import pygame
-
     PYGAME = True
 except ImportError:
     PYGAME = False
@@ -21,35 +20,39 @@ falar_callback = None
 ultimo_disparo: dict[str, str] = {}
 canal_alarme = None
 sound_alarme = None
-_alarm_loop = None
+alarm_loop_ativo = None
+
+DIAS_SEMANA = {
+    "segunda": 0, "segunda-feira": 0,
+    "terca": 1, "terça": 1, "terca-feira": 1, "terça-feira": 1,
+    "quarta": 2, "quarta-feira": 2,
+    "quinta": 3, "quinta-feira": 3,
+    "sexta": 4, "sexta-feira": 4,
+    "sabado": 5, "sábado": 5,
+    "domingo": 6,
+}
 
 MESES = {
-    "janeiro": 1,
-    "jan": 1,
-    "fevereiro": 2,
-    "fev": 2,
-    "marco": 3,
-    "março": 3,
-    "mar": 3,
-    "abril": 4,
-    "abr": 4,
-    "maio": 5,
-    "mai": 5,
-    "junho": 6,
-    "jun": 6,
-    "julho": 7,
-    "jul": 7,
-    "agosto": 8,
-    "ago": 8,
-    "setembro": 9,
-    "set": 9,
-    "outubro": 10,
-    "out": 10,
-    "novembro": 11,
-    "nov": 11,
-    "dezembro": 12,
-    "dez": 12,
+    "janeiro": 1, "jan": 1,
+    "fevereiro": 2, "fev": 2,
+    "marco": 3, "março": 3, "mar": 3,
+    "abril": 4, "abr": 4,
+    "maio": 5, "mai": 5,
+    "junho": 6, "jun": 6,
+    "julho": 7, "jul": 7,
+    "agosto": 8, "ago": 8,
+    "setembro": 9, "set": 9,
+    "outubro": 10, "out": 10,
+    "novembro": 11, "nov": 11,
+    "dezembro": 12, "dez": 12,
 }
+
+SNOOZE_MINUTOS = 10
+
+
+
+
+
 
 
 def registrar_falar_alarme(fn):
@@ -57,21 +60,37 @@ def registrar_falar_alarme(fn):
     falar_callback = fn
 
 
+
+
+
+
+
 def registrar_loop_alarme(loop):
-    global _alarm_loop
-    _alarm_loop = loop
+    global alarm_loop_ativo
+    alarm_loop_ativo = loop
 
 
-def _sem_acentos(s: str) -> str:
+
+
+
+
+
+def limpar_acentos(s: str) -> str:
     s = unicodedata.normalize("NFD", s.lower())
     return "".join(c for c in s if unicodedata.category(c) != "Mn")
 
 
-def parse_alarme_voz(cmd: str) -> tuple[str | None, str | None, str]:
+
+
+
+
+
+def parse_alarme_voz(cmd: str) -> tuple[str | None, str | None, str, list[int] | None]:
     raw = cmd.strip()
-    low = _sem_acentos(raw)
+    low = limpar_acentos(raw)
     data_iso: str | None = None
     hora: str | None = None
+    dias_semana: list[int] | None = None
     m_iso = re.search(r"\b(\d{4})-(\d{2})-(\d{2})\b", raw)
     if m_iso:
         try:
@@ -105,10 +124,7 @@ def parse_alarme_voz(cmd: str) -> tuple[str | None, str | None, str]:
             except ValueError:
                 data_iso = None
     if not data_iso:
-        m_pt = re.search(
-            r"(?:^|\s)(?:dia)?\s*(\d{1,2})\s+de\s+([a-z]+)(?:\s+de\s+(\d{2,4}))?",
-            low,
-        )
+        m_pt = re.search(r"(?:^|\s)(?:dia)?\s*(\d{1,2})\s+de\s+([a-z]+)(?:\s+de\s+(\d{2,4}))?", low)
         if m_pt:
             d = int(m_pt.group(1))
             mn = m_pt.group(2)
@@ -122,6 +138,10 @@ def parse_alarme_voz(cmd: str) -> tuple[str | None, str | None, str]:
                     data_iso = date(yi, mi, d).isoformat()
                 except ValueError:
                     data_iso = None
+    if not data_iso:
+        encontrados = [idx for nome, idx in DIAS_SEMANA.items() if nome in low]
+        if encontrados:
+            dias_semana = list(set(encontrados))
     m_hm = re.search(r"(\d{1,2})\s*[:h]\s*(\d{2})\b", low)
     if m_hm:
         hora = f"{int(m_hm.group(1)):02d}:{int(m_hm.group(2)):02d}"
@@ -134,17 +154,23 @@ def parse_alarme_voz(cmd: str) -> tuple[str | None, str | None, str]:
             if m_d:
                 hora = f"{int(m_d.group(1)):02d}:00"
     missao = re.sub(
-        r"\s+",
-        " ",
+        r"\s+", " ",
         re.sub(
-            r"(?i)\b(jarvis|alarme|despertar|agendar|criar|lembrete|dia|as|h|horas|de|maio|janeiro|fevereiro|marco|abril|junho|julho|agosto|setembro|outubro|novembro|dezembro|\d{1,2}[:h]\d{2}|\d{4}-\d{2}-\d{2})\b",
-            " ",
-            raw,
+            r"(?i)\b(jarvis|alarme|despertar|agendar|criar|lembrete|dia|as|h|horas|de|"
+            r"maio|janeiro|fevereiro|marco|abril|junho|julho|agosto|setembro|outubro|novembro|dezembro|"
+            r"segunda|terca|quarta|quinta|sexta|sabado|domingo|feira|"
+            r"\d{1,2}[:h]\d{2}|\d{4}-\d{2}-\d{2})\b",
+            " ", raw,
         ),
     ).strip()[:120]
     if not missao:
         missao = "Alarme"
-    return data_iso, hora, missao
+    return data_iso, hora, missao, dias_semana
+
+
+
+
+
 
 
 def carregar_alarmes() -> list:
@@ -158,11 +184,35 @@ def carregar_alarmes() -> list:
             return []
 
 
+
+
+
+
+
 def salvar_alarmes(alarmes: list) -> None:
     os.makedirs(os.path.dirname(DB_ALARMES), exist_ok=True)
     with lock:
         with open(DB_ALARMES, "w", encoding="utf-8") as f:
             json.dump(alarmes, f, indent=2, ensure_ascii=False)
+
+
+
+
+
+
+
+def limpar_alarmes_concluidos() -> int:
+    alarmes = carregar_alarmes()
+    antes = len(alarmes)
+    ativos = [a for a in alarmes if a.get("status") != "concluido"]
+    if len(ativos) < antes:
+        salvar_alarmes(ativos)
+    return antes - len(ativos)
+
+
+
+
+
 
 
 def adicionar_alarme(
@@ -171,6 +221,7 @@ def adicionar_alarme(
     repetir: bool = False,
     musica: str = "",
     data: str | None = None,
+    dias_semana: list[int] | None = None,
 ) -> str:
     if not hora or ":" not in hora:
         return "Senhor, o formato de tempo parece inconsistente. Poderia repetir?"
@@ -179,28 +230,41 @@ def adicionar_alarme(
         "hora": hora,
         "missao": missao,
         "status": "pendente",
-        "repetir": repetir,
+        "repetir": repetir or bool(dias_semana),
         "musica": musica,
         "criado_em": datetime.now().isoformat(),
         "ultimo_disparo": None,
         "data": (data or "").strip() or None,
+        "dias_semana": dias_semana,
     }
     alarmes.append(alarme)
     salvar_alarmes(alarmes)
-    rotulo = f"{data} " if data else ""
-    confirmacoes = [
-        f"Protocolo concluido. Alarme {rotulo}as {hora}, Senhor.",
-        f"Cronometro sincronizado para {rotulo}{hora}. Estarei atento.",
-        f"Alerta agendado para {rotulo}{hora}.",
-    ]
+    if dias_semana is not None:
+        nomes = [n for n, i in DIAS_SEMANA.items() if i in dias_semana and "-" not in n]
+        rotulo = ", ".join(nomes) if nomes else "dias selecionados"
+        confirmacoes = [
+            f"Alarme semanal configurado. Toda {rotulo} as {hora}, Senhor.",
+            f"Cronometro semanal: {rotulo} as {hora}.",
+        ]
+    else:
+        rotulo = f"{data} " if data else ""
+        confirmacoes = [
+            f"Protocolo concluido. Alarme {rotulo}as {hora}, Senhor.",
+            f"Cronometro sincronizado para {rotulo}{hora}. Estarei atento.",
+            f"Alerta agendado para {rotulo}{hora}.",
+        ]
     return random.choice(confirmacoes)
+
+
+
+
+
 
 
 def remover_alarme(hora: str, missao: str, data: str | None = None) -> str:
     alarmes = carregar_alarmes()
     novos = [
-        a
-        for a in alarmes
+        a for a in alarmes
         if not (
             a.get("hora") == hora
             and a.get("missao") == missao
@@ -210,14 +274,37 @@ def remover_alarme(hora: str, missao: str, data: str | None = None) -> str:
     if len(novos) == len(alarmes):
         return "Senhor, nao encontrei esse alarme."
     salvar_alarmes(novos)
-    return f"Alarme das {hora} removido."
+    return f"Alarme das {hora} foi desativado."
+
+
+
+
+
 
 
 def listar_alarmes() -> list:
     return [a for a in carregar_alarmes() if a["status"] == "pendente"]
 
 
-def caminho_musica() -> str:
+
+
+
+
+
+def snooze_alarme() -> str:
+    agora = datetime.now()
+    nova = agora + timedelta(minutes=SNOOZE_MINUTOS)
+    hora_nova = nova.strftime("%H:%M")
+    adicionar_alarme(hora_nova, "Soneca", data=agora.date().isoformat())
+    return f"Soneca ativada por {SNOOZE_MINUTOS} minutos. Voltarei a chamar as {hora_nova}."
+
+
+
+
+
+
+
+def buscar_arquivo_musica() -> str:
     base = os.path.dirname(os.path.abspath(__file__))
     candidatos = [
         os.path.join(base, "assets", "despertar.mp3"),
@@ -230,14 +317,15 @@ def caminho_musica() -> str:
     return ""
 
 
-def tocar_musica_canal():
+
+
+
+
+
+def invocar_som_alarme():
     global canal_alarme, sound_alarme, alarme_ativo
-    caminho = caminho_musica()
-    if not caminho:
-        print("[ALARME] despertar.mp3 nao encontrado!")
-        return
-    if not PYGAME:
-        print("[ALARME] pygame nao instalado!")
+    caminho = buscar_arquivo_musica()
+    if not caminho or not PYGAME:
         return
     try:
         if not pygame.mixer.get_init():
@@ -250,30 +338,38 @@ def tocar_musica_canal():
         while alarme_ativo and canal_alarme.get_busy():
             time.sleep(0.3)
         canal_alarme.stop()
-    except Exception as e:
-        print(f"[ALARME] Erro ao tocar musica: {e}")
+    except Exception:
+        pass
     finally:
         canal_alarme = None
         sound_alarme = None
 
 
-def _thread_tv():
+
+
+
+
+
+def ligar_tela_tv():
     try:
         from tasks.smart_home import ligar_tv
-
         ligar_tv()
     except Exception:
         pass
 
 
-def _tts_alarme(missao: str):
-    import asyncio
 
+
+
+
+
+def avisar_voz_alarme(missao: str):
+    import asyncio
     fn = falar_callback
-    loop = _alarm_loop
+    loop = alarm_loop_ativo
     texto = (
-        f"Senhor. Alarme. {missao or 'Hora de acordar'}. "
-        "Liguei a TV se estiver disponivel. Protocolo de despertar ativo."
+        f"Atenção Senhor. Alarme em vigor. {missao or 'Hora do evento'}. "
+        "Monitor principal acionado. Sistemas operantes."
     )
     if fn and loop and not loop.is_closed():
         try:
@@ -283,12 +379,22 @@ def _tts_alarme(missao: str):
             pass
 
 
-def disparar_alarme(alarme: dict):
+
+
+
+
+
+def deflagrar_rotina_alarme(alarme: dict):
     global alarme_ativo
     alarme_ativo = True
-    threading.Thread(target=_thread_tv, daemon=True).start()
-    threading.Thread(target=lambda: _tts_alarme(str(alarme.get("missao", ""))), daemon=True).start()
-    threading.Thread(target=tocar_musica_canal, daemon=True).start()
+    threading.Thread(target=ligar_tela_tv, daemon=True).start()
+    threading.Thread(target=lambda: avisar_voz_alarme(str(alarme.get("missao", ""))), daemon=True).start()
+    threading.Thread(target=invocar_som_alarme, daemon=True).start()
+
+
+
+
+
 
 
 def parar_alarme_total():
@@ -300,38 +406,64 @@ def parar_alarme_total():
     except Exception:
         pass
     encerrar = [
-        "Protocolo de despertar encerrado. Tenha um dia produtivo, Senhor.",
-        "Sistemas de audio silenciados. Estou em prontidao.",
-        "Entendido, Senhor. Bom dia de trabalho.",
+        "Protocolo encerrado. Mantenha o foco, Senhor.",
+        "Ameaça neutralizada. Estou na escuta.",
+        "Comando aceito. Alarme silenciado.",
     ]
     return random.choice(encerrar)
 
 
-def verificar_agenda_loop():
+
+
+
+
+
+def checagem_temporizador_loop():
+    ciclo = 0
     while True:
         agora_dt = datetime.now()
         hoje_iso = agora_dt.date().isoformat()
         agora_hm = agora_dt.strftime("%H:%M")
+        dia_semana_atual = agora_dt.weekday()
         alarmes = carregar_alarmes()
+        modificados = False
+
         for alarme in alarmes:
             if alarme["status"] != "pendente":
                 continue
             d = (alarme.get("data") or "").strip()
-            if d and d != hoje_iso:
+            dias = alarme.get("dias_semana")
+            if dias is not None:
+                if dia_semana_atual not in dias:
+                    continue
+            elif d and d != hoje_iso:
                 continue
             if alarme["hora"] != agora_hm:
                 continue
-            chave = f"{d or '*'}|{alarme['hora']}|{alarme['missao']}"
+            chave = f"{d or str(dia_semana_atual)}|{alarme['hora']}|{alarme['missao']}"
             if ultimo_disparo.get(chave) == hoje_iso:
                 continue
             ultimo_disparo[chave] = hoje_iso
-            threading.Thread(target=disparar_alarme, args=(alarme,), daemon=True).start()
-            if not alarme.get("repetir"):
+            threading.Thread(target=deflagrar_rotina_alarme, args=(alarme,), daemon=True).start()
+            if not alarme.get("repetir") and dias is None:
                 alarme["status"] = "concluido"
+                modificados = True
+
+        if modificados:
             salvar_alarmes(alarmes)
+
+        ciclo += 1
+        if ciclo >= 3600:
+            limpar_alarmes_concluidos()
+            ciclo = 0
+
         time.sleep(1)
 
 
+
+
+
+
+
 def iniciar_sistema_alarmes():
-    threading.Thread(target=verificar_agenda_loop, daemon=True).start()
-    print("[JARVIS] Protocolos de agendamento online.")
+    threading.Thread(target=checagem_temporizador_loop, daemon=True).start()

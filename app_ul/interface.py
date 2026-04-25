@@ -60,8 +60,16 @@ def get_voice_state() -> VoiceState:
     return _voice_singleton
 
 
+
+
+
+
 def falar_on(vol: float = 1.0) -> None:
     get_voice_state().set_speaking(True, vol)
+
+
+
+
 
 
 def falar_off() -> None:
@@ -214,6 +222,16 @@ class JarvisUI(QWidget):
             act.triggered.connect(lambda _=False, n=nome: self.aplicar_tema(n))
         m.exec(self.barra_hud.mapToGlobal(pos))
 
+
+
+
+
+
+
+
+
+
+
     def montar_barra_botoes(self) -> None:
         self.barra_hud = QFrame(self)
         self.barra_hud.setObjectName("HudBar")
@@ -246,6 +264,17 @@ class JarvisUI(QWidget):
         for btn in (self.btn_mute, self.btn_code, self.btn_off):
             layout.addWidget(btn)
 
+
+
+
+
+
+
+
+
+
+
+
     def alternar_microfone(self) -> None:
         self.is_muted = not self.is_muted
         hd = self._raw["danger"]
@@ -257,6 +286,18 @@ class JarvisUI(QWidget):
             self.btn_mute.setIcon(svg_para_icone(svg_mic_on(), 28))
             self.btn_mute.setStyleSheet(qss_botao_accent(self._raw))
             print("[SISTEMA] Microfone ATIVO")
+
+
+
+
+
+
+
+
+
+
+
+
 
     def abrir_painel_principal(self) -> None:
         if self.painel_referencia is not None and self.painel_referencia.isVisible():
@@ -271,6 +312,17 @@ class JarvisUI(QWidget):
         except Exception as e:
             print(f"[SISTEMA] Falha ao abrir painel: {e}")
 
+
+
+
+
+
+
+
+
+
+
+
     def atualizar_animacao(self) -> None:
         try:
             alvo = self._voice.intensity_target if self._voice.speaking else 0.1
@@ -282,11 +334,36 @@ class JarvisUI(QWidget):
         except RuntimeError:
             self.timer_repintar.stop()
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
     def closeEvent(self, event) -> None:
         self.timer_repintar.stop()
         self._settings.setValue("win_pos", self.pos())
         self._settings.setValue("theme", self._tema_nome)
         event.accept()
+
+
+
+
+
+
+
+
+
+
 
     def mousePressEvent(self, event) -> None:
         if event.button() == Qt.MouseButton.LeftButton:
@@ -294,12 +371,40 @@ class JarvisUI(QWidget):
                 event.globalPosition().toPoint() - self.frameGeometry().topLeft()
             )
 
+
+
+
+
+
+
+
+
+
+
+
     def mouseMoveEvent(self, event) -> None:
         if event.buttons() == Qt.MouseButton.LeftButton and self.posicao_arrasto is not None:
             self.move(event.globalPosition().toPoint() - self.posicao_arrasto)
 
+
+
+
+
+
+
+
     def mouseReleaseEvent(self, event) -> None:
         self.posicao_arrasto = None
+
+
+
+
+
+
+
+
+
+
 
     def paintEvent(self, event) -> None:
         k = self._kit
@@ -358,6 +463,12 @@ class JarvisUI(QWidget):
         finally:
             painter.end()
 
+
+
+
+
+
+
     def desenhar_linhas_radar(self, p, cx, cy, r, k) -> None:
         pen = QPen(k.scan_line, 1.0)
         p.setPen(pen)
@@ -365,6 +476,16 @@ class JarvisUI(QWidget):
         for y in range(y0, y1, 14):
             dx = math.sqrt(max(0, r * r - (y - cy) ** 2))
             p.drawLine(int(cx - dx), y, int(cx + dx), y)
+
+
+
+
+
+
+
+
+
+
 
     def desenhar_aneis(self, p, cx, cy, r1, r2, r3, t, iv, k) -> None:
         pen = QPen(k.ring_outer, 1.2)
@@ -399,6 +520,16 @@ class JarvisUI(QWidget):
             ang = math.radians(i * 90 + math.degrees(t * 0.22))
             p.drawEllipse(QPointF(cx + math.cos(ang) * r2, cy + math.sin(ang) * r2), 4, 4)
 
+
+
+
+
+
+
+
+
+
+
     def desenhar_nucleo(self, p, cx, cy, r, iv, k) -> None:
         halo = QRadialGradient(cx, cy, r * 1.5)
         hm = QColor(k.core_mid)
@@ -424,6 +555,13 @@ class JarvisUI(QWidget):
         p.setBrush(QBrush(core))
         p.drawEllipse(QPointF(cx, cy), r * 0.18, r * 0.18)
 
+
+
+
+
+
+
+
     def desenhar_tentaculos(self, p, cx, cy, r_sol, ang_base, t, iv, k) -> None:
         for i in range(12):
             ang = ang_base + math.radians(i * (360 / 12))
@@ -441,6 +579,18 @@ class JarvisUI(QWidget):
             p.setPen(QPen(blend, width))
             self.desenhar_tentaculo_unico(p, cx, cy, r_sol, ang, i, t, dist)
 
+
+
+
+
+
+
+
+
+
+
+
+
     def desenhar_tentaculo_unico(self, p, cx, cy, r_sol, angle, idx, t, dist) -> None:
         perp = angle + math.pi / 2.8
         onda = 75 + math.cos(t * 1.1 + idx) * 45
@@ -456,6 +606,18 @@ class JarvisUI(QWidget):
         path.moveTo(QPointF(sx, sy))
         path.cubicTo(QPointF(c1x, c1y), QPointF(c2x, c2y), QPointF(ex, ey))
         p.strokePath(path, p.pen())
+
+
+
+
+
+
+
+
+
+
+
+
 
     def desenhar_particulas(self, p, cx, cy, r_sol, r_max, ang_base, iv, k, red) -> None:
         specs = (
@@ -477,6 +639,15 @@ class JarvisUI(QWidget):
                 p.setPen(Qt.PenStyle.NoPen)
                 p.setBrush(QBrush(col))
                 p.drawEllipse(QPointF(px_, py_), size, size)
+
+
+
+
+
+
+
+
+
 
     def desenhar_arco(self, p, cx, cy, r, t, k) -> None:
         num_seg = 24
