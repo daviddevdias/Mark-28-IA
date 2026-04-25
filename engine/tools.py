@@ -132,6 +132,7 @@ TOOL_DECLARATIONS = [
                     "op":     {"type": "string", "description": "'add', 'list' ou 'remove'. Padrão: 'add'."},
                     "hora":   {"type": "string", "description": "Horário HH:MM."},
                     "missao": {"type": "string", "description": "Descrição do lembrete."},
+                    "data":   {"type": "string", "description": "Data YYYY-MM-DD. Opcional."},
                 },
                 "required": [],
             },

@@ -14,21 +14,21 @@ import config
 
 log = logging.getLogger("memory")
 
-_lock = RLock()
+trava_memoria = RLock()
 
 MAX_VALUE_LEN: int = 400
 
-_cache: dict | None = None
+memoria_cache: dict | None = None
 
 
-def _base_dir() -> Path:
+def pasta_raiz_app() -> Path:
     return Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
 
 
-MEMORY_PATH: Path = _base_dir() / "api" / "long_term.json"
+MEMORY_PATH: Path = pasta_raiz_app() / "api" / "long_term.json"
 
 
-def _default() -> dict:
+def estrutura_memoria_vazia() -> dict:
     return {
         "identity": {"mestre": {"value": ""}},
         "preferences": {"cidade": {"value": ""}},
@@ -40,59 +40,66 @@ def _default() -> dict:
 
 
 def load_memory(force: bool = False) -> dict:
-    global _cache
+    global memoria_cache
 
-    with _lock:
-        if _cache is not None and not force:
-            return _cache
+    with trava_memoria:
+        if memoria_cache is not None and not force:
+            return memoria_cache
 
         if not MEMORY_PATH.exists():
-            _cache = _default()
-            return _cache
+            memoria_cache = estrutura_memoria_vazia()
+            return memoria_cache
 
         try:
             data = json.loads(MEMORY_PATH.read_text(encoding="utf-8"))
 
             if not isinstance(data, dict):
-                _cache = _default()
-                return _cache
+                memoria_cache = estrutura_memoria_vazia()
+                return memoria_cache
 
-            base = _default()
+            base = estrutura_memoria_vazia()
             for k, v in base.items():
                 data.setdefault(k, v)
 
-            _cache = data
-            return _cache
+            memoria_cache = data
+            return memoria_cache
 
         except Exception:
-            _cache = _default()
-            return _cache
+            memoria_cache = estrutura_memoria_vazia()
+            return memoria_cache
 
 
 def save_memory(memory: dict) -> None:
-    global _cache
+    global memoria_cache
 
     MEMORY_PATH.parent.mkdir(parents=True, exist_ok=True)
     tmp = MEMORY_PATH.with_suffix(".tmp")
 
-    with _lock:
+    with trava_memoria:
         tmp.write_text(json.dumps(memory, indent=2, ensure_ascii=False), encoding="utf-8")
         tmp.replace(MEMORY_PATH)
-        _cache = memory
+        memoria_cache = memory
 
 
 def invalidate_cache() -> None:
-    global _cache
-    with _lock:
-        _cache = None
+    global memoria_cache
+    with trava_memoria:
+        memoria_cache = None
 
 
 def get_nome() -> str:
-    return load_memory().get("identity", {}).get("mestre", {}).get("value", "")
+    cfg_n = (getattr(config, "NOME_MESTRE", None) or "").strip()
+    if cfg_n:
+        return cfg_n
+    v = load_memory().get("identity", {}).get("mestre", {}).get("value", "")
+    return (v or "").strip() or "Usuário"
 
 
 def get_cidade() -> str:
-    return load_memory().get("preferences", {}).get("cidade", {}).get("value", "")
+    cp = (getattr(config, "cidade_padrao", None) or "").strip()
+    if cp:
+        return cp
+    return load_memory().get("preferences", {}).get("cidade", {}).get("value", "") or ""
 
 
 def get_value(category: str, key: str, default: Any = None) -> Any:
@@ -117,7 +124,7 @@ def format_memory_for_prompt() -> str:
     return "\n".join(out)
 
 
-def _merge(target: dict, updates: dict) -> bool:
+def aplicar_patch_memoria(target: dict, updates: dict) -> bool:
     changed = False
     today = datetime.now().strftime("%Y-%m-%d")
 
@@ -127,7 +134,7 @@ def _merge(target: dict, updates: dict) -> bool:
 
         if isinstance(value, dict) and "value" not in value:
             target.setdefault(key, {})
-            if _merge(target[key], value):
+            if aplicar_patch_memoria(target[key], value):
                 changed = True
         else:
             raw = value.get("value") if isinstance(value, dict) else value
@@ -145,18 +152,18 @@ def update_memory(patch: dict) -> dict:
     if not isinstance(patch, dict) or not patch:
         return load_memory()
 
-    with _lock:
+    with trava_memoria:
         mem = load_memory()
-        if _merge(mem, patch):
+        if aplicar_patch_memoria(mem, patch):
             save_memory(mem)
         return mem
 
 
-_CATEGORIES = "identity, preferences, projects, relationships, wishes, notes"
-_PROMPT = "Extraia fatos da conversa e retorne apenas JSON:\n"
+LISTA_CATEGORIAS_MEMORIA = "identity, preferences, projects, relationships, wishes, notes"
+TEXTO_PROMPT_EXTRACAO = "Extraia fatos da conversa e retorne apenas JSON:\n"
 
 
-def _parse_json(raw: str) -> dict | None:
+def json_da_resposta_ia(raw: str) -> dict | None:
     try:
         return json.loads(raw)
     except Exception:
@@ -173,9 +180,9 @@ async def process_memory_logic(user_text: str, core_text: str) -> None:
     try:
         from engine.ia_router import router
 
-        prompt = f"{_PROMPT}{_CATEGORIES}\n\n{user_text}\n{core_text}"
+        prompt = f"{TEXTO_PROMPT_EXTRACAO}{LISTA_CATEGORIAS_MEMORIA}\n\n{user_text}\n{core_text}"
         resposta = await router.responder(prompt)
-        patch = _parse_json(resposta)
+        patch = json_da_resposta_ia(resposta)
 
         if patch:
             update_memory(patch)

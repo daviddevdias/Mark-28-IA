@@ -44,7 +44,7 @@ class JarvisWeb:
        def start_system(self):
               if self.browser_thread and self.browser_thread.is_alive():
                      return
-              self.browser_thread = threading.Thread(target=self._run_loop, daemon=True)
+              self.browser_thread = threading.Thread(target=self.rodar_loop_async, daemon=True)
               self.browser_thread.start()
               self.ready.wait(timeout=15)
 
@@ -54,11 +54,11 @@ class JarvisWeb:
 
 
 
-       def _run_loop(self):
+       def rodar_loop_async(self):
               self.loop = asyncio.new_event_loop()
               asyncio.set_event_loop(self.loop)
               try:
-                     self.loop.run_until_complete(self._boot_sequence())
+                     self.loop.run_until_complete(self.subir_playwright())
                      self.ready.set()
                      self.loop.run_forever()
               except Exception:
@@ -86,7 +86,7 @@ class JarvisWeb:
 
 
 
-       async def _boot_sequence(self):
+       async def subir_playwright(self):
               if self.pw:
                      try:
                             await self.pw.stop()
@@ -137,10 +137,10 @@ class JarvisWeb:
 
 
 
-       async def _ensure_alive(self):
+       async def manter_sessao(self):
               try:
                      if not self.browser or not self.browser.is_connected():
-                            await self._boot_sequence()
+                            await self.subir_playwright()
                             return
 
                      if not self.ctx:
@@ -156,7 +156,7 @@ class JarvisWeb:
                             self.page = await self.ctx.new_page()
 
               except Exception:
-                     await self._boot_sequence()
+                     await self.subir_playwright()
 
 
 
@@ -165,7 +165,7 @@ class JarvisWeb:
 
 
        async def smart_search(self, termo, private=False):
-              await self._ensure_alive()
+              await self.manter_sessao()
 
               if private:
                      temp_ctx = await self.browser.new_context()
@@ -201,7 +201,7 @@ class JarvisWeb:
                      await page.keyboard.press("Enter")
                      await page.wait_for_load_state("networkidle", timeout=15000)
                      
-                     return await self._extract_google_result(page)
+                     return await self.texto_snippet_google(page)
 
               except Exception:
                      return f"Erro busca:"
@@ -218,7 +218,7 @@ class JarvisWeb:
 
 
 
-       async def _extract_google_result(self, page):
+       async def texto_snippet_google(self, page):
               try:
                      rhs = page.locator("#rhs")
                      if await rhs.count() > 0 and await rhs.is_visible():
@@ -240,7 +240,7 @@ class JarvisWeb:
 
 
        async def tocar_youtube(self, termo):
-              await self._ensure_alive()
+              await self.manter_sessao()
 
               try:
                      await self.page.goto(
@@ -292,7 +292,7 @@ class JarvisWeb:
 
 
        async def navigate_to_blank(self):
-              await self._ensure_alive()
+              await self.manter_sessao()
               try:
                      await self.page.goto("about:blank")
                      return "Navegando para página em branco"

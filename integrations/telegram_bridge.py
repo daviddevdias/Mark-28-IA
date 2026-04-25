@@ -43,8 +43,11 @@ def nome() -> str:
 
 def cidade_padrao() -> str:
     try:
-        dados = config._carregar_json(config.API_DIR / "config_core.json")
-        return dados.get("cidade_padrao", "São Paulo")
+        g = (getattr(config, "cidade_padrao", None) or "").strip()
+        if g:
+            return g
+        dados = config.ler_json(config.API_DIR / "config_core.json")
+        return (dados.get("cidade_padrao") or "São Paulo").strip() or "São Paulo"
     except Exception:
         return "São Paulo"
 
@@ -157,13 +160,15 @@ async def cmd_clima_amanha(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def cmd_alarme_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if len(context.args) < 2:
-        await update.message.reply_text("Use: /alarme HH:MM descricao")
+        await update.message.reply_text("Use: /alarme HH:MM descricao ou /alarme YYYY-MM-DD HH:MM descricao")
         return
-
-    hora = context.args[0]
-    missao = " ".join(context.args[1:])
-    resposta = adicionar_alarme(hora, missao)
-
+    args = list(context.args)
+    data_arg = None
+    if len(args) >= 3 and re.match(r"^\d{4}-\d{2}-\d{2}$", args[0]):
+        data_arg = args.pop(0)
+    hora = args[0]
+    missao = " ".join(args[1:])
+    resposta = adicionar_alarme(hora, missao, data=data_arg)
     await responder_e_falar(update, resposta)
 
 
@@ -180,7 +185,8 @@ async def cmd_alarme_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     linhas = ["Alarmes ativos:\n"]
     for a in alarmes:
-        linhas.append(f"• {a['hora']} — {a['missao']}")
+        d = a.get("data") or "-"
+        linhas.append(f"• {d} {a['hora']} — {a['missao']}")
 
     await update.message.reply_text("\n".join(linhas))
 
@@ -432,7 +438,7 @@ async def cmd_ajuda(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/clima [cidade] — clima atual\n"
         "/amanha [cidade]— previsão amanhã\n\n"
         "ALARMES\n"
-        "/alarme HH:MM descricao\n"
+        "/alarme [YYYY-MM-DD] HH:MM descricao\n"
         "/listar         — listar alarmes\n"
         "/remover HH:MM descricao\n\n"
         "MÚSICA\n"

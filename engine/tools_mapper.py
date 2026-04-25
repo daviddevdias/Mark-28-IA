@@ -121,11 +121,14 @@ def gerenciador_alarme(argumentos: dict) -> str:
         return str(itens)
     if operacao == "remove":
         return remover_alarme(argumentos.get("hora", ""), argumentos.get("missao", ""))
-    hora   = argumentos.get("hora", "")
+    hora = argumentos.get("hora", "")
     missao = argumentos.get("missao", "Lembrete")
     if not hora:
         return "Horário não informado."
-    return adicionar_alarme(hora, missao)
+    d = argumentos.get("data") or None
+    if isinstance(d, str) and not d.strip():
+        d = None
+    return adicionar_alarme(hora, missao, data=d)
 
 
 

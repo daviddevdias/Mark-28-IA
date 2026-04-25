@@ -154,9 +154,9 @@ async def chamar_qwen(system: str, pergunta: str, img_b64: str, max_tokens: int 
             ),
         )
         return resp.choices[0].message.content.strip()
-    except Exception:
-        log.error("Qwen API erro: %s", )
-        return 
+    except Exception as e:
+        log.exception("Qwen API erro: %s", e)
+        return ""
 
 
 async def analisar_tela(pergunta: str = "O que vê na tela?") -> str:

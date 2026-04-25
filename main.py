@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import shutil
 import subprocess
@@ -13,27 +14,24 @@ import requests
 from PyQt6.QtCore import Qt
 from PyQt6.QtWidgets import QApplication
 
+import config
 from painel import PainelCore, set_loop
 from audio.audio import ouvir_comando, falar
 from engine.core import processar_comando, inicializar_ia
 from engine.controller import get_shutdown_event
 from storage.memory_bridge import sincronizar_config
 from tasks.monitor import iniciar_sentinela, registrar_falar
-from tasks.alarm import iniciar_sistema_alarmes, registrar_falar_alarme
+from tasks.alarm import iniciar_sistema_alarmes, registrar_falar_alarme, registrar_loop_alarme
 from app_ul.interface import JarvisUI
-from storage.wake import processar_wake
+from storage.wake import processar_wake, resposta_ativacao_aleatoria
 from integrations.telegram_bridge import iniciar_telegram
 
-os.environ["QT_LOGGING_RULES"]          = "qt.qpa.window=false"
+os.environ["QT_LOGGING_RULES"] = "qt.qpa.window=false"
 os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-logging"
 
 QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
 app = QApplication(sys.argv)
-
-
-
-
-
+_log = logging.getLogger(__name__)
 
 
 def achar_ollama() -> str | None:
@@ -44,11 +42,6 @@ def achar_ollama() -> str | None:
         os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Ollama", "ollama.exe"),
     ]
     return next((c for c in candidatos if c and os.path.isfile(c)), None)
-
-
-
-
-
 
 
 def iniciar_ollama():
@@ -71,26 +64,14 @@ def iniciar_ollama():
         time.sleep(3)
 
 
-
-
-
-
-
 async def executar(comando: str, ui: PainelCore):
     if not isinstance(comando, str):
         return
-        
+
     ui.bridge.dados_para_ui.emit(json.dumps({"log": f"Comando: {comando}"}))
-    resposta = await processar_comando(comando)
-    
-    if resposta:
-        ui.bridge.dados_para_ui.emit(json.dumps({"resposta": resposta}))
-        await falar(resposta)
-
-
-
-
-
+    texto = await processar_comando(comando)
+    if texto:
+        ui.bridge.dados_para_ui.emit(json.dumps({"resposta": texto}))
 
 
 async def engine(ui: PainelCore):
@@ -108,47 +89,36 @@ async def engine(ui: PainelCore):
     while not get_shutdown_event().is_set():
         try:
             sincronizar_config()
+            config.recarregar_identidade_painel()
             resultado = await ouvir_comando()
 
             if not resultado or not isinstance(resultado, str):
                 continue
 
-            lower = resultado.lower()
-            if "jarvis" in lower:
-                cmd = lower.replace("jarvis", "").strip()
-            else:
-                ativo, cmd = processar_wake(resultado)
-                if not (ativo and cmd and isinstance(cmd, str)):
-                    continue
+            ativo, cmd = processar_wake(resultado)
+            if not ativo or not isinstance(cmd, str):
+                continue
+            cmd = cmd.strip()
+            if not cmd:
+                await falar(resposta_ativacao_aleatoria())
+                continue
 
-            try:
-                await asyncio.wait_for(executar(cmd, ui), timeout=45.0)
-            except asyncio.TimeoutError:
-                print("[SISTEMA] Comando cancelado por timeout.")
+            await executar(cmd, ui)
 
         except Exception:
-            print(f"[LOOP] Erro: ")
+            _log.exception("[LOOP] erro no ciclo principal")
             await asyncio.sleep(0.3)
-
-
-
-
-
 
 
 def engine_thread(ui: PainelCore):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
     set_loop(loop)
+    registrar_loop_alarme(loop)
     try:
         loop.run_until_complete(engine(ui))
     finally:
         loop.close()
-
-
-
-
-
 
 
 def iniciar_sistema():
@@ -169,13 +139,8 @@ def iniciar_sistema():
         threading.Thread(target=engine_thread, args=(ui,), daemon=True, name="CoreEngine").start()
         sys.exit(app.exec())
 
-    except Exception:
-        print(f"[CRÍTICO] Erro na inicialização:")
-
-
-
-
-
+    except Exception as e:
+        print(f"[CRÍTICO] Erro na inicialização: {e}")
 
 
 if __name__ == "__main__":
