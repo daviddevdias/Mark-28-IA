@@ -1,15 +1,15 @@
+import asyncio
 import json
+from pathlib import Path
+
 import config
 import psutil
-from pathlib import Path
-import asyncio
-from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtCore import QObject, QTimer, QUrl, pyqtSignal, pyqtSlot
 from PyQt6.QtWebChannel import QWebChannel
-from PyQt6.QtCore import QObject, pyqtSlot, pyqtSignal, QUrl, QTimer
-from PyQt6.QtWidgets import QMainWindow
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtWidgets import QApplication, QMainWindow
 
-
-_main_loop = None
+main_async_loop = None
 CONFIG_CORE_FILE = "config_core.json"
 SMART_FILE = "config_smart.json"
 NOTAS_FILE = "notas.json"
@@ -26,12 +26,12 @@ CAMPOS_CONFIG_CORE = {
     "tema_custom_secondary",
     "tema_custom_bg",
     "ia_mode",
+    "gemini",
+    "qwen",
+    "spotify_id",
+    "spotify_sec",
+    "smartthings",
 }
-
-
-
-
-
 
 
 def resolver_arquivo(chave: str) -> str:
@@ -42,22 +42,96 @@ def resolver_arquivo(chave: str) -> str:
     return SMART_FILE
 
 
-
-
-
-
-
 def limpar_prefixo(cmd: str) -> str:
     c = cmd.strip().lower()
     for prefixo in ("core,", "core"):
         if c.startswith(prefixo):
-            c = c[len(prefixo):].strip()
+            c = c[len(prefixo) :].strip()
     return c
 
 
+def montar_biblioteca_comandos() -> list[dict]:
+    biblioteca: list[dict] = []
+    try:
+        from engine.controller import ROUTES
+
+        visto: set[str] = set()
+        for keywords, handler in ROUTES:
+            chave = "|".join(keywords)
+            if chave in visto:
+                continue
+            visto.add(chave)
+            exemplo = " ".join(keywords)
+            biblioteca.append(
+                {
+                    "cmd": exemplo.upper(),
+                    "cat": "VOZ",
+                    "desc": f"Frase reconhecida (após normalização): «{exemplo}».",
+                    "passos": list(keywords),
+                    "handler": getattr(handler, "__name__", ""),
+                    "icon": "◈",
+                    "poder": "⚡",
+                }
+            )
+    except Exception:
+        pass
+    extras = [
+        {
+            "cmd": "OLÁ JARVIS",
+            "cat": "CHAT",
+            "desc": "Mensagem livre para o modelo de IA no painel ou por voz.",
+            "passos": ["Use o chat ou fale após o wake word."],
+            "handler": "chat",
+            "icon": "◇",
+            "poder": "◆",
+        },
+        {
+            "cmd": "CLIMA / PREVISÃO",
+            "cat": "CLIMA",
+            "desc": "Perguntas sobre tempo na cidade padrão ou nomeada.",
+            "passos": ["Ex.: «como está o clima»", "«vai chover amanhã»"],
+            "handler": "weather",
+            "icon": "◎",
+            "poder": "◆",
+        },
+        {
+            "cmd": "QUICK — DASHBOARD",
+            "cat": "ATALHOS",
+            "desc": "Botões rápidos do diagnóstico.",
+            "passos": [
+                "bloquear",
+                "captura",
+                "limpar lixeira",
+                "minimizar",
+                "fechar",
+                "trabalho",
+            ],
+            "handler": "quick",
+            "icon": "⬡",
+            "poder": "◇",
+        },
+    ]
+    for item in extras:
+        biblioteca.append(item)
+    return biblioteca
 
 
+EDGE_VOZES = [
+    {"id": "pt-BR-AntonioNeural", "label": "Antonio (Brasil)"},
+    {"id": "pt-BR-FranciscaNeural", "label": "Francisca (Brasil)"},
+    {"id": "pt-PT-RaquelNeural", "label": "Raquel (Portugal)"},
+    {"id": "en-US-GuyNeural", "label": "Guy (EN-US)"},
+    {"id": "en-US-JennyNeural", "label": "Jenny (EN-US)"},
+    {"id": "es-ES-AlvaroNeural", "label": "Álvaro (ES)"},
+    {"id": "fr-FR-HenriNeural", "label": "Henri (FR)"},
+    {"id": "de-DE-ConradNeural", "label": "Conrad (DE)"},
+]
 
+
+async def run_test_voice() -> None:
+    from audio.audio import falar
+
+    await falar("Teste de síntese de voz. Painel JARVIS operacional.")
 
 
 class JarvisBridge(QObject):
@@ -68,237 +142,188 @@ class JarvisBridge(QObject):
         self.cpu_atual = 0.0
         self.ram_atual = 0.0
 
-
-
-
-
-
-
     @pyqtSlot(str)
     def executar_comando(self, cmd: str):
-        global _main_loop
+        global main_async_loop
         diretriz = limpar_prefixo(cmd)
-        if _main_loop is not None and not _main_loop.is_closed():
-            asyncio.run_coroutine_threadsafe(
-                self.executar_e_emitir(diretriz), _main_loop
-            )
-        self.dados_para_ui.emit(json.dumps({"resposta": f"Processando: {diretriz}"}))
-
-
-
-
-
-
+        if main_async_loop is not None and not main_async_loop.is_closed():
+            asyncio.run_coroutine_threadsafe(self.executar_e_emitir(diretriz), main_async_loop)
 
     async def executar_e_emitir(self, diretriz: str):
         try:
             from engine.core import processar_comando
-            processou = await processar_comando(diretriz)
-            if processou:
-                self.dados_para_ui.emit(json.dumps({"resposta": "Comando enviado ao core."}))
-        except Exception :
-            self.dados_para_ui.emit(json.dumps({""}))
 
-
-
-
-
-
+            texto = await processar_comando(diretriz)
+            if texto:
+                self.dados_para_ui.emit(json.dumps({"resposta": texto}))
+        except Exception as e:
+            self.dados_para_ui.emit(json.dumps({"erro": str(e)}))
 
     @pyqtSlot(str, result=str)
     def alternar_ia(self, modo: str) -> str:
         from engine.ia_router import router
+
         msg = router.definir_modo(modo)
         status = router.status
-        self.dados_para_ui.emit(json.dumps({
-            "resposta": msg,
-            "ia_status": status
-        }))
+        self.dados_para_ui.emit(json.dumps({"resposta": msg, "ia_status": status}))
         return json.dumps({"ok": True, "modo": modo, "msg": msg})
-
-
-
-
-
-
 
     @pyqtSlot(result=str)
     def obter_ia_status(self) -> str:
         from engine.ia_router import router
+
         return json.dumps(router.status)
-
-
-
-
-
-
 
     @pyqtSlot(str, str)
     def salvar_configuracao(self, chave: str, valor: str):
-        config.__dict__[chave] = valor
+        config.definir_valor_ui(chave, valor)
         try:
-            config.salvar_json("config_core.json", {chave: valor})
+            arquivo = resolver_arquivo(chave)
+            config.salvar_json(arquivo, {chave: valor})
         except Exception:
             pass
 
-
-
-
-
-
-
     @pyqtSlot(result=str)
     def obter_biblioteca_comandos(self) -> str:
-        biblioteca = []
-        for nome, dados in config.COMANDOS_JARVIS.items():
-            biblioteca.append({
-                "cmd": nome.upper(),
-                "cat": dados.get("cat", "GERAL"),
-                "desc": dados.get("desc", ""),
-                "poder": dados.get("poder", "⚡"),
-                "passos": dados.get("passos", []),
-                "handler": nome.replace("core,", "").strip(),
-                "icon": "◈",
-            })
-        return json.dumps(biblioteca)
-
-
-
-
-
-
+        return json.dumps(montar_biblioteca_comandos())
 
     @pyqtSlot(result=str)
     def obter_configuracoes_atuais(self) -> str:
         from engine.ia_router import router
+
         dados = config.ler_json(config.API_DIR / CONFIG_CORE_FILE)
-        return json.dumps({
-            "gemini": config.GEMINI_API_KEY,
-            "qwen": config.QWEN_API_KEY,
-            "spotify_id": config.SPOTIFY_ID,
-            "spotify_sec": config.SPOTIFY_SECRET,
-            "smartthings": config.SMARTTHINGS_TOKEN,
-            "nome_mestre": config.NOME_MESTRE,
-            "ia_mode": router.status.get("modelo", "ollama"),
-            "notas": config.notas,
-            "cidade_padrao": dados.get("cidade_padrao", "São Paulo")
-        })
-
-
-
-
-
-
+        return json.dumps(
+            {
+                "gemini": config.GEMINI_API_KEY,
+                "qwen": config.QWEN_API_KEY,
+                "spotify_id": config.SPOTIFY_ID,
+                "spotify_sec": config.SPOTIFY_SECRET,
+                "smartthings": config.SMARTTHINGS_TOKEN,
+                "nome_mestre": config.NOME_MESTRE,
+                "ia_mode": router.status.get("modelo", "ollama"),
+                "notas": config.notas,
+                "cidade_padrao": dados.get("cidade_padrao", "São Paulo"),
+            }
+        )
 
     @pyqtSlot(result=str)
     def obter_temas_sistema(self) -> str:
         try:
             from app_ul.theme import TEMAS_CORE
+
             return json.dumps(TEMAS_CORE)
         except Exception:
             return json.dumps({})
-
-
-
-
-
-
 
     @pyqtSlot(result=str)
     def obter_tema_ativo(self) -> str:
         dados = config.ler_json(config.API_DIR / CONFIG_CORE_FILE)
         tema = dados.get("tema", dados.get("tema_ativo", ""))
-        return json.dumps(tema)
+        if isinstance(tema, dict):
+            return json.dumps(tema)
+        return json.dumps(str(tema) if tema else "")
 
+    @pyqtSlot(result=str)
+    def obter_config_voz(self) -> str:
+        try:
+            from audio.audio import listar_microfones
 
+            mics = listar_microfones()
+        except Exception:
+            mics = []
+        return json.dumps(
+            {
+                "voz": getattr(config, "voz_atual", "pt-BR-AntonioNeural"),
+                "device_index": int(getattr(config, "DEVICE_INDEX", 0) or 0),
+                "modo_silencioso": bool(getattr(config, "modo_silencioso", False)),
+                "microfones": mics,
+                "vozes_edge": EDGE_VOZES,
+            }
+        )
 
+    @pyqtSlot()
+    def testar_voz_painel(self):
+        global main_async_loop
+        if main_async_loop is not None and not main_async_loop.is_closed():
+            asyncio.run_coroutine_threadsafe(run_test_voice(), main_async_loop)
 
+    @pyqtSlot()
+    def interromper_voz_painel(self):
+        try:
+            from audio.audio import interromper_voz
 
+            interromper_voz()
+        except Exception:
+            pass
 
+    @pyqtSlot()
+    def desligar_sistema(self):
+        try:
+            from engine.controller import get_shutdown_event
+
+            get_shutdown_event().set()
+        except Exception:
+            pass
+        app = QApplication.instance()
+        if app is not None:
+            app.quit()
 
     @pyqtSlot(result=str)
     def get_status(self) -> str:
-        return json.dumps({
-            "cpu": self.cpu_atual,
-            "ram": self.ram_atual,
-            "online": True
-        })
-
-
-
-
-
-
+        return json.dumps({"cpu": self.cpu_atual, "ram": self.ram_atual, "online": True})
 
     @pyqtSlot()
     def solicitar_analise_visual(self):
-        global _main_loop
-        if _main_loop is not None and not _main_loop.is_closed():
-            import asyncio
-            asyncio.run_coroutine_threadsafe(self.rotina_visao_ui(), _main_loop)
-
-
-
-
-
-
+        global main_async_loop
+        if main_async_loop is not None and not main_async_loop.is_closed():
+            asyncio.run_coroutine_threadsafe(self.rotina_visao_ui(), main_async_loop)
 
     async def rotina_visao_ui(self):
         try:
-            from vision.capture import capturar_frame_base64, analisar_tela
-            import asyncio
+            from vision.capture import analisar_tela, capturar_frame_base64
+
             self.dados_para_ui.emit(json.dumps({"visao_status": "A capturar o ecrã..."}))
             loop = asyncio.get_running_loop()
             b64 = await loop.run_in_executor(None, capturar_frame_base64)
             if not b64:
                 self.dados_para_ui.emit(json.dumps({"visao_erro": "Falha na captura."}))
                 return
-            self.dados_para_ui.emit(json.dumps({
-                "visao_img": b64, 
-                "visao_status": "Imagem capturada. A enviar para a rede neural..."
-            }))
-            analise = await analisar_tela("Analisa este ecrã e diz-me o que o utilizador está a fazer ou se há algum erro visível.")
+            self.dados_para_ui.emit(
+                json.dumps(
+                    {
+                        "visao_img": b64,
+                        "visao_status": "Imagem capturada. A analisar...",
+                    }
+                )
+            )
+            analise = await analisar_tela(
+                "Descreve o que está visível no ecrã e se há erros óbvios."
+            )
             self.dados_para_ui.emit(json.dumps({"visao_resultado": analise}))
         except Exception as e:
             self.dados_para_ui.emit(json.dumps({"visao_erro": str(e)}))
-
-
-
-
-
-
 
     @pyqtSlot(str)
     def solicitar_clima(self, cidade: str):
         if not cidade:
             dados = config.ler_json(config.API_DIR / CONFIG_CORE_FILE)
-            cidade = dados.get("cidade_padrao", "São Paulo")
-        global _main_loop
-        if _main_loop is not None and not _main_loop.is_closed():
-            import asyncio
-            asyncio.run_coroutine_threadsafe(self.rotina_clima(cidade), _main_loop)
-
-
-
-
-
-
+            cidade = (getattr(config, "cidade_padrao", None) or "").strip() or dados.get(
+                "cidade_padrao", "São Paulo"
+            )
+        global main_async_loop
+        if main_async_loop is not None and not main_async_loop.is_closed():
+            asyncio.run_coroutine_threadsafe(self.rotina_clima(cidade), main_async_loop)
 
     async def rotina_clima(self, cidade: str):
         try:
             from tasks.weather import obter_clima_raw
-            import asyncio
+
             loop = asyncio.get_running_loop()
             resultado_str = await loop.run_in_executor(None, obter_clima_raw, cidade)
             resultado_json = json.loads(resultado_str)
             self.dados_para_ui.emit(json.dumps({"clima_dados": resultado_json, "cidade_buscada": cidade}))
-        except Exception:
-            self.dados_para_ui.emit(json.dumps({"erro": f"Erro clima:"}))
-
-
-
-
-
+        except Exception as e:
+            self.dados_para_ui.emit(json.dumps({"erro": f"Clima: {e}"}))
 
 
 class PainelCore(QMainWindow):
@@ -321,21 +346,26 @@ class PainelCore(QMainWindow):
         self.timer_ia.timeout.connect(self.atualizar_ia_status)
         self.timer_ia.start(15000)
 
+        try:
+            from engine.core import registrar_ui_bridge
 
+            registrar_ui_bridge(self.bridge)
+        except Exception:
+            pass
 
+        def hook_voz(on: bool, vol: float = 1.0) -> None:
+            try:
+                self.bridge.dados_para_ui.emit(
+                    json.dumps({"voz_speaking": bool(on), "voz_vol": float(vol)})
+                )
+            except Exception:
+                pass
 
-
-
+        config.registrar_callback_voz_painel(hook_voz)
 
     def enviar_para_html(self, json_str: str):
         script = f"if(window.receberDoJarvis){{window.receberDoJarvis({json_str});}}"
         self.view.page().runJavaScript(script)
-
-
-
-
-
-
 
     def atualizar_hardware(self):
         try:
@@ -347,25 +377,15 @@ class PainelCore(QMainWindow):
         except Exception:
             pass
 
-
-
-
-
-
-
     def atualizar_ia_status(self):
         try:
             from engine.ia_router import router
+
             self.enviar_para_html(json.dumps({"ia_status": router.status}))
         except Exception:
             pass
 
 
-
-
-
-
-
 def set_loop(loop: asyncio.AbstractEventLoop):
-    global _main_loop
-    _main_loop = loop
+    global main_async_loop
+    main_async_loop = loop

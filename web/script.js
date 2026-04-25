@@ -1,8 +1,16 @@
 'use strict';
 
+const PG = {
+    WEATHER: 0, DASH: 1, COMANDOS: 2, VOZ: 3, VISAO: 4, MONITOR: 5,
+    CHAT: 6, NOTAS: 7, IA: 8, CONFIG: 9, TEMAS: 10,
+};
+window.PG = PG;
+
 const PAGES = [
     { id: 'weather',  label: 'CLIMA',        icon: '◎'  },
     { id: 'dash',     label: 'DIAGNÓSTICO',  icon: '◉'  },
+    { id: 'cmds',     label: 'COMANDOS',     icon: '📚' },
+    { id: 'voz',      label: 'VOZ',          icon: '🎙' },
     { id: 'visao',    label: 'VISÃO IA',     icon: '👁️' },
     { id: 'monitor',  label: 'MONITOR',      icon: '⬡'  },
     { id: 'chat',     label: 'CHAT IA',      icon: '◈'  },
@@ -53,7 +61,19 @@ const state = {
     },
 
     konami: [],
-    _bridgeReady: false,
+    bridgeReady: false,
+
+    voz: {
+        speaking: false,
+        vol: 0.1,
+        vozAtual: 'pt-BR-AntonioNeural',
+        deviceIndex: 0,
+        silencioso: false,
+        microfones: [],
+        vozesEdge: [],
+    },
+    cmdLibrary: [],
+    cmdFilter: '',
 };
 
 const WX_ICONS = {
@@ -93,11 +113,41 @@ const TIPO_ICON = {
 };
 
 
+function atualizarMedidorVoz() {
+    const wrap = document.getElementById('vozMeterBars');
+    if (!wrap) return;
+    const n = 16;
+    const vol = state.voz.speaking ? state.voz.vol : 0.08;
+    const h = wrap.querySelectorAll('.voz-bar');
+    if (h.length !== n) return;
+    for (let i = 0; i < n; i++) {
+        const t = (i / n) * Math.PI;
+        const wave = Math.sin(t * 3 + Date.now() / 160) * 0.35 + 0.65;
+        const pct = state.voz.speaking
+            ? Math.min(100, (12 + vol * 88) * wave * (0.55 + (i % 5) * 0.09))
+            : 6 + (i % 3) * 2;
+        h[i].style.height = pct + '%';
+        h[i].style.opacity = state.voz.speaking ? '0.95' : '0.35';
+    }
+}
+
+
+setInterval(() => {
+    if (state.voz.speaking && state.page === PG.VOZ) atualizarMedidorVoz();
+}, 80);
+
+
 function receberDoJarvis(data) {
     if (data.cpu !== undefined) {
         state.metricas._cpu_raw = data.cpu;
         state.metricas._ram_raw = data.ram;
-        if (state.page === 1) _updateMetrics();
+        if (state.page === PG.DASH) updateMetrics();
+    }
+
+    if (data.voz_speaking !== undefined) {
+        state.voz.speaking = !!data.voz_speaking;
+        state.voz.vol = typeof data.voz_vol === 'number' ? data.voz_vol : state.voz.vol;
+        atualizarMedidorVoz();
     }
 
     if (data.resposta) {
@@ -107,7 +157,7 @@ function receberDoJarvis(data) {
         if (state.chatHist.length && state.chatHist[state.chatHist.length - 1]?.role === 'user') {
             document.getElementById('typingIndicator')?.remove();
             state.chatHist.push({ role: 'jarvis', text: s });
-            if (state.page === 4) _renderChat();
+            if (state.page === PG.CHAT) renderChat();
         }
     }
 
@@ -122,8 +172,8 @@ function receberDoJarvis(data) {
             modelo: data.ia_status.modelo || '',
             ollama: !!data.ia_status.ollama,
         };
-        _updateIABadge();
-        if (state.page === 6) renderPage();
+        updateIABadge();
+        if (state.page === PG.IA) renderPage();
     }
 
     if (data.visao_status) {
@@ -157,18 +207,18 @@ function receberDoJarvis(data) {
     if (data.monitor_status) {
         state.monitor.ativo = data.monitor_status === 'ativo';
         if (data.monitor_intervalo) state.monitor.intervalo = data.monitor_intervalo;
-        if (state.page === 3) _atualizarHeaderMonitor();
+        if (state.page === PG.MONITOR) atualizarHeaderMonitor();
         addLog(state.monitor.ativo ? 'ok' : 'warn',
                state.monitor.ativo ? `Monitor ativo (${state.monitor.intervalo}s)` : 'Monitor desativado.');
     }
 
     if (data.monitor_evento) {
-        _processarEventoMonitor(data.monitor_evento);
+        processarEventoMonitor(data.monitor_evento);
     }
 
     if (data.monitor_dica) {
         state.monitor.ultima_dica = data.monitor_dica;
-        _exibirDicaMonitor(data.monitor_dica, data.monitor_tipo || state.monitor.ultimo_tipo);
+        exibirDicaMonitor(data.monitor_dica, data.monitor_tipo || state.monitor.ultimo_tipo);
         addLog('warn', 'Dica Jarvis: ' + data.monitor_dica.slice(0, 80));
     }
 
@@ -176,15 +226,15 @@ function receberDoJarvis(data) {
         state.weather.loading = false;
         if (data.clima_dados.error) {
             state.weather.error = data.clima_dados.error;
-            _renderWeatherError();
+            renderWeatherError();
         } else {
-            _parseWeatherData(data.clima_dados, data.cidade_buscada);
+            parseWeatherData(data.clima_dados, data.cidade_buscada);
         }
     }
 }
 
 
-function _processarEventoMonitor(ev) {
+function processarEventoMonitor(ev) {
     const ts = new Date().toTimeString().slice(0, 8);
     const entrada = {
         ts,
@@ -205,17 +255,17 @@ function _processarEventoMonitor(ev) {
         state.monitor.eventos.unshift(entrada);
         if (state.monitor.eventos.length > 50) state.monitor.eventos.pop();
         addLog('err', `[MONITOR] ${entrada.tipo.toUpperCase()}: ${entrada.resumo.slice(0,70)}`);
-        _mostrarAlertaFlutuante(entrada);
+        mostrarAlertaFlutuante(entrada);
     }
 
-    if (state.page === 3) {
-        _atualizarHeaderMonitor();
-        _renderEventosMonitor();
+    if (state.page === PG.MONITOR) {
+        atualizarHeaderMonitor();
+        renderEventosMonitor();
     }
 }
 
 
-function _mostrarAlertaFlutuante(ev) {
+function mostrarAlertaFlutuante(ev) {
     const cor   = TIPO_COR[ev.tipo]   || 'var(--red)';
     const icon  = TIPO_ICON[ev.tipo]  || '⚠️';
 
@@ -231,7 +281,7 @@ function _mostrarAlertaFlutuante(ev) {
             font-family:var(--mono); animation: alertSlideIn .3s var(--ease);
             cursor:pointer;
         `;
-        alerta.onclick = () => { navegarPara(3); alerta.remove(); };
+        alerta.onclick = () => { navegarPara(PG.MONITOR); alerta.remove(); };
         document.body.appendChild(alerta);
     }
 
@@ -267,7 +317,7 @@ function _mostrarAlertaFlutuante(ev) {
 }
 
 
-function _exibirDicaMonitor(dica, tipo) {
+function exibirDicaMonitor(dica, tipo) {
     const cor  = TIPO_COR[tipo]  || 'var(--yellow)';
     const icon = TIPO_ICON[tipo] || '⚠️';
 
@@ -302,7 +352,7 @@ function _exibirDicaMonitor(dica, tipo) {
         </div>
         <div style="margin-top:12px;display:flex;gap:8px;">
             <button class="btn btn-accent" style="font-size:11px;padding:6px 14px;"
-                    onclick="navegarPara(3);document.getElementById('dicaFlutuante').remove();">
+                    onclick="navegarPara(window.PG.MONITOR);document.getElementById('dicaFlutuante').remove();">
                 VER MONITOR
             </button>
             <button class="btn btn-ghost" style="font-size:11px;padding:6px 14px;"
@@ -357,10 +407,10 @@ function pgMonitor(wrap) {
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:12px;margin-bottom:16px;">
-            ${_monStatCard('CAPTURAS',  m.total_capturas, 'var(--accent)',  '📸')}
-            ${_monStatCard('ALERTAS',   m.total_alertas,  m.total_alertas > 0 ? 'var(--red)' : 'var(--accent2)', '🔴')}
-            ${_monStatCard('INTERVALO', m.intervalo + 's', 'var(--yellow)', '⏱')}
-            ${_monStatCard('STATUS',    m.ativo ? 'ATIVO' : 'PARADO', m.ativo ? 'var(--accent2)' : 'var(--text3)', m.ativo ? '⬡' : '○')}
+            ${monStatCard('CAPTURAS',  m.total_capturas, 'var(--accent)',  '📸')}
+            ${monStatCard('ALERTAS',   m.total_alertas,  m.total_alertas > 0 ? 'var(--red)' : 'var(--accent2)', '🔴')}
+            ${monStatCard('INTERVALO', m.intervalo + 's', 'var(--yellow)', '⏱')}
+            ${monStatCard('STATUS',    m.ativo ? 'ATIVO' : 'PARADO', m.ativo ? 'var(--accent2)' : 'var(--text3)', m.ativo ? '⬡' : '○')}
         </div>
 
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px;">
@@ -409,14 +459,14 @@ function pgMonitor(wrap) {
                 </button>
             </div>
             <div id="monitorEventos" style="max-height:260px;overflow-y:auto;">
-                ${_renderEventosMonitorHTML()}
+                ${renderEventosMonitorHTML()}
             </div>
         </div>
     `;
 }
 
 
-function _monStatCard(label, val, cor, icon) {
+function monStatCard(label, val, cor, icon) {
     return `
         <div class="card" style="padding:16px 18px;display:flex;flex-direction:column;gap:8px;">
             <div style="font-family:var(--mono);font-size:10px;font-weight:700;
@@ -427,7 +477,7 @@ function _monStatCard(label, val, cor, icon) {
 }
 
 
-function _renderEventosMonitorHTML() {
+function renderEventosMonitorHTML() {
     if (!state.monitor.eventos.length) {
         return `<div style="text-align:center;padding:40px;color:var(--text3);
                      font-family:var(--mono);font-size:12px;letter-spacing:2px;">
@@ -463,13 +513,13 @@ function _renderEventosMonitorHTML() {
 }
 
 
-function _renderEventosMonitor() {
+function renderEventosMonitor() {
     const el = document.getElementById('monitorEventos');
-    if (el) el.innerHTML = _renderEventosMonitorHTML();
+    if (el) el.innerHTML = renderEventosMonitorHTML();
 }
 
 
-function _atualizarHeaderMonitor() {
+function atualizarHeaderMonitor() {
     const badge = document.getElementById('monitorBadge');
     const btn   = document.getElementById('btnToggleMonitor');
     const m     = state.monitor;
@@ -518,9 +568,9 @@ function toggleMonitor() {
         state.monitor.ativo = true;
     }
 
-    if (state.page === 3) {
+    if (state.page === PG.MONITOR) {
         setTimeout(() => {
-            if (state.page === 3) renderPage();
+            if (state.page === PG.MONITOR) renderPage();
         }, 300);
     }
 }
@@ -529,8 +579,160 @@ function toggleMonitor() {
 function limparEventosMonitor() {
     state.monitor.eventos       = [];
     state.monitor.total_alertas = 0;
-    _renderEventosMonitor();
+    renderEventosMonitor();
     toast('Histórico de alertas limpo.');
+}
+
+
+async function pgComandos(wrap) {
+    wrap.innerHTML = `
+        <div class="page-header">
+            <div>
+                <div class="page-title">BIBLIOTECA DE COMANDOS</div>
+                <div class="page-sub">Rotas de voz e atalhos reconhecidos pelo núcleo</div>
+            </div>
+            <input class="input" id="cmdFilterIn" placeholder="Filtrar…" style="max-width:280px;"
+                   value="${esc(state.cmdFilter)}">
+        </div>
+        <div id="cmdListMount" style="margin-top:14px;">
+            <div style="color:var(--text3);font-family:var(--mono);font-size:13px;">A carregar…</div>
+        </div>`;
+
+    const inp = document.getElementById('cmdFilterIn');
+    inp?.addEventListener('input', e => {
+        state.cmdFilter = e.target.value;
+        renderCmdList();
+    });
+
+    if (window.jarvis?.obter_biblioteca_comandos) {
+        try {
+            const raw = await new Promise(res => {
+                try { window.jarvis.obter_biblioteca_comandos(r => res(r)); }
+                catch (err) { res(null); }
+            });
+            if (raw) state.cmdLibrary = JSON.parse(raw);
+        } catch (e) { state.cmdLibrary = state.cmdLibrary || []; }
+    }
+    renderCmdList();
+}
+
+
+function renderCmdList() {
+    const mount = document.getElementById('cmdListMount');
+    if (!mount) return;
+    const q = (state.cmdFilter || '').trim().toLowerCase();
+    const items = (state.cmdLibrary || []).filter(it => {
+        if (!q) return true;
+        const blob = `${it.cmd} ${it.cat} ${it.desc} ${(it.passos || []).join(' ')}`.toLowerCase();
+        return blob.includes(q);
+    });
+    if (!items.length) {
+        mount.innerHTML = `<div class="card" style="padding:40px;text-align:center;color:var(--text3);">
+            Nenhum comando corresponde ao filtro.</div>`;
+        return;
+    }
+    mount.innerHTML = `<div class="cmd-grid">${items.map(it => `
+        <div class="cmd-card">
+            <div class="cmd-card-top">
+                <span class="cmd-icon">${it.icon || '◈'}</span>
+                <span class="cmd-cat">${esc(it.cat || '')}</span>
+            </div>
+            <div class="cmd-name">${esc(it.cmd)}</div>
+            <div class="cmd-desc">${esc(it.desc || '')}</div>
+            ${(it.passos && it.passos.length) ? `
+                <ul class="cmd-steps">${it.passos.map(p => `<li>${esc(p)}</li>`).join('')}</ul>` : ''}
+            <button type="button" class="btn btn-accent cmd-copy"
+                    data-cmd="${esc((it.passos && it.passos[0]) || it.cmd)}">COPIAR EXEMPLO</button>
+        </div>`).join('')}</div>`;
+    mount.querySelectorAll('.cmd-copy').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const t = btn.getAttribute('data-cmd') || '';
+            if (t) {
+                navigator.clipboard?.writeText(t).then(() => toast('Copiado.')).catch(() => toast(t.slice(0, 80)));
+            }
+        });
+    });
+}
+
+
+function pgVoz(wrap) {
+    const v = state.voz;
+    const mics = v.microfones.length
+        ? v.microfones.map(m => {
+            const idx = parseInt(String(m).split(':')[0], 10);
+            const safeIdx = Number.isFinite(idx) ? idx : 0;
+            const sel = safeIdx === v.deviceIndex ? 'selected' : '';
+            return `<option value="${safeIdx}" ${sel}>${esc(m)}</option>`;
+        }).join('')
+        : '<option value="0">Dispositivo padrão</option>';
+    const vozes = (v.vozesEdge || []).map(o =>
+        `<option value="${esc(o.id)}" ${o.id === v.vozAtual ? 'selected' : ''}>${esc(o.label)}</option>`
+    ).join('');
+
+    wrap.innerHTML = `
+        <div class="page-header">
+            <div>
+                <div class="page-title">PROTOCOLO DE VOZ</div>
+                <div class="page-sub">Edge TTS, microfone e estado em tempo real</div>
+            </div>
+        </div>
+
+        <div class="voice-layout">
+            <div class="card voice-meter-card">
+                <div class="card-accent" style="background:linear-gradient(90deg,var(--accent),transparent);"></div>
+                <div class="voice-meter-label">ATIVIDADE DE SÍNTESE</div>
+                <div class="voz-meter" id="vozMeterBars">
+                    ${Array.from({ length: 16 }, () => '<div class="voz-bar"></div>').join('')}
+                </div>
+                <div class="voice-meter-legend">
+                    ${v.speaking ? '<span style="color:var(--accent2);">● A falar</span>' : '<span style="color:var(--text3);">○ Idle</span>'}
+                </div>
+            </div>
+
+            <div class="card" style="padding:22px;flex:1;">
+                <div class="card-accent" style="background:linear-gradient(90deg,var(--accent2),transparent);"></div>
+                <div class="voice-field">
+                    <label>Voz (Edge TTS)</label>
+                    <select class="input" id="selVozEdge">${vozes || '<option value="pt-BR-AntonioNeural">Antonio</option>'}</select>
+                </div>
+                <div class="voice-field">
+                    <label>Microfone</label>
+                    <select class="input" id="selMicDev">${mics}</select>
+                </div>
+                <div class="voice-field row">
+                    <label><input type="checkbox" id="chkSilencioso" ${v.silencioso ? 'checked' : ''}> Modo silencioso (sem TTS)</label>
+                </div>
+                <div class="voice-actions">
+                    <button type="button" class="btn btn-accent" id="btnTestVoz">▶ TESTAR VOZ</button>
+                    <button type="button" class="btn btn-warn" id="btnStopVoz">■ PARAR</button>
+                    <button type="button" class="btn btn-ghost" id="btnSaveVoz">💾 GUARDAR</button>
+                </div>
+                <p class="voice-hint">O medidor reage quando o Jarvis fala (motor principal). Use «Testar voz» para validar Edge TTS.</p>
+            </div>
+        </div>`;
+
+    document.getElementById('btnTestVoz')?.addEventListener('click', () => {
+        if (window.jarvis?.testar_voz_painel) window.jarvis.testar_voz_painel();
+        else toast('Bridge indisponível.', 'err');
+    });
+    document.getElementById('btnStopVoz')?.addEventListener('click', () => {
+        if (window.jarvis?.interromper_voz_painel) window.jarvis.interromper_voz_painel();
+    });
+    document.getElementById('btnSaveVoz')?.addEventListener('click', () => {
+        if (!window.jarvis) { toast('Bridge não conectada.', 'err'); return; }
+        const voice = document.getElementById('selVozEdge')?.value || v.vozAtual;
+        const idx = parseInt(document.getElementById('selMicDev')?.value || '0', 10) || 0;
+        const sil = document.getElementById('chkSilencioso')?.checked;
+        window.jarvis.salvar_configuracao('voz', voice);
+        window.jarvis.salvar_configuracao('device_index', String(idx));
+        window.jarvis.salvar_configuracao('modo_silencioso', sil ? 'true' : 'false');
+        state.voz.vozAtual = voice;
+        state.voz.deviceIndex = idx;
+        state.voz.silencioso = !!sil;
+        toast('Configuração de voz guardada.');
+    });
+
+    atualizarMedidorVoz();
 }
 
 
@@ -601,20 +803,20 @@ function wxIcon(desc) {
 }
 
 
-const _qwcScript = document.createElement('script');
-_qwcScript.src = 'qrc:///qtwebchannel/qwebchannel.js';
-document.head.appendChild(_qwcScript);
+const scriptWebChannel = document.createElement('script');
+scriptWebChannel.src = 'qrc:///qtwebchannel/qwebchannel.js';
+document.head.appendChild(scriptWebChannel);
 
-_qwcScript.onload = () => {
+scriptWebChannel.onload = () => {
     try {
         new QWebChannel(qt.webChannelTransport, ch => {
             window.jarvis = ch.objects.jarvis;
-            state._bridgeReady = true;
+            state.bridgeReady = true;
             window.jarvis.dados_para_ui.connect(raw => {
                 try { receberDoJarvis(JSON.parse(raw)); }
                 catch(e) { console.error('[BRIDGE] Parse error:', e); }
             });
-            _loadData();
+            loadData();
         });
     } catch(e) {
         addLog('warn', 'Modo demonstração ativo — bridge Qt não detectada');
@@ -622,12 +824,14 @@ _qwcScript.onload = () => {
 };
 
 
-async function _loadData() {
+async function loadData() {
     try {
-        const [temas, cfg, iaRaw] = await Promise.all([
-            _bridge('obter_temas_sistema'),
-            _bridge('obter_configuracoes_atuais'),
-            _bridge('obter_ia_status'),
+        const [temas, cfg, iaRaw, vozRaw, cmdsRaw] = await Promise.all([
+            bridge('obter_temas_sistema'),
+            bridge('obter_configuracoes_atuais'),
+            bridge('obter_ia_status'),
+            bridge('obter_config_voz'),
+            bridge('obter_biblioteca_comandos'),
         ]);
 
         if (temas) state.themes = JSON.parse(temas);
@@ -642,14 +846,37 @@ async function _loadData() {
         if (iaRaw) {
             const ia = JSON.parse(iaRaw);
             state.ia = { modo: ia.modo || 'ollama', modelo: ia.modelo || '', ollama: !!ia.ollama };
-            _updateIABadge();
+            updateIABadge();
         }
 
-        const temaAtivo = await _bridge('obter_tema_ativo');
-        const ta = temaAtivo?.replace(/^"|"$/g, '') || '';
+        if (vozRaw) {
+            try {
+                const v = JSON.parse(vozRaw);
+                state.voz.vozAtual = v.voz || state.voz.vozAtual;
+                state.voz.deviceIndex = Number(v.device_index) || 0;
+                state.voz.silencioso = !!v.modo_silencioso;
+                state.voz.microfones = Array.isArray(v.microfones) ? v.microfones : [];
+                state.voz.vozesEdge = Array.isArray(v.vozes_edge) ? v.vozes_edge : [];
+            } catch (e) {}
+        }
+
+        if (cmdsRaw) {
+            try { state.cmdLibrary = JSON.parse(cmdsRaw); } catch (e) { state.cmdLibrary = []; }
+        }
+
+        const temaAtivo = await bridge('obter_tema_ativo');
+        let ta = '';
+        if (temaAtivo) {
+            try {
+                const parsed = JSON.parse(temaAtivo);
+                ta = typeof parsed === 'string' ? parsed : '';
+            } catch (e) {
+                ta = String(temaAtivo).replace(/^["']|["']$/g, '');
+            }
+        }
         if (ta && state.themes[ta]) {
             state.theme = ta;
-            _applyTheme(ta);
+            applyTheme(ta);
         }
     } catch(e) {
         addLog('warn', 'Dados do sistema indisponíveis — usando padrões');
@@ -658,7 +885,7 @@ async function _loadData() {
 }
 
 
-function _bridge(method) {
+function bridge(method) {
     return new Promise(res => {
         if (!window.jarvis || typeof window.jarvis[method] !== 'function') return res(null);
         try { window.jarvis[method](r => res(r)); }
@@ -667,7 +894,7 @@ function _bridge(method) {
 }
 
 
-function _bridgeCall(method, arg) {
+function bridgeCall(method, arg) {
     return new Promise(res => {
         if (!window.jarvis || typeof window.jarvis[method] !== 'function') return res(null);
         try { window.jarvis[method](arg, r => res(r)); }
@@ -677,18 +904,18 @@ function _bridgeCall(method, arg) {
 
 
 function boot() {
-    _buildNav();
-    _startClock();
-    _startMetricSimulation();
-    _injetarCSS();
+    buildNav();
+    startClock();
+    startMetricSimulation();
+    injetarCSS();
     navegarPara(0);
-    document.addEventListener('keydown', _konamiHandler);
+    document.addEventListener('keydown', konamiHandler);
     addLog('ok', 'J.A.R.V.I.S MARK XXVIII inicializado');
     addLog('info', 'Aguardando bridge Qt...');
 }
 
 
-function _injetarCSS() {
+function injetarCSS() {
     const style = document.createElement('style');
     style.textContent = `
         @keyframes alertSlideIn {
@@ -700,7 +927,7 @@ function _injetarCSS() {
 }
 
 
-function _buildNav() {
+function buildNav() {
     const nav = document.getElementById('navBtns');
     if (!nav) return;
     PAGES.forEach((p, i) => {
@@ -747,7 +974,10 @@ function renderPage() {
     wrap.className = 'pg-enter';
     area.appendChild(wrap);
 
-    const fns = [pgWeather, pgDash, pgVisao, pgMonitor, pgChat, pgNotas, pgIA, pgConfig, pgTemas];
+    const fns = [
+        pgWeather, pgDash, pgComandos, pgVoz, pgVisao, pgMonitor,
+        pgChat, pgNotas, pgIA, pgConfig, pgTemas,
+    ];
     (fns[state.page] || pgWeather)(wrap);
 }
 
@@ -772,9 +1002,9 @@ async function pgWeather(wrap) {
     wrap.appendChild(wxWrap);
 
     if (state.weather.loading || state.weather.temp === null) {
-        _fetchWeather(state.weather.city);
+        fetchWeather(state.weather.city);
     } else {
-        _renderWeather(wxWrap);
+        renderWeather(wxWrap);
     }
 }
 
@@ -789,18 +1019,18 @@ async function buscarClima() {
     state.weather.error   = null;
 
     if (window.jarvis) window.jarvis.salvar_configuracao('cidade_padrao', city);
-    _fetchWeather(city);
+    fetchWeather(city);
 }
 
 
 async function atualizarClima() {
     state.weather.loading = true;
     state.weather.error   = null;
-    _fetchWeather(state.weather.city);
+    fetchWeather(state.weather.city);
 }
 
 
-async function _fetchWeather(city) {
+async function fetchWeather(city) {
     const wxWrap = document.getElementById('wxWrap');
     if (!wxWrap) return;
 
@@ -815,7 +1045,7 @@ async function _fetchWeather(city) {
 }
 
 
-function _parseWeatherData(data, city) {
+function parseWeatherData(data, city) {
     const wxWrap = document.getElementById('wxWrap');
     if (!wxWrap) return;
 
@@ -848,16 +1078,16 @@ function _parseWeatherData(data, city) {
             })) : [],
         };
 
-        _renderWeather(wxWrap);
+        renderWeather(wxWrap);
     } catch(e) {
         state.weather.loading = false;
         state.weather.error   = 'Falha na decodificação';
-        _renderWeatherError();
+        renderWeatherError();
     }
 }
 
 
-function _renderWeatherError() {
+function renderWeatherError() {
     const wxWrap = document.getElementById('wxWrap');
     if (!wxWrap) return;
     wxWrap.innerHTML = `
@@ -874,7 +1104,7 @@ function _renderWeatherError() {
 }
 
 
-function _renderWeather(wxWrap) {
+function renderWeather(wxWrap) {
     const wx = state.weather;
     if (!wxWrap) return;
 
@@ -906,12 +1136,12 @@ function _renderWeather(wxWrap) {
             </div>
 
             <div class="weather-stats-grid" style="animation:pageEnter .35s var(--ease) .1s both;">
-                ${_wxStat('💧','UMIDADE',     wx.humidity + '%',  '',             'var(--accent)')}
-                ${_wxStat('💨','VENTO',       wx.wind + ' km/h',  '',             'var(--accent2)')}
-                ${_wxStat('🌡️','PRESSÃO',    wx.pressure + ' hPa','',            'var(--yellow)')}
-                ${_wxStat('☀️','ÍNDICE UV',  String(wx.uv),       _uvLabel(wx.uv),_uvColor(wx.uv))}
-                ${_wxStat('👁️','VISIBILIDADE',wx.vis + ' km',     '',             'var(--purple)')}
-                ${_wxStat('🌡️','SENSAÇÃO',   wx.feels + '°C',     '',             tCol)}
+                ${wxStat('💧','UMIDADE',     wx.humidity + '%',  '',             'var(--accent)')}
+                ${wxStat('💨','VENTO',       wx.wind + ' km/h',  '',             'var(--accent2)')}
+                ${wxStat('🌡️','PRESSÃO',    wx.pressure + ' hPa','',            'var(--yellow)')}
+                ${wxStat('☀️','ÍNDICE UV',  String(wx.uv),       uvLabel(wx.uv),uvColor(wx.uv))}
+                ${wxStat('👁️','VISIBILIDADE',wx.vis + ' km',     '',             'var(--purple)')}
+                ${wxStat('🌡️','SENSAÇÃO',   wx.feels + '°C',     '',             tCol)}
             </div>
         </div>
 
@@ -923,13 +1153,13 @@ function _renderWeather(wxWrap) {
         </div>
 
         <div style="display:flex;gap:12px;animation:pageEnter .35s var(--ease) .2s both;">
-            ${_wxAlerts(wx)}
+            ${wxAlerts(wx)}
         </div>
     `;
 }
 
 
-function _wxStat(icon, label, val, sub, col) {
+function wxStat(icon, label, val, sub, col) {
     return `
         <div class="weather-stat">
             <div class="stat-label">${icon} ${label}</div>
@@ -939,7 +1169,7 @@ function _wxStat(icon, label, val, sub, col) {
 }
 
 
-function _uvLabel(uv) {
+function uvLabel(uv) {
     if (uv <= 2) return 'BAIXO';
     if (uv <= 5) return 'MODERADO';
     if (uv <= 7) return 'ALTO';
@@ -947,14 +1177,14 @@ function _uvLabel(uv) {
 }
 
 
-function _uvColor(uv) {
+function uvColor(uv) {
     if (uv <= 2) return 'var(--accent2)';
     if (uv <= 5) return 'var(--yellow)';
     return 'var(--red)';
 }
 
 
-function _wxAlerts(wx) {
+function wxAlerts(wx) {
     const tips = [];
     if (wx.temp     > 35)  tips.push({ icon:'🔥', msg:'Calor extremo — hidrate-se constantemente.',    col:'var(--red)'    });
     if (wx.uv       > 7)   tips.push({ icon:'☀️', msg:'UV alto — use protetor solar FPS 50+.',         col:'var(--orange)' });
@@ -982,9 +1212,9 @@ function pgDash(wrap) {
 
     wrap.innerHTML = `
         <div class="dash-grid">
-            ${_metricCard('CPU',        'v-cpu','p-cpu', Math.round(m.cpu)+'%', m.cpu, 'var(--accent)')}
-            ${_metricCard('MEMÓRIA RAM','v-ram','p-ram', Math.round(m.ram)+'%', m.ram, 'var(--accent)')}
-            ${_metricCard('GPU',        'v-gpu','p-gpu', Math.round(m.gpu)+'%', m.gpu, 'var(--orange)')}
+            ${metricCard('CPU',        'v-cpu','p-cpu', Math.round(m.cpu)+'%', m.cpu, 'var(--accent)')}
+            ${metricCard('MEMÓRIA RAM','v-ram','p-ram', Math.round(m.ram)+'%', m.ram, 'var(--accent)')}
+            ${metricCard('GPU',        'v-gpu','p-gpu', Math.round(m.gpu)+'%', m.gpu, 'var(--orange)')}
         </div>
 
         <div class="dash-bottom">
@@ -996,14 +1226,14 @@ function pgDash(wrap) {
                          ESPECIFICAÇÕES DO SISTEMA
                     </div>
                     <div style="display:grid;grid-template-columns:1fr 1fr;gap:9px;">
-                        ${_spec('DISCO USO',  Math.round(m.disco)+'%')}
-                        ${_spec('FREQ CPU',   m.freq+' MHz')}
-                        ${_spec('RAM EM USO', m.ram_usada+' / '+m.ram_total+' GB')}
-                        ${_spec('GPU TEMP',   m.gpu_temp+'°C')}
-                        ${_spec('LATÊNCIA',   m.ping+' ms')}
-                        ${_spec('UPTIME',     _uptime())}
-                        ${_spec('DOWNLOAD',   m.net_in+' MB/s')}
-                        ${_spec('UPLOAD',     m.net_out+' MB/s')}
+                        ${spec('DISCO USO',  Math.round(m.disco)+'%')}
+                        ${spec('FREQ CPU',   m.freq+' MHz')}
+                        ${spec('RAM EM USO', m.ram_usada+' / '+m.ram_total+' GB')}
+                        ${spec('GPU TEMP',   m.gpu_temp+'°C')}
+                        ${spec('LATÊNCIA',   m.ping+' ms')}
+                        ${spec('UPTIME',     uptime())}
+                        ${spec('DOWNLOAD',   m.net_in+' MB/s')}
+                        ${spec('UPLOAD',     m.net_out+' MB/s')}
                     </div>
                 </div>
             </div>
@@ -1019,21 +1249,21 @@ function pgDash(wrap) {
         </div>
 
         <div class="quick-grid">
-            ${_quickBtn('🔒','BLOQUEAR TELA', 'bloquear',       'var(--purple)', 'rgba(136,85,255,.05)')}
-            ${_quickBtn('📸','CAPTURAR TELA', 'captura',        'var(--accent)', 'rgba(0,200,255,.05)')}
-            ${_quickBtn('🗑️','LIMPAR LIXEIRA','limpar lixeira', 'var(--red)',    'rgba(255,34,85,.05)')}
-            ${_quickBtn('🖥️','MINIMIZAR TUDO','minimizar',      'var(--accent2)','rgba(0,255,157,.05)')}
-            ${_quickBtn('❌','FECHAR JANELA', 'fechar',         'var(--orange)', 'rgba(255,122,0,.05)')}
-            ${_quickBtn('💼','MODO TRABALHO', 'trabalho',       'var(--yellow)', 'rgba(255,199,0,.05)')}
+            ${quickBtn('🔒','BLOQUEAR TELA', 'bloquear',       'var(--purple)', 'rgba(136,85,255,.05)')}
+            ${quickBtn('📸','CAPTURAR TELA', 'captura',        'var(--accent)', 'rgba(0,200,255,.05)')}
+            ${quickBtn('🗑️','LIMPAR LIXEIRA','limpar lixeira', 'var(--red)',    'rgba(255,34,85,.05)')}
+            ${quickBtn('🖥️','MINIMIZAR TUDO','minimizar',      'var(--accent2)','rgba(0,255,157,.05)')}
+            ${quickBtn('❌','FECHAR JANELA', 'fechar',         'var(--orange)', 'rgba(255,122,0,.05)')}
+            ${quickBtn('💼','MODO TRABALHO', 'trabalho',       'var(--yellow)', 'rgba(255,199,0,.05)')}
         </div>
     `;
 
-    _renderLog();
-    _updateMetrics();
+    renderLog();
+    updateMetrics();
 }
 
 
-function _metricCard(lbl, idV, idP, val, pct, cor) {
+function metricCard(lbl, idV, idP, val, pct, cor) {
     const col = pct > 85 ? 'var(--red)' : pct > 65 ? 'var(--orange)' : cor;
     return `
         <div class="metric-card">
@@ -1048,7 +1278,7 @@ function _metricCard(lbl, idV, idP, val, pct, cor) {
 }
 
 
-function _spec(k, v) {
+function spec(k, v) {
     return `
         <div class="spec-block">
             <div class="spec-label">${k}</div>
@@ -1057,7 +1287,7 @@ function _spec(k, v) {
 }
 
 
-function _quickBtn(icon, label, cmd, col, bg) {
+function quickBtn(icon, label, cmd, col, bg) {
     return `
         <div class="quick-btn" style="--hover-col:${bg};color:${col};border-color:var(--border);"
              onclick="enviarComando('${cmd}')"
@@ -1069,13 +1299,13 @@ function _quickBtn(icon, label, cmd, col, bg) {
 }
 
 
-function _uptime() {
+function uptime() {
     const s = Math.floor((Date.now() - state.metricas.uptime_start) / 1000);
-    return `${_zp(Math.floor(s/3600))}:${_zp(Math.floor((s%3600)/60))}:${_zp(s%60)}`;
+    return `${zp(Math.floor(s/3600))}:${zp(Math.floor((s%3600)/60))}:${zp(s%60)}`;
 }
 
 
-function _updateMetrics() {
+function updateMetrics() {
     const m    = state.metricas;
     const _set  = (id, v) => { const e = document.getElementById(id); if (e) e.textContent = v; };
     const _setW = (id, p) => { const e = document.getElementById(id); if (e) e.style.width  = p+'%'; };
@@ -1103,7 +1333,7 @@ function pgChat(wrap) {
             </div>
         </div>`;
 
-    _renderChat();
+    renderChat();
     const ci = document.getElementById('chatIn');
     ci?.addEventListener('keydown', e => { if (e.key === 'Enter') enviarChat(); });
     ci?.focus();
@@ -1116,8 +1346,8 @@ function enviarChat() {
     if (!msg) return;
     ci.value = '';
     state.chatHist.push({ role: 'user', text: msg });
-    _renderChat();
-    _showTyping();
+    renderChat();
+    showTyping();
 
     if (window.jarvis) {
         window.jarvis.executar_comando(msg);
@@ -1130,13 +1360,13 @@ function enviarChat() {
         setTimeout(() => {
             document.getElementById('typingIndicator')?.remove();
             state.chatHist.push({ role: 'jarvis', text: demo[state.chatHist.length % demo.length] });
-            _renderChat();
+            renderChat();
         }, 1100 + Math.random() * 600);
     }
 }
 
 
-function _showTyping() {
+function showTyping() {
     const h = document.getElementById('chatHistory');
     if (!h) return;
     const d = document.createElement('div');
@@ -1156,7 +1386,7 @@ function _showTyping() {
 }
 
 
-function _renderChat() {
+function renderChat() {
     const h = document.getElementById('chatHistory');
     if (!h) return;
     if (!state.chatHist.length) {
@@ -1260,9 +1490,9 @@ function pgIA(wrap) {
                  STATUS DO MOTOR
             </div>
             <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;">
-                ${_iaStatus('MODO ATIVO', ia.modo.toUpperCase(), ia.modo === 'ollama' ? 'var(--accent)' : 'var(--yellow)')}
-                ${_iaStatus('OLLAMA', ia.ollama ? 'ONLINE' : 'OFFLINE', ia.ollama ? 'var(--accent2)' : 'var(--red)')}
-                ${_iaStatus('MODELO', ia.modelo || 'N/A', 'var(--text)')}
+                ${iaStatus('MODO ATIVO', ia.modo.toUpperCase(), ia.modo === 'ollama' ? 'var(--accent)' : 'var(--yellow)')}
+                ${iaStatus('OLLAMA', ia.ollama ? 'ONLINE' : 'OFFLINE', ia.ollama ? 'var(--accent2)' : 'var(--red)')}
+                ${iaStatus('MODELO', ia.modelo || 'N/A', 'var(--text)')}
             </div>
         </div>
 
@@ -1274,7 +1504,7 @@ function pgIA(wrap) {
 }
 
 
-function _iaStatus(lbl, val, col) {
+function iaStatus(lbl, val, col) {
     return `
         <div style="padding:14px;background:var(--surface);border:1px solid var(--border);border-radius:10px;">
             <div style="font-family:var(--mono);font-size:10px;font-weight:700;
@@ -1286,23 +1516,23 @@ function _iaStatus(lbl, val, col) {
 
 async function trocarIA(modo) {
     if (!window.jarvis) { toast('Bridge não conectada.', 'err'); return; }
-    const res = await _bridgeCall('alternar_ia', modo);
+    const res = await bridgeCall('alternar_ia', modo);
     if (res) {
         try { const r = JSON.parse(res); toast(r.msg || 'Modo alterado.'); } catch(e) {}
     }
     state.ia.modo = modo;
-    if (state.page === 6) renderPage();
+    if (state.page === PG.IA) renderPage();
 }
 
 
 async function atualizarStatusIA() {
-    const raw = await _bridge('obter_ia_status');
+    const raw = await bridge('obter_ia_status');
     if (raw) {
         try {
             const ia = JSON.parse(raw);
             state.ia = { modo: ia.modo || 'ollama', modelo: ia.modelo || '', ollama: !!ia.ollama };
-            _updateIABadge();
-            if (state.page === 6) renderPage();
+            updateIABadge();
+            if (state.page === PG.IA) renderPage();
             toast('✓ Status IA atualizado.');
         } catch(e) {}
     } else {
@@ -1313,13 +1543,13 @@ async function atualizarStatusIA() {
 
 function testarIA() {
     enviarComando('olá jarvis');
-    navegarPara(4);
+    navegarPara(PG.CHAT);
 }
 
 
 function toggleEditConfig() {
     state.configEdit = !state.configEdit;
-    if (state.page === 7) renderPage();
+    if (state.page === PG.CONFIG) renderPage();
     toast(state.configEdit ? '🔓 Edição liberada.' : '🔒 Configurações bloqueadas.');
 }
 
@@ -1362,7 +1592,7 @@ function pgConfig(wrap) {
                                value="${esc(state.apis[f.key] || '')}"
                                ${state.configEdit ? '' : 'readonly'}
                                style="transition:all .3s;${state.configEdit ? '' : 'opacity:.5;cursor:not-allowed;border-color:transparent;'}"
-                               oninput="_onApiInput('${f.key}', this.value)">
+                               oninput="onApiInput('${f.key}', this.value)">
                     </div>`).join('')}
             </div>
         </div>
@@ -1408,7 +1638,7 @@ function pgConfig(wrap) {
 }
 
 
-function _onApiInput(key, val) {
+function onApiInput(key, val) {
     state.apis[key] = val;
     const dot = document.getElementById(`dot_${key}`);
     if (dot) dot.className = 'api-status ' + (val ? 'ok' : '');
@@ -1484,14 +1714,14 @@ function pgTemas(wrap) {
 function aplicarTema(id) {
     if (!state.themes[id]) return;
     state.theme = id;
-    _applyTheme(id);
+    applyTheme(id);
     if (window.jarvis) window.jarvis.salvar_configuracao('tema_ativo', id);
-    if (state.page === 8) renderPage();
+    if (state.page === PG.TEMAS) renderPage();
     toast(`Tema ${id} ativado.`);
 }
 
 
-function _applyTheme(id) {
+function applyTheme(id) {
     const t = state.themes[id];
     if (!t) return;
     const r = document.documentElement;
@@ -1520,11 +1750,11 @@ function addLog(tipo, msg) {
     const ts = new Date().toTimeString().slice(0, 8);
     state.logs.unshift({ tipo, msg: String(msg), ts });
     if (state.logs.length > 100) state.logs.pop();
-    _renderLog();
+    renderLog();
 }
 
 
-function _renderLog() {
+function renderLog() {
     const el = document.getElementById('logStream');
     if (!el) return;
     el.innerHTML = state.logs.slice(0, 28).map(e => `
@@ -1535,7 +1765,7 @@ function _renderLog() {
 }
 
 
-function _updateIABadge() {
+function updateIABadge() {
     const el = document.getElementById('iaBadge');
     if (!el) return;
     const { ia } = state;
@@ -1561,7 +1791,7 @@ function toast(msg, type = '') {
 }
 
 
-function _startClock() {
+function startClock() {
     const el   = document.getElementById('clock');
     const tick = () => { if (el) el.textContent = new Date().toTimeString().slice(0, 8); };
     tick();
@@ -1569,8 +1799,8 @@ function _startClock() {
 }
 
 
-function _startMetricSimulation() {
-    const α = 0.18;
+function startMetricSimulation() {
+    const blend = 0.18;
 
     const tick = () => {
         const m = state.metricas;
@@ -1579,9 +1809,9 @@ function _startMetricSimulation() {
         m._ram_raw = clamp(m._ram_raw + (Math.random() - .49) * 2.5, 18, 92);
         m._gpu_raw = clamp(m._gpu_raw + (Math.random() - .46) * 10,  0,  90);
 
-        m.cpu = +(m.cpu * (1 - α) + m._cpu_raw * α).toFixed(1);
-        m.ram = +(m.ram * (1 - α) + m._ram_raw * α).toFixed(1);
-        m.gpu = +(m.gpu * (1 - α) + m._gpu_raw * α).toFixed(1);
+        m.cpu = +(m.cpu * (1 - blend) + m._cpu_raw * blend).toFixed(1);
+        m.ram = +(m.ram * (1 - blend) + m._ram_raw * blend).toFixed(1);
+        m.gpu = +(m.gpu * (1 - blend) + m._gpu_raw * blend).toFixed(1);
 
         m.net_in   = +(Math.random() * 2.4).toFixed(2);
         m.net_out  = +(Math.random() * 0.7).toFixed(2);
@@ -1590,7 +1820,7 @@ function _startMetricSimulation() {
         m.gpu_temp = Math.floor(36 + m.gpu * 0.42);
         m.ram_usada = +((m.ram / 100) * m.ram_total).toFixed(1);
 
-        if (state.page === 1) _updateMetrics();
+        if (state.page === PG.DASH) updateMetrics();
     };
 
     tick();
@@ -1599,7 +1829,7 @@ function _startMetricSimulation() {
 
 
 function clamp(v, mn, mx) { return Math.min(mx, Math.max(mn, v)); }
-function _zp(n)            { return String(n).padStart(2, '0'); }
+function zp(n)            { return String(n).padStart(2, '0'); }
 
 
 function esc(s) {
@@ -1644,14 +1874,14 @@ function desligarJarvis() {
 }
 
 
-const _K = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown',
+const sequenciaKonami = ['ArrowUp','ArrowUp','ArrowDown','ArrowDown',
             'ArrowLeft','ArrowRight','ArrowLeft','ArrowRight','b','a'];
 
 
-function _konamiHandler(e) {
+function konamiHandler(e) {
     state.konami.push(e.key);
     state.konami = state.konami.slice(-10);
-    if (state.konami.join(',') !== _K.join(',')) return;
+    if (state.konami.join(',') !== sequenciaKonami.join(',')) return;
     state.konami = [];
 
     let hue = 0;
@@ -1663,7 +1893,7 @@ function _konamiHandler(e) {
     toast('✦ MODO ARCO-ÍRIS ATIVADO ↑↑↓↓←→←→BA');
     setTimeout(() => {
         clearInterval(lp);
-        if (state.theme) _applyTheme(state.theme);
+        if (state.theme) applyTheme(state.theme);
     }, 8000);
 }
 

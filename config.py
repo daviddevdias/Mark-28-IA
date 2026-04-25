@@ -1,20 +1,11 @@
 import json
 from pathlib import Path
 
-
-BASE_DIR   = Path(__file__).resolve().parent
-API_DIR    = BASE_DIR / "api"
+BASE_DIR = Path(__file__).resolve().parent
+API_DIR = BASE_DIR / "api"
 ASSETS_DIR = BASE_DIR / "assets"
 API_DIR.mkdir(exist_ok=True)
 ASSETS_DIR.mkdir(exist_ok=True)
-F_MAIN = "Orbitron"
-F_DATA = "Consolas"
-COMANDOS_JARVIS = {}
-
-
-
-
-
 
 
 def ler_json(caminho: Path) -> dict:
@@ -25,11 +16,6 @@ def ler_json(caminho: Path) -> dict:
     except Exception as e:
         print(f"[CONFIG] Erro ao ler {caminho.name}: {e}")
         return {}
-
-
-
-
-
 
 
 def salvar_json(nome_arquivo: str, dados: dict) -> bool:
@@ -51,11 +37,6 @@ def salvar_json(nome_arquivo: str, dados: dict) -> bool:
         return False
 
 
-
-
-
-
-
 def carregar_tudo() -> dict:
     arquivos = ["config_smart.json", "api_keys.json", "config_core.json", "notas.json"]
     dados = {}
@@ -64,25 +45,91 @@ def carregar_tudo() -> dict:
     return dados
 
 
+def definir_valor_ui(chave: str, valor: str) -> None:
+    nomes = {
+        "gemini": "GEMINI_API_KEY",
+        "qwen": "QWEN_API_KEY",
+        "spotify_id": "SPOTIFY_ID",
+        "spotify_sec": "SPOTIFY_SECRET",
+        "smartthings": "SMARTTHINGS_TOKEN",
+        "nome_mestre": "NOME_MESTRE",
+        "voz": "voz_atual",
+        "device_index": "DEVICE_INDEX",
+    }
+    alvo = nomes.get(chave, chave)
+    if alvo == "DEVICE_INDEX":
+        try:
+            globals()["DEVICE_INDEX"] = int(valor)
+        except ValueError:
+            globals()["DEVICE_INDEX"] = 0
+        return
+    if alvo == "modo_silencioso":
+        globals()["modo_silencioso"] = str(valor).lower() in ("1", "true", "sim", "yes")
+        return
+    if alvo in globals():
+        globals()[alvo] = valor
+    else:
+        globals()[chave] = valor
+    if chave == "nome_mestre":
+        try:
+            from storage.memory_manager import update_memory
+
+            patch = {"identity": {"mestre": {"value": str(valor).strip()[:256]}}}
+            update_memory(patch)
+        except Exception:
+            pass
+    if chave == "cidade_padrao":
+        try:
+            from storage.memory_manager import update_memory
+
+            patch = {"preferences": {"cidade": {"value": str(valor).strip()[:256]}}}
+            update_memory(patch)
+        except Exception:
+            pass
 
 
+_voz_ui_cb = None
 
+
+def registrar_callback_voz_painel(cb):
+    global _voz_ui_cb
+    _voz_ui_cb = cb
+
+
+def notificar_voz_painel(on: bool, vol: float = 1.0) -> None:
+    fn = _voz_ui_cb
+    if fn is None:
+        return
+    try:
+        fn(bool(on), float(vol))
+    except Exception:
+        pass
+
+
+def recarregar_identidade_painel() -> None:
+    dados = ler_json(API_DIR / "config_core.json")
+    nm = dados.get("nome_mestre")
+    if nm is not None and str(nm).strip():
+        globals()["NOME_MESTRE"] = str(nm).strip()[:256]
+    cp = dados.get("cidade_padrao")
+    if cp is not None:
+        globals()["cidade_padrao"] = str(cp).strip()[:256]
 
 
 cfg = carregar_tudo()
-QWEN_API_KEY       = cfg.get("qwen", "")
-GEMINI_API_KEY     = cfg.get("gemini", "")
-CURRENT_MODEL      = cfg.get("current_model", "qwen/qwen-vl-max")
-BASE_URL           = "https://openrouter.ai/api/v1"
-SPOTIFY_ID         = cfg.get("spotify_id", "")
-SPOTIFY_SECRET     = cfg.get("spotify_sec", "")
+QWEN_API_KEY = cfg.get("qwen", "")
+GEMINI_API_KEY = cfg.get("gemini", "")
+CURRENT_MODEL = cfg.get("current_model", "qwen/qwen-vl-max")
+BASE_URL = "https://openrouter.ai/api/v1"
+SPOTIFY_ID = cfg.get("spotify_id", "")
+SPOTIFY_SECRET = cfg.get("spotify_sec", "")
 SPOTIFY_REDIRECT_URI = "http://127.0.0.1:8888/callback"
-SMARTTHINGS_TOKEN  = cfg.get("smartthings", "")
-TELEGRAM_TOKEN     = cfg.get("telegram_token", "")
-NOME_MESTRE        = cfg.get("nome_mestre", "Usuário")
-voz_atual          = cfg.get("voz", "pt-BR-AntonioNeural")
-DEVICE_INDEX       = cfg.get("device_index", 0)
-modo_silencioso    = cfg.get("modo_silencioso", False)
-tema_ativo         = cfg.get("tema_ativo", "default")
-notas              = cfg.get("notas", "// ÁREA DE NOTAS TÁTICAS\n")
-cidade_padrao      = cfg.get("cidade_padrao", "")
+SMARTTHINGS_TOKEN = cfg.get("smartthings", "")
+TELEGRAM_TOKEN = cfg.get("telegram_token", "")
+NOME_MESTRE = cfg.get("nome_mestre", "Usuário")
+voz_atual = cfg.get("voz", "pt-BR-AntonioNeural")
+DEVICE_INDEX = cfg.get("device_index", 0)
+modo_silencioso = cfg.get("modo_silencioso", False)
+tema_ativo = cfg.get("tema_ativo", "default")
+notas = cfg.get("notas", "")
+cidade_padrao = cfg.get("cidade_padrao", "")

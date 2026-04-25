@@ -12,12 +12,12 @@ log = logging.getLogger("memory_bridge")
 T = TypeVar("T")
 Coercer = Callable[[Any], T]
 
+
 @dataclass
 class SyncReport:
-
     applied: dict[str, Any] = field(default_factory=dict)
     skipped: dict[str, str] = field(default_factory=dict)
-    errors:  dict[str, str] = field(default_factory=dict)
+    errors: dict[str, str] = field(default_factory=dict)
 
     @property
     def ok(self) -> bool:
@@ -34,21 +34,8 @@ class SyncReport:
         return "SyncReport(" + ", ".join(parts) + ")" if parts else "SyncReport(sem_mudanças)"
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 _TRUTHY: Final = frozenset({"true", "1", "sim", "yes", "on", "verdadeiro"})
-_FALSY:  Final = frozenset({"false", "0", "nao", "não", "no", "off", "falso"})
+_FALSY: Final = frozenset({"false", "0", "nao", "não", "no", "off", "falso"})
 
 
 def coerce_bool(raw: Any) -> bool:
@@ -78,34 +65,13 @@ def coerce_float(raw: Any) -> float:
     return float(raw)
 
 
-def coerce_int(raw: Any) -> int:
-    return int(raw)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 @dataclass(frozen=True)
 class FieldSpec:
-    mem_path:    tuple[str, ...]
+    mem_path: tuple[str, ...]
     config_attr: str
-    coerce:      Coercer
-    default:     Any = None
-    required:    bool = False
-
-
-
-
+    coerce: Coercer
+    default: Any = None
+    required: bool = False
 
 
 FIELD_MAP: Final[tuple[FieldSpec, ...]] = (
@@ -172,21 +138,7 @@ FIELD_MAP: Final[tuple[FieldSpec, ...]] = (
 )
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-def _extract_raw(memory: dict, path: tuple[str, ...]) -> tuple[bool, Any]:
-
+def ler_valor_na_memoria(memory: dict, path: tuple[str, ...]) -> tuple[bool, Any]:
     node: Any = memory
     for key in path:
         if not isinstance(node, dict) or key not in node:
@@ -199,9 +151,9 @@ def _extract_raw(memory: dict, path: tuple[str, ...]) -> tuple[bool, Any]:
     return True, node
 
 
-def _apply_field(spec: FieldSpec, memory: dict, report: SyncReport) -> None:
+def sincronizar_um_campo(spec: FieldSpec, memory: dict, report: SyncReport) -> None:
     attr = spec.config_attr
-    found, raw = _extract_raw(memory, spec.mem_path)
+    found, raw = ler_valor_na_memoria(memory, spec.mem_path)
 
     if not found or raw is None:
         if spec.required:
@@ -232,21 +184,7 @@ def _apply_field(spec: FieldSpec, memory: dict, report: SyncReport) -> None:
     report.applied[attr] = value
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
 def sincronizar_config(memory: dict | None = None) -> SyncReport:
-
     report = SyncReport()
 
     try:
@@ -265,7 +203,7 @@ def sincronizar_config(memory: dict | None = None) -> SyncReport:
 
     for spec in FIELD_MAP:
         try:
-            _apply_field(spec, mem, report)
+            sincronizar_um_campo(spec, mem, report)
         except Exception as exc:
             log.exception("[bridge] Erro inesperado em '%s'", spec.config_attr)
             report.errors[spec.config_attr] = str(exc)

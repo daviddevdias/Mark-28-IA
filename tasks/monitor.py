@@ -151,8 +151,5 @@ def monitorar_proativo() -> None:
 
 
 def iniciar_sentinela() -> None:
-    print(
-        "[Jarvis] Motor Sentinela - Ativado verificando tudo"
-    )
     t = threading.Thread(target=monitorar_proativo, daemon=True, name="Sentinela")
     t.start()

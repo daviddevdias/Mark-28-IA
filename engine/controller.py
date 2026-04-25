@@ -22,7 +22,7 @@ from tasks.open_app import open_app
 from tasks.computer_control import fechar_janela, minimizar_tudo, print_tela, bloquear_tela, limpar_lixeira
 from tasks.alarm import adicionar_alarme, parar_alarme_total
 
-log = logging.getLogger("engine.ia_router")
+log = logging.getLogger("engine.controller")
 
 URL       = "http://127.0.0.1:11434/api/chat"
 TIMEOUT   = 25.0
@@ -300,7 +300,7 @@ class IARRouter:
             from engine.tools_mapper import despachar
             return str(await despachar(name, args))
         except Exception as e:
-            return f"Erro na ferramenta '{name}':"
+            return f"Erro na ferramenta '{name}': {e}"
 
 
 
@@ -440,10 +440,6 @@ def extrair_termo(cmd: str, prefixos: list) -> str:
 
 
 
-async def encerrar(cmd: str) -> str:
-    await falar("Desligando sistema.")
-    SHUTDOWN_EVENT.set()
-    return ""
 
 
 
@@ -451,10 +447,6 @@ async def encerrar(cmd: str) -> str:
 
 
 
-async def desligar_inteligente(cmd: str) -> str:
-    if any(p in cmd for p in ("tv", "televisao")):
-        return await tv_desligar(cmd)
-    return await encerrar(cmd)
 
 
 
@@ -704,21 +696,32 @@ async def olha_tela(cmd: str) -> str:
     return ""
 
 
+async def olha_camera(cmd: str) -> str:
+    from engine.core import analisar_camera_agora
+    await analisar_camera_agora()
+    return ""
+
+
 
 
 
 
 
 async def agendar_alarme(cmd: str) -> str:
-    match = re.search(r"(\d{1,2})[:h](\d{2})", cmd.replace(" e ", ":"))
-    if match:
-        hora = f"{int(match.group(1)):02d}:{int(match.group(2)):02d}"
-    else:
-        match = re.search(r"(\d{1,2})", cmd)
-        hora  = f"{int(match.group(1)):02d}:00" if match else None
+    from tasks.alarm import parse_alarme_voz
+
+    data_iso, hora, missao = parse_alarme_voz(cmd)
     if not hora:
-        return "Informe a hora do alarme."
-    return adicionar_alarme(hora, "Alarme por voz")
+        match = re.search(r"(\d{1,2})[:h](\d{2})", cmd.replace(" e ", ":"))
+        if match:
+            hora = f"{int(match.group(1)):02d}:{int(match.group(2)):02d}"
+        else:
+            m2 = re.search(r"(\d{1,2})", cmd)
+            hora = f"{int(m2.group(1)):02d}:00" if m2 else None
+        if not hora:
+            return "Diga a data e hora, por exemplo dia oito de maio as sete."
+        missao = "Alarme por voz"
+    return adicionar_alarme(hora, missao or "Alarme por voz", data=data_iso)
 
 
 
@@ -730,9 +733,6 @@ async def parar_alarme(cmd: str) -> str:
     return parar_alarme_total()
 
 ROUTES: list[tuple[tuple[str, ...], Handler]] = [
-    (("encerrar",),            encerrar),
-    (("desligar", "sistema"),  encerrar),
-    (("desligar",),            desligar_inteligente),
     (("silencio",),            silencio),
     (("mutar",),               silencio),
     (("bloquear",),            bloquear),
@@ -770,6 +770,9 @@ ROUTES: list[tuple[tuple[str, ...], Handler]] = [
     (("monitor", "status"),    status_monitor_cmd),
     (("olha", "tela"),         olha_tela),
     (("analisa", "tela"),      olha_tela),
+    (("olha", "camera"),       olha_camera),
+    (("camera",),              olha_camera),
+    (("ver", "camera"),        olha_camera),
     (("agendar", "alarme"),    agendar_alarme),
     (("criar", "alarme"),      agendar_alarme),
     (("despertar",),           agendar_alarme),
@@ -813,15 +816,32 @@ def buscar_handler(cmd: str) -> Optional[Handler]:
 
 
 
+async def diretriz_clima(cmd_bruto: str, cmd: str) -> Optional[str]:
+    from tasks import weather as wx
+
+    if not wx.menciona_clima(cmd):
+        return None
+    cidade = wx.extrair_cidade_do_utterance(cmd_bruto)
+    if "amanh" in cmd:
+        msg = wx.verificar_chuva_amanha(cidade)
+    else:
+        msg = wx.obter_previsao_hoje(cidade)
+    await falar(msg)
+    return ""
+
+
 async def processar_diretriz(texto: str) -> Optional[str]:
-    cmd     = normalizar(texto)
+    cmd = normalizar(texto)
+    clima = await diretriz_clima(texto, cmd)
+    if clima is not None:
+        return clima
     handler = buscar_handler(cmd)
     if handler is None:
         return None
     try:
         return await handler(cmd)
     except Exception as e:
-        return f"Erro:"
+        return f"Erro: {e}"
 
 router = IARRouter()
 router.carregar_modo_salvo()
