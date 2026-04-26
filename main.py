@@ -32,6 +32,17 @@ from integrations.telegram_bridge_auth_patch import iniciar_telegram
 os.environ["QT_LOGGING_RULES"] = "qt.qpa.window=false"
 os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-logging"
 
+
+
+
+
+
+
+
+
+
+
+
 QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
 app = QApplication(sys.argv)
 try:
@@ -41,15 +52,21 @@ except Exception:
 _log = logging.getLogger(__name__)
 
 
+
+
+
+
+
 def achar_ollama() -> str | None:
     candidatos = [
         shutil.which("ollama"),
         rf"C:\Users\{os.environ.get('USERNAME', '')}\AppData\Local\Programs\Ollama\ollama.exe",
         r"C:\Program Files\Ollama\ollama.exe",
-        os.path.join(os.environ.get("LOCALAPPDATA", ""), "Programs", "Ollama", "ollama.exe"),
     ]
-    return next((c for c in candidatos if c and os.path.isfile(c)), None)
-
+    for c in candidatos:
+        if c and os.path.exists(c):
+            return c
+    return None
 
 
 
@@ -58,22 +75,17 @@ def achar_ollama() -> str | None:
 
 
 def iniciar_ollama():
-    caminho = achar_ollama()
-    if not caminho:
-        print("[OLLAMA] Executável não encontrado.")
-        return
-
     try:
-        requests.get("http://localhost:11434/api/tags", timeout=2)
-        print("OLLAMA Já ativo.")
+        r = requests.get("http://127.0.0.1:11434/api/tags", timeout=2)
+        if r.status_code == 200:
+            print("OLLAMA Já ativo.")
+            return
     except Exception:
-        print("OLLAMA Iniciando serviço...")
-        subprocess.Popen(
-            [caminho, "serve"],
-            stdout=subprocess.DEVNULL,
-            stderr=subprocess.DEVNULL,
-            creationflags=subprocess.CREATE_NO_WINDOW if os.name == "nt" else 0,
-        )
+        pass
+    path = achar_ollama()
+    if path:
+        print("OLLAMA Inicializando...")
+        subprocess.Popen([path, "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         time.sleep(3)
 
 
@@ -82,16 +94,10 @@ def iniciar_ollama():
 
 
 
-
-async def executar(comando: str, ui: PainelCore):
-    if not isinstance(comando, str):
-        return
-
-    ui.bridge.dados_para_ui.emit(json.dumps({"log": f"Comando: {comando}"}))
-    texto = await processar_comando(comando)
-    if texto:
-        ui.bridge.dados_para_ui.emit(json.dumps({"resposta": texto}))
-
+async def executar(cmd: str, ui: PainelCore):
+    resposta = await processar_comando(cmd)
+    if resposta:
+        await falar(resposta)
 
 
 
@@ -101,19 +107,31 @@ async def executar(comando: str, ui: PainelCore):
 
 async def engine(ui: PainelCore):
     await inicializar_ia()
-    registrar_falar(falar)
-    registrar_falar_alarme(falar)
-
     iniciar_sentinela()
     iniciar_sistema_alarmes()
+    sincronizar_config()
+
+    try:
+        from brain.event_bus import bus
+        from brain.watchdog import watchdog, registrar_modulos_padrao
+        loop = asyncio.get_running_loop()
+        bus.registrar_loop(loop)
+        registrar_modulos_padrao()
+        watchdog.iniciar()
+    except Exception as _e:
+        _log.warning("[INIT] watchdog/event_bus não carregou: %s", _e)
+
+    try:
+        from logs.observability import registrar_acao, purgar_antigos
+        purgar_antigos(dias=7)
+        registrar_acao("startup", modulo="main", descricao="Jarvis inicializado", sucesso=True)
+    except Exception as _e:
+        _log.warning("[INIT] observability não carregou: %s", _e)
 
     threading.Thread(target=iniciar_telegram, daemon=True, name="TelegramBot").start()
 
-    print("Jarvis Motor Sentinela - Ativado verificando tudo")
-
     while not get_shutdown_event().is_set():
         try:
-            sincronizar_config()
             config.recarregar_identidade_painel()
             resultado = await ouvir_comando()
 
@@ -140,7 +158,6 @@ async def engine(ui: PainelCore):
 
 
 
-
 def engine_thread(ui: PainelCore):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -158,27 +175,23 @@ def engine_thread(ui: PainelCore):
 
 
 
-
 def iniciar_sistema():
     iniciar_ollama()
     try:
         ui = PainelCore()
-
         hud = JarvisUI()
         try:
             hud.btn_code.clicked.disconnect()
         except TypeError:
             pass
-
         hud.btn_code.clicked.connect(lambda: (ui.show(), ui.raise_(), ui.activateWindow()))
         hud.show()
-
+        registrar_falar(falar)
+        registrar_falar_alarme(falar)
         threading.Thread(target=engine_thread, args=(ui,), daemon=True, name="CoreEngine").start()
         sys.exit(app.exec())
-
     except Exception as e:
-        print(f"[CRÍTICO] Erro na inicialização: {e}")
-
+        print(f"[CRÍTICO] Falha na subida: {e}")
 
 if __name__ == "__main__":
     iniciar_sistema()

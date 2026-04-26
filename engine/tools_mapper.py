@@ -13,7 +13,7 @@ from tasks.alarm import adicionar_alarme, listar_alarmes, remover_alarme
 from tasks.computer_control import computer_settings
 from storage.memory_manager import load_memory, update_memory
 from engine.cmd_security import avaliar, executar, audit_recente
-from engine.tool_cache import despachar as cache_despachar, stats_cache, invalidar_cache_tool
+from brain.tool_cache import despachar as cache_despachar, stats_cache, invalidar_cache_tool
 
 log = logging.getLogger("jarvis.tools_mapper")
 
@@ -309,7 +309,7 @@ def gerenciador_cmd(argumentos: dict) -> str:
 def gerenciador_cache_status(argumentos: dict) -> str:
     acao = argumentos.get("action", "stats").lower()
     if acao == "limpar":
-        from engine.tool_cache import limpar_cache
+        from brain.tool_cache import limpar_cache
         return limpar_cache()
     if acao == "invalidar":
         tool = argumentos.get("tool", "")

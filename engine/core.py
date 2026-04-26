@@ -11,6 +11,12 @@ from engine.ia_router import router, detectar_modelo, desligar_monitor, info_mon
 from engine.controller import processar_diretriz
 from tasks.alarm import alarme_ativo, parar_alarme_total
 
+try:
+    from logs.observability import registrar_acao, registrar_metrica, Temporizador as _Temporizador
+    _OBS = True
+except Exception:
+    _OBS = False
+
 ui_bridge = None
 AGUARDANDO_CONFIRMACAO = False
 ULTIMA_ANALISE_OBJ = None
@@ -199,6 +205,8 @@ async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) 
     if not comando.strip() and not imagem_monitor:
         return None
 
+    _ts_inicio = time.time()
+
     if alarme_ativo and quer_parar_alarme(comando):
         msg = parar_alarme_total()
         await falar(msg)
@@ -238,6 +246,14 @@ async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) 
         if resultado:
             print(f"\n[LOCAL]: {resultado}\n")
             await falar(resultado)
+            if _OBS:
+                try:
+                    _dur = int((time.time() - _ts_inicio) * 1000)
+                    registrar_acao("comando_local", descricao=comando[:200],
+                                   modulo="controller", duracao_ms=_dur, sucesso=True)
+                    registrar_metrica("cmd.duracao_ms", _dur, "ms")
+                except Exception:
+                    pass
             return resultado
         return None
 
@@ -248,6 +264,15 @@ async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) 
         print(f"\n[IA]: {resposta}\n")
         await falar(resposta)
         asyncio.create_task(process_memory_logic(comando, resposta))
+        if _OBS:
+            try:
+                _dur = int((time.time() - _ts_inicio) * 1000)
+                registrar_acao("comando_ia", descricao=comando[:200],
+                               modulo="ia_router", duracao_ms=_dur, sucesso=True)
+                registrar_metrica("cmd.duracao_ms", _dur, "ms")
+                registrar_metrica("ia.resposta_ms", _dur, "ms")
+            except Exception:
+                pass
     return resposta or None
 
 

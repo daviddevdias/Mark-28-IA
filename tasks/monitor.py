@@ -242,19 +242,19 @@ def checar_bateria() -> None:
 
 
 
-def checar_ram() -> None:
-    uso = psutil.virtual_memory().percent
-    if uso >= RAM_CRITICA and not ALERTAS["ram"]:
-        registrar_log_alerta("ram", f"RAM em {uso:.0f}%", uso)
-        falar(f"Memoria RAM em {int(uso)} por cento. Considere fechar programas.")
-        ALERTAS["ram"] = True
-        try:
-            import gc
-            gc.collect()
-        except Exception:
-            pass
-    elif uso < RAM_OK and ALERTAS["ram"]:
-        ALERTAS["ram"] = False
+# def checar_ram() -> None:
+#     uso = psutil.virtual_memory().percent
+#     if uso >= RAM_CRITICA and not ALERTAS["ram"]:
+#         registrar_log_alerta("ram", f"RAM em {uso:.0f}%", uso)
+#         falar(f"Memoria RAM em {int(uso)} por cento. Considere fechar programas.")
+#         ALERTAS["ram"] = True
+#         try:
+#             import gc
+#             gc.collect()
+#         except Exception:
+#             pass
+#     elif uso < RAM_OK and ALERTAS["ram"]:
+#         ALERTAS["ram"] = False
 
 
 
@@ -297,7 +297,7 @@ CHECKERS = [
     checar_rede,
     checar_temperatura,
     checar_bateria,
-    checar_ram,
+    # checar_ram,
     checar_cpu,
     checar_disco,
 ]

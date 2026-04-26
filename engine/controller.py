@@ -7,6 +7,7 @@ import logging
 import os
 import time
 import re
+from datetime import datetime
 from collections import deque
 from typing import Any, Optional, Awaitable, Callable
 
@@ -28,24 +29,21 @@ URL       = "http://127.0.0.1:11434/api/chat"
 TIMEOUT   = 25.0
 MAX_HIST  = 20
 MAX_TOOLS = 5
-COOL      = 30.0
-OPTIONS   = {"num_predict": 300, "temperature": 0.7}
+COOL       = 30.0
+OPTIONS   = {"num_predict": 400, "temperature": 0.7}
 
-PREFERIDOS = ["llama3.2", "llama3.1", "llama3", "qwen2.5", "qwen2",
-               "mistral", "gemma2", "gemma", "phi3", "phi", "tinyllama"]
+PREFERIDOS = ["gemma4:e4b", "gemma4", "llama3.2", "llama3.1", "qwen2.5", "phi4", "mistral"]
 
-TOOLS_SUPORTADOS = ["qwen", "phi3", "mixtral", "mistral", "llama3.1", "llama3.2"]
+TOOLS_SUPORTADOS = ["gemma4", "llama4", "llama3.1", "llama3.2", "qwen", "phi4"]
 
 SYSTEM = (
-    "Você é Jarvis, assistente pessoal inteligente e didático. "
-    "Responda SEMPRE em português brasileiro, direto e conciso. "
+    "Você é o Jarvis. Responda de forma prestativa, educada e levemente sarcástica como o assistente do Stark. "
+    "Responda SEMPRE em português brasileiro. "
     "Contexto: {ctx}. "
     "REGRAS: "
-    "1. Tarefas/compromissos/horários → use tool_call 'set_reminder'. "
-    "2. Ações reais (app, busca, clima, spotify) → use tool_call. "
-    "3. NUNCA escreva JSON cru ou nome de ferramenta como resposta. "
-    "4. Após resultado de ferramenta, confirme em linguagem natural. "
-    "5. Seja conversacional."
+    "1. SEMPRE confirme o que você fez em uma frase natural, nunca use apenas uma palavra. "
+    "2. Se abrir um app, diga algo como 'Sistema carregado, Senhor'. "
+    "3. Use tool_calls para ações."
 )
 
 modelo:     str   = ""
@@ -77,7 +75,9 @@ PREFIXOS_WEB = [
 
 
 def system_msg(ctx: str) -> str:
-    return SYSTEM.format(ctx=ctx[:300] or "Sem contexto")
+    agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
+    ctx_com_hora = f"{ctx} | Horário Atual: {agora}"
+    return SYSTEM.format(ctx=ctx_com_hora[:400])
 
 
 
@@ -128,7 +128,7 @@ async def detectar_modelo() -> bool:
                 )
                 disponivel    = True
                 ultimo_check = time.time()
-                print(f"OLLAMA Modelo: {modelo}")
+                print(f"OLLAMA Modelo Ativo: {modelo}")
                 return True
     except Exception:
         disponivel = False
@@ -363,7 +363,7 @@ class IARRouter:
         t = texto.strip()
         if t.startswith("{") and t.endswith("}"):
             return True
-        return len(t) < 150 and any(k in t for k in ('"query"', '"action"', '"app_name"'))
+        return False
 
 
 
@@ -404,7 +404,7 @@ class IARRouter:
             if not disponivel:
                 return "Ollama offline. Rode 'ollama serve' no terminal ou mude para a nuvem."
             if not modelo:
-                return "Nenhum modelo instalado. Rode: ollama pull llama3.2"
+                return "Nenhum modelo detectado. Recomendo: ollama pull gemma4:e4b"
 
         self.historico.add("user", self.montar_content(pergunta, imagem))
         msgs = [{"role": "system", "content": system_msg(memoria)}] + self.historico.msgs()
@@ -418,10 +418,8 @@ class IARRouter:
             tool_calls = msg.get("tool_calls") or []
             if not tool_calls:
                 reply = (msg.get("content") or "").strip()
-                if self.e_json_cru(reply):
-                    reply = "Feito."
-                if not reply:
-                    reply = "Concluído."
+                if not reply or self.e_json_cru(reply):
+                    reply = "Comando processado, Senhor."
                 self.historico.add("assistant", reply)
                 return reply
 
@@ -437,7 +435,7 @@ class IARRouter:
                 msgs.append({"role": "tool", "tool_call_id": call_id, "name": fn.get("name"), "content": result})
                 self.historico.add_tool(call_id, fn.get("name", ""), result)
 
-        return "Operação concluída nas linhas do servidor principal."
+        return "Protocolo concluído."
 
 
 
@@ -494,7 +492,7 @@ def extrair_termo(cmd: str, prefixos: list) -> str:
 
 async def silencio(cmd: str) -> str:
     interromper_voz()
-    return ""
+    return "Protocolo de silêncio ativado."
 
 
 
@@ -504,7 +502,7 @@ async def silencio(cmd: str) -> str:
 
 async def bloquear(cmd: str) -> str:
     bloquear_tela()
-    return "Tela bloqueada."
+    return "Sessão bloqueada, Senhor."
 
 
 
@@ -514,7 +512,7 @@ async def bloquear(cmd: str) -> str:
 
 async def minimizar(cmd: str) -> str:
     minimizar_tudo()
-    return "Janelas minimizadas."
+    return "Janelas recolhidas."
 
 
 
@@ -524,7 +522,7 @@ async def minimizar(cmd: str) -> str:
 
 async def fechar(cmd: str) -> str:
     fechar_janela()
-    return "Janela fechada."
+    return "Interface encerrada."
 
 
 
@@ -534,7 +532,7 @@ async def fechar(cmd: str) -> str:
 
 async def screenshot(cmd: str) -> str:
     print_tela()
-    return "Screenshot capturado."
+    return "Captura de tela realizada."
 
 
 
@@ -544,7 +542,7 @@ async def screenshot(cmd: str) -> str:
 
 async def limpar_lixo(cmd: str) -> str:
     limpar_lixeira()
-    return "Lixeira limpa."
+    return "Lixeira purgada."
 
 
 
@@ -555,7 +553,7 @@ async def limpar_lixo(cmd: str) -> str:
 async def modo_trabalho(cmd: str) -> str:
     open_app({"app_name": "vscode"})
     open_app({"app_name": "chrome"})
-    return "Modo trabalho ativado."
+    return "Modo de trabalho iniciado. Sistemas prontos."
 
 
 
@@ -565,12 +563,11 @@ async def modo_trabalho(cmd: str) -> str:
 
 async def tv_ligar(cmd: str) -> str:
     if energia_tv(True):
-        return "TV ligada."
+        return "Televisão ligada."
     from tasks.smart_home import buscar_id_tv
-
     if not buscar_id_tv():
         return diagnosticar_falha_tv()
-    return "Falha ao ligar a TV. Verifique o dispositivo no SmartThings."
+    return "A TV não respondeu ao sinal de energia."
 
 
 
@@ -580,12 +577,11 @@ async def tv_ligar(cmd: str) -> str:
 
 async def tv_desligar(cmd: str) -> str:
     if desligar_tv():
-        return "TV desligada."
+        return "Televisão desligada."
     from tasks.smart_home import buscar_id_tv
-
     if not buscar_id_tv():
         return diagnosticar_falha_tv()
-    return "Erro ao desligar a TV. Verifique o dispositivo no SmartThings."
+    return "Falha ao cessar energia da TV."
 
 
 
@@ -596,9 +592,9 @@ async def tv_desligar(cmd: str) -> str:
 async def tv_volume(cmd: str) -> str:
     nivel = extrair_numero(cmd)
     if nivel is None:
-        return "Informe o nível de volume."
+        return "Por favor, indique o nível do volume."
     nivel = max(0, min(100, nivel))
-    return f"Volume {nivel}." if enviar_comando_tv("setVolume", "audioVolume", [nivel]) else "Erro no volume."
+    return f"Volume ajustado para {nivel} por cento." if enviar_comando_tv("setVolume", "audioVolume", [nivel]) else "Falha no ajuste de áudio da TV."
 
 
 
@@ -609,7 +605,7 @@ async def tv_volume(cmd: str) -> str:
 async def musica_spotify(cmd: str) -> str:
     cmd = re.sub(r"\s+", " ", re.sub(r"\bspotify\b", "", cmd)).strip()
     termo = extrair_termo(cmd, PREFIXOS_SPOTIFY)
-    return spotify_stark.abrir_e_buscar(termo) if termo else "Informe a música ou artista."
+    return spotify_stark.abrir_e_buscar(termo) if termo else "Qual música devo buscar?"
 
 
 
@@ -619,7 +615,7 @@ async def musica_spotify(cmd: str) -> str:
 
 async def musica(cmd: str) -> str:
     termo = extrair_termo(cmd, PREFIXOS_SPOTIFY)
-    return spotify_stark.abrir_e_buscar(termo) if termo else "Informe a música ou artista."
+    return spotify_stark.abrir_e_buscar(termo) if termo else "Informe a faixa ou artista."
 
 
 
@@ -646,8 +642,7 @@ async def favoritas(cmd: str) -> str:
 
 
 async def pausar(cmd: str) -> str:
-    spotify_stark.controlar_reproducao("pause")
-    return ""
+    return spotify_stark.controlar_reproducao("pause")
 
 
 
@@ -656,8 +651,7 @@ async def pausar(cmd: str) -> str:
 
 
 async def continuar(cmd: str) -> str:
-    spotify_stark.controlar_reproducao("play")
-    return ""
+    return spotify_stark.controlar_reproducao("play")
 
 
 
@@ -666,8 +660,7 @@ async def continuar(cmd: str) -> str:
 
 
 async def proxima(cmd: str) -> str:
-    spotify_stark.controlar_reproducao("proxima")
-    return ""
+    return spotify_stark.controlar_reproducao("proxima")
 
 
 
@@ -676,8 +669,7 @@ async def proxima(cmd: str) -> str:
 
 
 async def anterior(cmd: str) -> str:
-    spotify_stark.controlar_reproducao("anterior")
-    return ""
+    return spotify_stark.controlar_reproducao("anterior")
 
 
 
@@ -697,7 +689,7 @@ async def tv_youtube_app(cmd: str) -> str:
 async def youtube(cmd: str) -> str:
     from tasks.browser import jarvis_web
     termo = extrair_termo(cmd, PREFIXOS_YOUTUBE)
-    return jarvis_web.run(jarvis_web.tocar_youtube(termo)) if termo else "Informe o vídeo."
+    return jarvis_web.run(jarvis_web.tocar_youtube(termo)) if termo else "Qual vídeo deseja assistir?"
 
 
 
@@ -708,7 +700,7 @@ async def youtube(cmd: str) -> str:
 async def pesquisa(cmd: str) -> str:
     from tasks.browser import jarvis_web
     termo = extrair_termo(cmd, PREFIXOS_WEB)
-    return jarvis_web.run(jarvis_web.smart_search(termo)) if termo else "Informe o termo."
+    return jarvis_web.run(jarvis_web.smart_search(termo)) if termo else "O que devo pesquisar?"
 
 
 
@@ -719,7 +711,7 @@ async def pesquisa(cmd: str) -> str:
 async def monitorar_tela(cmd: str) -> str:
     from engine.core import ligar_monitoramento
     await ligar_monitoramento(cmd)
-    return ""
+    return "Sentinela de tela ativada."
 
 
 
@@ -730,7 +722,7 @@ async def monitorar_tela(cmd: str) -> str:
 async def desligar_monitor_cmd(cmd: str) -> str:
     from engine.core import desligar_monitoramento
     await desligar_monitoramento()
-    return ""
+    return "Monitoramento cessado."
 
 
 
@@ -741,7 +733,7 @@ async def desligar_monitor_cmd(cmd: str) -> str:
 async def status_monitor_cmd(cmd: str) -> str:
     from engine.core import status_do_sistema
     await status_do_sistema()
-    return ""
+    return "Status do sistema reportado."
 
 
 
@@ -752,7 +744,7 @@ async def status_monitor_cmd(cmd: str) -> str:
 async def olha_tela(cmd: str) -> str:
     from engine.core import analisar_tela_agora
     await analisar_tela_agora()
-    return ""
+    return "Análise de tela concluída."
 
 
 
@@ -763,7 +755,7 @@ async def olha_tela(cmd: str) -> str:
 async def olha_camera(cmd: str) -> str:
     from engine.core import analisar_camera_agora
     await analisar_camera_agora()
-    return ""
+    return "Análise de câmera concluída."
 
 
 
@@ -773,7 +765,6 @@ async def olha_camera(cmd: str) -> str:
 
 async def agendar_alarme(cmd: str) -> str:
     from tasks.alarm import parse_alarme_voz
-
     data_iso, hora, missao = parse_alarme_voz(cmd)
     if not hora:
         match = re.search(r"(\d{1,2})[:h](\d{2})", cmd.replace(" e ", ":"))
@@ -783,9 +774,9 @@ async def agendar_alarme(cmd: str) -> str:
             m2 = re.search(r"(\d{1,2})", cmd)
             hora = f"{int(m2.group(1)):02d}:00" if m2 else None
         if not hora:
-            return "Diga a data e hora, por exemplo dia oito de maio as sete."
-        missao = "Alarme por voz"
-    return adicionar_alarme(hora, missao or "Alarme por voz", data=data_iso)
+            return "Diga a data e hora do alarme."
+        missao = "Alarme agendado"
+    return adicionar_alarme(hora, missao or "Alarme agendado", data=data_iso)
 
 
 
@@ -794,6 +785,7 @@ async def agendar_alarme(cmd: str) -> str:
 
 
 async def parar_alarme(cmd: str) -> str:
+    spotify_stark.controlar_reproducao("pause")
     return parar_alarme_total()
 
 ROUTES: list[tuple[tuple[str, ...], Handler]] = [
@@ -897,7 +889,6 @@ def buscar_handler(cmd: str) -> Optional[Handler]:
 
 async def diretriz_clima(cmd_bruto: str, cmd: str) -> Optional[str]:
     from tasks import weather as wx
-
     if not wx.menciona_clima(cmd):
         return None
     cidade = wx.extrair_cidade_do_utterance(cmd_bruto)
@@ -905,8 +896,7 @@ async def diretriz_clima(cmd_bruto: str, cmd: str) -> Optional[str]:
         msg = wx.verificar_chuva_amanha(cidade)
     else:
         msg = wx.obter_previsao_hoje(cidade)
-    await falar(msg)
-    return ""
+    return msg
 
 
 
@@ -925,7 +915,7 @@ async def processar_diretriz(texto: str) -> Optional[str]:
     try:
         return await handler(cmd)
     except Exception as e:
-        return f"Erro: {e}"
+        return f"Erro na diretriz: {e}"
 
 router = IARRouter()
 router.carregar_modo_salvo()

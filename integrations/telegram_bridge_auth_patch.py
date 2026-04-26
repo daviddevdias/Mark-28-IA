@@ -92,10 +92,12 @@ async def cmd_texto_livre(update: Update, context: ContextTypes.DEFAULT_TYPE):
     texto = update.message.text
     if not texto:
         return
-    resposta = await processar_diretriz(texto)
-    if not resposta:
-        resposta = await router.responder(texto, nome=nome())
-    await responder_e_falar(update, resposta)
+    resposta_direta = await processar_diretriz(texto)
+    if resposta_direta:
+        await responder_e_falar(update, resposta_direta)
+        return
+    resposta_ia = await router.responder(texto, nome=nome())
+    await responder_e_falar(update, resposta_ia)
 
 
 

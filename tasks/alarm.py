@@ -337,7 +337,8 @@ def invocar_som_alarme():
         canal_alarme.play(sound_alarme, loops=-1)
         while alarme_ativo and canal_alarme.get_busy():
             time.sleep(0.3)
-        canal_alarme.stop()
+        if canal_alarme:
+            canal_alarme.stop()
     except Exception:
         pass
     finally:

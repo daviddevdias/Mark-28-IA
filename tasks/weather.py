@@ -376,7 +376,7 @@ def verificar_chuva_amanha(cidade_alvo: str = "") -> str:
             temp_max = amanha.get("maxtempC", "??")
             temp_min = amanha.get("mintempC", "??")
             return (
-                f"Amanhã em {alvo.split(',')[0].title()}: {desc.lower()}, "
+                f"{alvo.split(',')[0].title()}: {desc.lower()}, "
                 f"{chuva} mm de chuva, "
                 f"mínima {temp_min}°C e máxima {temp_max}°C."
             )

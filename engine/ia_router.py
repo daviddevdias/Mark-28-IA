@@ -11,8 +11,6 @@ from engine.controller import (
     modelo,
     disponivel,
     ultimo_check,
-    info_monitor,
-    desligar_monitor,
     ligar_monitor,
     ROUTES,
     buscar_handler,
@@ -22,6 +20,11 @@ from engine.controller import (
     extrair_termo,
     get_shutdown_event,
 )
+
+try:
+    from engine.controller import info_monitor, desligar_monitor
+except ImportError:
+    from vision.capture import status_monitor as info_monitor, parar_monitor as desligar_monitor
 
 __all__ = [
     "IARRouter",

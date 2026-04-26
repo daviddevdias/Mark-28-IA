@@ -116,6 +116,7 @@ WAKE_WORDS = {
     "jarvis o",
     "jarvis a",
     "jarvis e",
+    "charles",
 }
 
 COMANDOS_MONITORAMENTO = {
