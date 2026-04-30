@@ -214,7 +214,7 @@ async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) 
 
     if AGUARDANDO_CONFIRMACAO:
         cmd = comando.lower()
-        if any(p in cmd for p in ("sim", "pode", "analisa","analisar","resolver", "continua", "vai")):
+        if any(p in cmd for p in ("analisar","resolver","ajuda jarvis" "continua",)):
             AGUARDANDO_CONFIRMACAO = False
             obj = ULTIMA_ANALISE_OBJ
             if obj and obj.img_b64:
@@ -231,7 +231,7 @@ async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) 
             await falar(dica)
             return dica
 
-        if any(p in cmd for p in ("nao", "não", "ignora", "ok", "beleza")):
+        if any(p in cmd for p in ("não precisa", "não", "ignora","ignorar isso", "ok", "beleza")):
             AGUARDANDO_CONFIRMACAO = False
             msg = "Entendido. Monitoramento continua."
             await falar(msg)

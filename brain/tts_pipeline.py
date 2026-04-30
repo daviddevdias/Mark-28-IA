@@ -46,24 +46,47 @@ class FilaTTS:
         self._rodando = True
         self._task    = asyncio.create_task(self._consumidor())
 
-    async def parar(self) -> None:
+    def limpar_fila(self) -> None:
+        """Corte instantâneo de latência (Thomas). Esvazia a fila imediatamente."""
+        while not self._fila.empty():
+            try:
+                self._fila.get_nowait()
+                self._fila.task_done()
+            except asyncio.QueueEmpty:
+                break
+
+
+
+    async def parar(self, forcar_parada: bool = False) -> None:
         self._rodando = False
+        if forcar_parada:
+            self.limpar_fila()
+            
         await self._fila.put(None)
         if self._task:
             try:
-                await asyncio.wait_for(self._task, timeout=3.0)
+
+                await asyncio.wait_for(self._task, timeout=1.5)
+            except asyncio.TimeoutError:
+                self._task.cancel()
             except Exception:
                 pass
+
+
 
     async def enfileirar(self, texto: str) -> None:
         segmentos = segmentar(texto)
         for seg in segmentos:
+            if not self._rodando:
+                break
             await self._fila.put(seg)
 
     async def _consumidor(self) -> None:
         while self._rodando:
             try:
-                item = await asyncio.wait_for(self._fila.get(), timeout=1.0)
+
+
+                item = await asyncio.wait_for(self._fila.get(), timeout=0.5)
             except asyncio.TimeoutError:
                 continue
 
@@ -77,7 +100,6 @@ class FilaTTS:
                     log.error("TTS fila erro: %s", exc)
 
             self._fila.task_done()
-
 
 fila_tts = FilaTTS()
 

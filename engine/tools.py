@@ -249,4 +249,56 @@ TOOL_DECLARATIONS = [
             },
         },
     },
+    {
+        "type": "function",
+        "function": {
+            "name": "visual_gui_actuator",
+            "description": "Controla o computador VISUALMENTE mexendo no mouse/teclado. Use para Uber, Google Maps, iFood ou interfaces sem API.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "task": {"type": "string", "description": "Instrução detalhada do que fazer na tela."}
+                },
+                "required": ["task"],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "medir_ambiente_3d",
+            "description": "Ativa a visão 3D monocular para calcular distâncias, medir objectos e avaliar a escala real do ambiente físico em centímetros.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": [],
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "traduzir_audio_ambiente",
+            "description": "Ouve o ambiente por alguns segundos, transcreve o idioma estrangeiro e traduz para o português em tempo real.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "segundos": {"type": "integer", "description": "Tempo em segundos para escutar o áudio (padrão 10)."}
+                },
+                "required": []
+            }
+        }
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "otimizar_banco_dados",
+            "description": "Analisa o banco de dados de auditoria, resume os logs antigos e limpa o banco para economizar processamento.",
+            "parameters": {
+                "type": "object",
+                "properties": {},
+                "required": []
+            }
+        }
+    }
 ]

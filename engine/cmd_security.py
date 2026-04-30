@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import re
 import shlex
+import ast
 import sqlite3
 import subprocess
 import logging
@@ -227,6 +228,43 @@ def executar(
         _audit(cmd, resultado=msg, origem=origem, ferramenta=ferramenta)
         return msg
 
+class SecurityBlockError(Exception):
+    pass
+
+def validar_codigo_ast(codigo_fonte: str) -> bool:
+
+
+    modulos_proibidos = {'os', 'sys', 'shutil', 'subprocess', 'socket', 'requests', 'pty'}
+    funcoes_proibidas = {'eval', 'exec', 'open', '__import__', 'getattr', 'setattr', 'compile'}
+    
+    try:
+        arvore = ast.parse(codigo_fonte)
+    except SyntaxError as e:
+        log.error("Erro de sintaxe gerado pelo Agent S: %s", e)
+        return False
+        
+    for no in ast.walk(arvore):
+
+
+        if isinstance(no, ast.Import):
+            for alias in no.names:
+                if alias.name.split('.')[0] in modulos_proibidos:
+                    log.warning("Agent S tentou importar módulo proibido: %s", alias.name)
+                    return False
+                    
+        elif isinstance(no, ast.ImportFrom):
+            if no.module and no.module.split('.')[0] in modulos_proibidos:
+                log.warning("Agent S tentou importar de módulo proibido: %s", no.module)
+                return False
+                
+
+
+        elif isinstance(no, ast.Call):
+            if isinstance(no.func, ast.Name) and no.func.id in funcoes_proibidas:
+                log.warning("Agent S tentou usar função crítica: %s", no.func.id)
+                return False
+                
+    return True
 
 def audit_recente(limite: int = 50) -> list[dict]:
     try:

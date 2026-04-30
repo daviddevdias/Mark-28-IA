@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
-import logging
 import webbrowser
+import subprocess
+import os
+import json
 from typing import Any, Callable
 
 from tasks.browser import jarvis_web, busca_web_sync
@@ -15,7 +17,7 @@ from storage.memory_manager import load_memory, update_memory
 from engine.cmd_security import avaliar, executar, audit_recente
 from brain.tool_cache import despachar as cache_despachar, stats_cache, invalidar_cache_tool
 
-log = logging.getLogger("jarvis.tools_mapper")
+log = __import__("logging").getLogger("jarvis.tools_mapper")
 
 
 
@@ -53,10 +55,9 @@ def gerenciador_web(argumentos: dict) -> str:
 
 
 def gerenciador_browser(argumentos: dict) -> str:
-    acao  = argumentos.get("action", "open").lower()
-    url   = argumentos.get("url", "").strip()
+    acao = argumentos.get("action", "open").lower()
+    url = argumentos.get("url", "").strip()
     query = argumentos.get("query", "").strip()
-
     if acao == "open" and url:
         webbrowser.open(url)
         return f"Abrindo {url} no navegador."
@@ -104,7 +105,7 @@ def gerenciador_spotify(argumentos: dict) -> str:
 
 
 def gerenciador_clima(argumentos: dict) -> str:
-    cidade   = argumentos.get("city", "")
+    cidade = argumentos.get("city", "")
     previsao = argumentos.get("forecast", "hoje").lower()
     if previsao == "amanha":
         return verificar_chuva_amanha(cidade) or "Sem previsão disponível."
@@ -129,10 +130,10 @@ def gerenciador_alarme(argumentos: dict) -> str:
     missao = argumentos.get("missao", "Lembrete")
     if not hora:
         return "Horário não informado."
-    d = argumentos.get("data") or None
-    if isinstance(d, str) and not d.strip():
-        d = None
-    return adicionar_alarme(hora, missao, data=d)
+    data_alarme = argumentos.get("data") or None
+    if isinstance(data_alarme, str) and not data_alarme.strip():
+        data_alarme = None
+    return adicionar_alarme(hora, missao, data=data_alarme)
 
 
 
@@ -142,14 +143,14 @@ def gerenciador_alarme(argumentos: dict) -> str:
 
 def gerenciador_memoria(argumentos: dict) -> str:
     categoria = argumentos.get("category")
-    chave     = argumentos.get("key")
-    valor     = argumentos.get("value")
+    chave = argumentos.get("key")
+    valor = argumentos.get("value")
     if not all([categoria, chave, valor]):
         return "Dados incompletos para salvar memória."
-    memoria       = load_memory()
-    secao         = memoria.get(categoria, {})
-    secao[chave]  = valor
-    sucesso       = update_memory(f"{categoria}.json", secao)
+    memoria = load_memory()
+    secao = memoria.get(categoria, {})
+    secao[chave] = valor
+    sucesso = update_memory(f"{categoria}.json", secao)
     return f"{categoria}/{chave} salvo." if sucesso else "Erro ao salvar memória."
 
 
@@ -184,17 +185,17 @@ def gerenciador_computador(argumentos: dict) -> str:
 
 def gerenciador_codigo(argumentos: dict) -> str:
     from engine.ia_router import router
-    descricao      = argumentos.get("description", "")
-    linguagem      = argumentos.get("language", "python")
-    codigo_base    = argumentos.get("code", "")
-    executar_flag  = argumentos.get("execute", False)
+    descricao = argumentos.get("description", "")
+    linguagem = argumentos.get("language", "python")
+    codigo_base = argumentos.get("code", "")
+    executar_flag = argumentos.get("execute", False)
     if not descricao:
         return "Descrição do código ausente."
-    comando_ia    = f"Gere APENAS código {linguagem}: {descricao}. {codigo_base}"
+    comando_ia = f"Gere APENAS código {linguagem}: {descricao}. {codigo_base}"
     codigo_gerado = executar_no_loop_atual(router.responder(comando_ia))
     if executar_flag and codigo_gerado:
         cmd = f"python -c {codigo_gerado}" if linguagem == "python" else f"bash -c {codigo_gerado}"
-        av  = avaliar(cmd)
+        av = avaliar(cmd)
         if not av.permitido:
             return f"Bloqueado por segurança: {av.motivo}"
         return executar(cmd, timeout=15, ferramenta="code_helper")
@@ -218,36 +219,23 @@ def gerenciador_visao(argumentos: dict) -> str:
 
 
 def gerenciador_casa_inteligente(argumentos: dict) -> str:
-    from tasks.smart_home import (
-        abrir_youtube_tv,
-        buscar_id_tv,
-        energia_tv,
-        diagnosticar_falha_tv,
-        status_tv,
-    )
-
+    from tasks.smart_home import (abrir_youtube_tv, buscar_id_tv, energia_tv, diagnosticar_falha_tv, status_tv)
     dispositivo = argumentos.get("device", "").lower()
     acao = argumentos.get("action", "").lower()
-
     if "tv" in dispositivo:
         if acao in ("youtube", "abrir_youtube", "app_youtube"):
             return abrir_youtube_tv()
         if acao == "on":
-            if energia_tv(True):
-                return "TV ligada."
-            if not buscar_id_tv():
-                return diagnosticar_falha_tv()
-            return "Falha ao ligar a TV (comando ou modelo incompatível)."
+            if energia_tv(True): return "TV ligada."
+            if not buscar_id_tv(): return diagnosticar_falha_tv()
+            return "Falha ao ligar a TV."
         if acao == "off":
-            if energia_tv(False):
-                return "TV desligada."
-            if not buscar_id_tv():
-                return diagnosticar_falha_tv()
+            if energia_tv(False): return "TV desligada."
+            if not buscar_id_tv(): return diagnosticar_falha_tv()
             return "Erro ao desligar a TV."
         if acao == "status":
             return status_tv()
-
-    return "Use smart_home apenas para a TV (device 'tv')."
+    return "Use smart_home apenas para a TV."
 
 
 
@@ -267,37 +255,23 @@ def gerenciador_troca_ia(argumentos: dict) -> str:
 
 
 def gerenciador_cmd(argumentos: dict) -> str:
-    comando    = argumentos.get("command", "").strip()
-    tarefa     = argumentos.get("task", "").strip()
+    comando = argumentos.get("command", "").strip()
+    tarefa = argumentos.get("task", "").strip()
     confirmado = argumentos.get("confirmado", False)
-
     if not comando and tarefa:
         from engine.ia_router import router
-        prompt = (
-            f"Gere APENAS o comando de terminal para: {tarefa}. "
-            "Responda somente com o comando puro, sem explicação, sem markdown, sem backticks."
-        )
+        prompt = f"Gere APENAS o comando de terminal para: {tarefa}. Responda somente com o comando puro."
         try:
             comando = executar_no_loop_atual(router.responder(prompt)).strip().strip("`").strip()
         except Exception as e:
             return f"Erro ao gerar comando: {e}"
-
     if not comando:
         return "Nenhum comando gerado ou informado."
-
     av = avaliar(comando)
-
     if not av.permitido:
-        log.warning("Comando bloqueado: %s", comando[:80])
         return f"Bloqueado por segurança: {av.motivo}"
-
     if av.confirmar and not confirmado:
-        return (
-            f"Comando classificado como '{av.categoria.value}' — requer confirmação.\n"
-            f"Comando: `{comando}`\n"
-            f"Para executar, diga: 'confirmar e executar: {comando}'"
-        )
-
+        return f"Comando requer confirmação.\nComando: `{comando}`"
     return executar(comando, timeout=20, ferramenta="cmd_control")
 
 
@@ -321,10 +295,92 @@ def gerenciador_cache_status(argumentos: dict) -> str:
         linhas = [f"[{r['ts']}] {r['ferramenta'] or r['origem']} — {r['comando'][:60]}" for r in registros]
         return "\n".join(linhas)
     stats = stats_cache()
-    return (
-        f"Cache — Hits: {stats['hits']} | Misses: {stats['misses']} | "
-        f"Taxa: {stats['taxa_hit']} | Entradas ativas: {stats['entradas_vivas']}"
-    )
+    return f"Cache — Hits: {stats['hits']} | Misses: {stats['misses']} | Taxa: {stats['taxa_hit']}"
+
+
+
+
+
+
+
+def gerenciador_agente_visual(argumentos: dict) -> str:
+    tarefa = argumentos.get("task", "")
+    if not tarefa:
+        return "Nenhuma tarefa visual informada."
+    wrapper_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "agent_s_wrapper.py"))
+    try:
+        processo = subprocess.run(["python", wrapper_path, tarefa, "--json"], capture_output=True, text=True, timeout=300)
+        if processo.returncode == 0:
+            try:
+                dados = json.loads(processo.stdout)
+                return f"Ação visual executada. Status: {dados.get('status')}. Info: {dados.get('message')}"
+            except Exception:
+                return f"Ação visual executada. Saída bruta: {processo.stdout[:200]}"
+        else:
+            return f"Falha na ação visual. Erro: {processo.stderr[:200]}"
+    except subprocess.TimeoutExpired:
+        return "Agente visual abortado. Excedeu tempo limite de 5 minutos."
+    except Exception as e:
+        return f"Erro fatal ao invocar Agente S: {e}"
+
+
+
+
+
+
+
+def gerenciador_visao_3d(argumentos: dict) -> str:
+    try:
+        from vision.capture import MotorVisaoEspacial
+        import cv2
+        motor_3d = MotorVisaoEspacial()
+        cap = cv2.VideoCapture(0)
+        ret, frame = cap.read()
+        cap.release()
+        if not ret:
+            return "Falha ao aceder à câmara para visão 3D."
+        resultado = motor_3d.analisar_medida_cena(frame)
+        if resultado["status"] == "sucesso":
+            return f"Visão 3D ativada. Escala atual: {resultado['pixels_por_cm']} pixels por centímetro. Profundidade da referência: {resultado['profundidade']}."
+        else:
+            return f"Falha na visão 3D: {resultado['motivo']}"
+    except Exception as e:
+        return f"Erro ao processar visão 3D: {e}"
+
+
+
+
+
+
+
+def gerenciador_traducao_multimodal(argumentos: dict) -> str:
+    segundos = argumentos.get("segundos", 10)
+    try:
+        from tasks.multimodal import traduzir_ambiente
+        resultado = executar_no_loop_atual(traduzir_ambiente(segundos))
+        return resultado
+    except Exception as e:
+        return f"Falha no pipeline multimodal de tradução: {e}"
+
+
+
+
+
+
+
+def gerenciador_otimizacao_dados(argumentos: dict) -> str:
+    try:
+        from tasks.optimizer import comprimir_banco_auditoria
+        resultado = executar_no_loop_atual(comprimir_banco_auditoria())
+        return resultado
+    except Exception as e:
+        return f"Falha no módulo de otimização de banco de dados: {e}"
+
+
+
+
+
+
 
 EXECUTOR_FERRAMENTAS: dict[str, Callable[[dict], str]] = {
     "open_app":         open_app,
@@ -343,6 +399,10 @@ EXECUTOR_FERRAMENTAS: dict[str, Callable[[dict], str]] = {
     "switch_ia_mode":   gerenciador_troca_ia,
     "cmd_control":      gerenciador_cmd,
     "cache_status":     gerenciador_cache_status,
+    "visual_gui_actuator": gerenciador_agente_visual,
+    "medir_ambiente_3d": gerenciador_visao_3d,
+    "traduzir_audio_ambiente": gerenciador_traducao_multimodal,
+    "otimizar_banco_dados": gerenciador_otimizacao_dados,
 }
 
 
@@ -354,6 +414,5 @@ EXECUTOR_FERRAMENTAS: dict[str, Callable[[dict], str]] = {
 async def despachar(nome: str, args: dict) -> str:
     func = EXECUTOR_FERRAMENTAS.get(nome)
     if func is None:
-        log.warning("Ferramenta desconhecida: %s", nome)
         return f"Ferramenta '{nome}' não encontrada."
     return await cache_despachar(nome, args, func)
