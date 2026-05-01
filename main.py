@@ -38,18 +38,13 @@ os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-logging"
 
 
 
-
-
-
-
-
 QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
 app = QApplication(sys.argv)
 try:
     app.setQuitOnLastWindowClosed(False)
 except Exception:
     pass
-_log = logging.getLogger(__name__)
+log = logging.getLogger(__name__)
 
 
 
@@ -84,8 +79,10 @@ def iniciar_ollama():
         pass
     path = achar_ollama()
     if path:
-        print("OLLAMA Inicializando...")
-        subprocess.Popen([path, "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        print("OLLAMA Inicializando com suporte AMD RX 580...")
+        env = os.environ.copy()
+        env["HSA_OVERRIDE_GFX_VERSION"] = "8.0.3"
+        subprocess.Popen([path, "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
         time.sleep(3)
 
 
@@ -110,7 +107,6 @@ async def engine(ui: PainelCore):
     iniciar_sentinela()
     iniciar_sistema_alarmes()
     sincronizar_config()
-
     try:
         from brain.event_bus import bus
         from brain.watchdog import watchdog, registrar_modulos_padrao
@@ -118,26 +114,24 @@ async def engine(ui: PainelCore):
         bus.registrar_loop(loop)
         registrar_modulos_padrao()
         watchdog.iniciar()
-    except Exception as _e:
-        _log.warning("[INIT] watchdog/event_bus não carregou: %s", _e)
 
+
+    except Exception as e:
+        log.warning("watchdog/event_bus não carregou: %s", e)
     try:
         from logs.observability import registrar_acao, purgar_antigos
         purgar_antigos(dias=7)
         registrar_acao("startup", modulo="main", descricao="Jarvis inicializado", sucesso=True)
-    except Exception as _e:
-        _log.warning("[INIT] observability não carregou: %s", _e)
-
+        
+    except Exception as e:
+        log.warning("observability não carregou: %s", e)
     threading.Thread(target=iniciar_telegram, daemon=True, name="TelegramBot").start()
-
     while not get_shutdown_event().is_set():
         try:
             config.recarregar_identidade_painel()
             resultado = await ouvir_comando()
-
             if not resultado or not isinstance(resultado, str):
                 continue
-
             ativo, cmd = processar_wake(resultado)
             if not ativo or not isinstance(cmd, str):
                 continue
@@ -145,11 +139,9 @@ async def engine(ui: PainelCore):
             if not cmd:
                 await falar(resposta_ativacao_aleatoria())
                 continue
-
             await executar(cmd, ui)
-
         except Exception:
-            _log.exception("[LOOP] erro no ciclo principal")
+            log.exception("erro no ciclo principal")
             await asyncio.sleep(0.3)
 
 
@@ -191,7 +183,13 @@ def iniciar_sistema():
         threading.Thread(target=engine_thread, args=(ui,), daemon=True, name="CoreEngine").start()
         sys.exit(app.exec())
     except Exception as e:
-        print(f"[CRÍTICO] Falha na subida: {e}")
+        print(f"Falha na subida: {e}")
+
+
+
+
+
+
 
 if __name__ == "__main__":
     iniciar_sistema()

@@ -14,6 +14,11 @@ MAX_FALHAS      = 3
 COOLDOWN_RESET  = 60.0
 
 
+
+
+
+
+
 class StatusModulo(Enum):
     OK          = "ok"
     DEGRADADO   = "degradado"
@@ -21,25 +26,47 @@ class StatusModulo(Enum):
     REINICIANDO = "reiniciando"
 
 
+
+
+
+
+
 @dataclass
 class RegistroModulo:
-    nome:         str
-    check_fn:     Callable[[], bool]
-    reset_fn:     Callable[[], None] | None = None
-    falhas:       int                       = 0
-    status:       StatusModulo              = StatusModulo.OK
-    ultimo_check: float                     = 0.0
-    ultimo_reset: float                     = 0.0
-    historico:    list[dict]                = field(default_factory=list)
+    nome:          str
+    check_fn:      Callable[[], bool]
+    reset_fn:      Callable[[], None] | None = None
+    falhas:        int                       = 0
+    status:        StatusModulo              = StatusModulo.OK
+    ultimo_check:  float                     = 0.0
+    ultimo_reset:  float                     = 0.0
+    historico:     list[dict]                = field(default_factory=list)
+
+
+
+
+
 
 
 class Watchdog:
+
+
+
+
+
+
 
     def __init__(self) -> None:
         self.modulos: dict[str, RegistroModulo] = {}
         self.lock     = threading.Lock()
         self.rodando  = False
         self.thread:  threading.Thread | None   = None
+
+
+
+
+
+
 
     def registrar(
         self,
@@ -53,16 +80,20 @@ class Watchdog:
             )
         log.info("[Watchdog] Módulo '%s' registrado.", nome)
 
+
+
+
+
+
+
     def checar_modulo(self, reg: RegistroModulo) -> None:
         agora         = time.time()
         reg.ultimo_check = agora
-
         try:
             ok = reg.check_fn()
         except Exception as exc:
             ok = False
             log.warning("[Watchdog] check '%s' lançou exceção: %s", reg.nome, exc)
-
         if ok:
             if reg.falhas > 0:
                 log.info("[Watchdog] '%s' recuperado após %d falha(s).", reg.nome, reg.falhas)
@@ -78,7 +109,6 @@ class Watchdog:
             reg.falhas += 1
             reg.historico.append({"ts": agora, "ok": False})
             log.warning("[Watchdog] '%s' falhou (%d/%d).", reg.nome, reg.falhas, MAX_FALHAS)
-
             if reg.falhas == 1:
                 reg.status = StatusModulo.DEGRADADO
             elif reg.falhas >= MAX_FALHAS:
@@ -90,9 +120,14 @@ class Watchdog:
                     pass
                 if reg.reset_fn and (agora - reg.ultimo_reset) > COOLDOWN_RESET:
                     self.tentar_reset(reg)
-
         if len(reg.historico) > 50:
             reg.historico = reg.historico[-50:]
+
+
+
+
+
+
 
     def tentar_reset(self, reg: RegistroModulo) -> None:
         reg.status = StatusModulo.REINICIANDO
@@ -107,6 +142,12 @@ class Watchdog:
             log.error("[Watchdog] Falha ao reiniciar '%s': %s", reg.nome, exc)
             reg.status = StatusModulo.FALHOU
 
+
+
+
+
+
+
     def loop_verificacao(self) -> None:
         while self.rodando:
             with self.lock:
@@ -118,6 +159,12 @@ class Watchdog:
                     log.error("[Watchdog] Erro interno ao checar '%s': %s", reg.nome, exc)
             time.sleep(INTERVALO_CHECK)
 
+
+
+
+
+
+
     def iniciar(self) -> None:
         if self.rodando:
             return
@@ -126,8 +173,20 @@ class Watchdog:
         self.thread.start()
         log.info("[Watchdog] Iniciado.")
 
+
+
+
+
+
+
     def parar(self) -> None:
         self.rodando = False
+
+
+
+
+
+
 
     def get_status(self) -> dict:
         with self.lock:
@@ -140,12 +199,28 @@ class Watchdog:
                 for nome, reg in self.modulos.items()
             }
 
+
+
+
+
+
+
     def todos_ok(self) -> bool:
         with self.lock:
             return all(r.status == StatusModulo.OK for r in self.modulos.values())
 
 
+
+
+
+
+
 watchdog = Watchdog()
+
+
+
+
+
 
 
 def check_ia() -> bool:
@@ -155,6 +230,11 @@ def check_ia() -> bool:
         return r.status_code == 200
     except Exception:
         return False
+
+
+
+
+
 
 
 def reset_ia() -> None:
@@ -168,6 +248,11 @@ def reset_ia() -> None:
         raise RuntimeError(f"reset IA: {exc}")
 
 
+
+
+
+
+
 def check_audio() -> bool:
     try:
         import audio.audio as _audio_mod
@@ -176,12 +261,22 @@ def check_audio() -> bool:
         return False
 
 
+
+
+
+
+
 def check_browser() -> bool:
     try:
         from tasks.browser import jarvis_web
         return jarvis_web is not None
     except Exception:
         return False
+
+
+
+
+
 
 
 def registrar_modulos_padrao() -> None:

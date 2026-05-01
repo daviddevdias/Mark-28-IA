@@ -174,3 +174,5 @@ DEVICE_INDEX = cfg.get("device_index", 0)
 tema_ativo = cfg.get("tema_ativo", "MIDNIGHT_MINIMAL")
 notas = cfg.get("notas", "")
 cidade_padrao = cfg.get("cidade_padrao", "")
+
+voz_referencia = str(ASSETS_DIR / "voz_clone.wav")

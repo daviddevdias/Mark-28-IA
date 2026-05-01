@@ -2,11 +2,37 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 import time
+import threading
 from dataclasses import dataclass, field
-from typing import Any, Callable
+from enum import Enum
+from typing import Any, Callable, AsyncIterator
 
-log = logging.getLogger("jarvis.tool_interface")
+log = logging.getLogger("jarvis.core")
+
+INTERVALO_CHECK = 30.0
+MAX_FALHAS      = 3
+COOLDOWN_RESET  = 60.0
+SEPARADORES     = re.compile(r"(?<=[.!?;:])\s+|(?<=,)\s{2,}")
+MIN_CHUNK       = 20
+
+
+
+
+
+
+
+class StatusModulo(Enum):
+    OK          = "ok"
+    DEGRADADO   = "degradado"
+    FALHOU      = "falhou"
+    REINICIANDO = "reiniciando"
+
+
+
+
+
 
 
 @dataclass
@@ -17,36 +43,80 @@ class ToolResult:
     duracao:  float       = 0.0
     erro:     str         = ""
 
+
+
+
+
+
+
     @property
     def sucesso(self) -> bool:
         return self.status == "ok"
+
+
+
+
+
+
 
     def para_texto(self) -> str:
         if self.erro:
             return f"Erro: {self.erro}"
         return self.mensagem or str(self.dados)
 
+
+
+
+
+
+
     @staticmethod
     def ok(mensagem: str, dados: dict | None = None) -> "ToolResult":
         return ToolResult(status="ok", mensagem=mensagem, dados=dados or {})
 
+
+
+
+
+
+
     @staticmethod
     def falhou(erro: str, mensagem: str = "") -> "ToolResult":
         return ToolResult(status="erro", erro=erro, mensagem=mensagem)
+
+
+
+
+
+
 
     @staticmethod
     def pendente(mensagem: str) -> "ToolResult":
         return ToolResult(status="pendente", mensagem=mensagem)
 
 
-ToolFn = Callable[[dict, dict], ToolResult]
 
-_REGISTRY: dict[str, ToolFn] = {}
+
+
+
+
+ToolFn = Callable[[dict, dict], ToolResult]
+REGISTRY: dict[str, ToolFn] = {}
+
+
+
+
+
 
 
 def registrar_tool(nome: str, fn: ToolFn) -> None:
-    _REGISTRY[nome] = fn
+    REGISTRY[nome] = fn
     log.debug("Tool '%s' registrada.", nome)
+
+
+
+
+
 
 
 def tool(nome: str):
@@ -56,38 +126,36 @@ def tool(nome: str):
     return decorator
 
 
+
+
+
+
+
 async def executar_tool(nome: str, entrada: dict, contexto: dict | None = None) -> ToolResult:
     ctx = contexto or {}
-
-    # ── tool_cache: carrega config (timeout + TTL) e tenta cache ─────────────
     try:
-        from brain.tool_cache import carregar_config, cache as _cache
+        from brain.tool_cache import carregar_config, cache as tool_cache
         cfg       = carregar_config(nome)
         timeout_s = cfg.timeout_s
         if cfg.cache and cfg.ttl_s > 0:
-            cached = _cache.get(nome, entrada)
+            cached = tool_cache.get(nome, entrada)
             if cached is not None:
                 log.debug("Tool '%s' respondeu do cache.", nome)
                 return ToolResult(status="ok", mensagem=str(cached), duracao=0.0)
     except Exception:
         cfg       = None
         timeout_s = 15.0
-
-    # ── observability: carrega referências ───────────────────────────────────
     try:
         from logs.observability import registrar_acao, registrar_metrica
-        _obs_ok = True
+        obs_ok = True
     except Exception:
-        _obs_ok = False
-
-    fn     = _REGISTRY.get(nome)
+        obs_ok = False
+    fn     = REGISTRY.get(nome)
     inicio = time.time()
     sucesso = True
     resultado: ToolResult
-
     try:
         if fn is None:
-            # fallback para tools_mapper legado
             from engine.tools_mapper import despachar as despachar_legacy
             try:
                 resultado_str = await asyncio.wait_for(
@@ -135,8 +203,6 @@ async def executar_tool(nome: str, entrada: dict, contexto: dict | None = None) 
                 log.error("Tool '%s' lançou exceção: %s", nome, exc)
                 resultado = ToolResult(status="erro", erro=str(exc), duracao=time.time() - inicio)
                 sucesso = False
-
-        # ── tool_cache: grava resultado bem-sucedido ──────────────────────────
         if (
             cfg is not None
             and cfg.cache
@@ -145,15 +211,13 @@ async def executar_tool(nome: str, entrada: dict, contexto: dict | None = None) 
             and not resultado.mensagem.startswith(("Erro", "Timeout"))
         ):
             try:
-                from brain.tool_cache import cache as _cache2
-                _cache2.set(nome, entrada, resultado.mensagem, cfg.ttl_s)
+                from brain.tool_cache import cache as tool_cache_set
+                tool_cache_set.set(nome, entrada, resultado.mensagem, cfg.ttl_s)
             except Exception:
                 pass
-
         return resultado
-
     finally:
-        if _obs_ok:
+        if obs_ok:
             try:
                 duracao_ms = int((time.time() - inicio) * 1000)
                 registrar_acao(
@@ -168,10 +232,15 @@ async def executar_tool(nome: str, entrada: dict, contexto: dict | None = None) 
                 pass
 
 
+
+
+
+
+
 def listar_tools() -> list[str]:
     try:
         from engine.tools_mapper import EXECUTOR_FERRAMENTAS
         externas = set(EXECUTOR_FERRAMENTAS.keys())
     except (ImportError, AttributeError):
         externas = set()
-    return sorted(set(_REGISTRY.keys()) | externas)
+    return sorted(set(REGISTRY.keys()) | externas)
