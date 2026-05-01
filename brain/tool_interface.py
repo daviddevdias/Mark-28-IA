@@ -146,7 +146,7 @@ async def executar_tool(nome: str, entrada: dict, contexto: dict | None = None) 
         cfg       = None
         timeout_s = 15.0
     try:
-        from logs.observability import registrar_acao, registrar_metrica
+        from storage.observability import registrar_acao, registrar_metrica
         obs_ok = True
     except Exception:
         obs_ok = False

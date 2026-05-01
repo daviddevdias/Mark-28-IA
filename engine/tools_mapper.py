@@ -370,7 +370,7 @@ def gerenciador_traducao_multimodal(argumentos: dict) -> str:
 
 def gerenciador_otimizacao_dados(argumentos: dict) -> str:
     try:
-        from tasks.optimizer import comprimir_banco_auditoria
+        from storage.optimizer import comprimir_banco_auditoria
         resultado = executar_no_loop_atual(comprimir_banco_auditoria())
         return resultado
     except Exception as e:

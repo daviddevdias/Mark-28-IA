@@ -114,15 +114,12 @@ async def engine(ui: PainelCore):
         bus.registrar_loop(loop)
         registrar_modulos_padrao()
         watchdog.iniciar()
-
-
     except Exception as e:
         log.warning("watchdog/event_bus não carregou: %s", e)
     try:
-        from logs.observability import registrar_acao, purgar_antigos
+        from storage.observability import registrar_acao, purgar_antigos
         purgar_antigos(dias=7)
         registrar_acao("startup", modulo="main", descricao="Jarvis inicializado", sucesso=True)
-        
     except Exception as e:
         log.warning("observability não carregou: %s", e)
     threading.Thread(target=iniciar_telegram, daemon=True, name="TelegramBot").start()

@@ -18,6 +18,11 @@ MAX_CURTA = 20
 SCORE_MIN = 0.25
 
 
+
+
+
+
+
 @dataclass
 class MemoriaItem:
     id:       int
@@ -27,6 +32,11 @@ class MemoriaItem:
     contexto: str
     score:    float = 0.0
     ts:       float = 0.0
+
+
+
+
+
 
 
 def conectar() -> sqlite3.Connection:
@@ -51,14 +61,29 @@ def conectar() -> sqlite3.Connection:
     return c
 
 
+
+
+
+
+
 def normalizar_texto(texto: str) -> str:
     t = unicodedata.normalize("NFD", texto.lower())
     t = "".join(c for c in t if unicodedata.category(c) != "Mn")
     return re.sub(r"\s+", " ", t).strip()
 
 
+
+
+
+
+
 def tokenizar(texto: str) -> set[str]:
     return set(re.findall(r"\b\w{3,}\b", normalizar_texto(texto)))
+
+
+
+
+
 
 
 def calcular_score(query_tokens: set[str], valor: str, contexto: str) -> float:
@@ -69,10 +94,21 @@ def calcular_score(query_tokens: set[str], valor: str, contexto: str) -> float:
     return len(intersecao) / max(len(query_tokens), 1)
 
 
+
+
+
+
+
 class MemoriaRAG:
 
     def __init__(self) -> None:
         self.curta: list[dict] = []
+
+
+
+
+
+
 
     def salvar(self, tipo: str, chave: str, valor: str, contexto: str = "") -> None:
         agora = time.time()
@@ -100,9 +136,21 @@ class MemoriaRAG:
         if len(self.curta) > MAX_CURTA:
             self.curta = self.curta[-MAX_CURTA:]
 
+
+
+
+
+
+
     def registrar_interacao(self, comando: str, resposta: str) -> None:
         chave = hashlib.md5(comando.encode()).hexdigest()[:12]
         self.salvar("interacao", chave, resposta[:1000], contexto=comando[:300])
+
+
+
+
+
+
 
     def buscar(self, query: str, tipo: str | None = None, limite: int = 5) -> list[MemoriaItem]:
         tokens = tokenizar(query)
@@ -155,6 +203,12 @@ class MemoriaRAG:
                 break
         return unicos
 
+
+
+
+
+
+
     def contexto_para_prompt(self, query: str, max_chars: int = 800) -> str:
         itens = self.buscar(query, limite=4)
         if not itens:
@@ -169,8 +223,20 @@ class MemoriaRAG:
             total += len(trecho)
         return "\n".join(partes)
 
+
+
+
+
+
+
     def salvar_preferencia(self, chave: str, valor: str) -> None:
         self.salvar("preferencia", chave, valor)
+
+
+
+
+
+
 
     def get_preferencia(self, chave: str, default: str = "") -> str:
         try:
@@ -181,6 +247,12 @@ class MemoriaRAG:
                 return row["valor"] if row else default
         except Exception:
             return default
+
+
+
+
+
+
 
     def purgar_antigos(self, dias: int = 30) -> int:
         limite = time.time() - dias * 86400

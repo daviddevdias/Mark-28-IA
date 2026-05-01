@@ -79,23 +79,38 @@ def definir_valor_ui(chave: str, valor: str) -> None:
     }
     alvo = nomes.get(chave, chave)
     if alvo == "DEVICE_INDEX":
+        
         try:
             globals()["DEVICE_INDEX"] = int(valor)
         except ValueError:
             globals()["DEVICE_INDEX"] = 0
         return
+    
+
+
     if alvo in globals():
         globals()[alvo] = valor
+
+
     else:
         globals()[chave] = valor
+
+
+
     if chave == "nome_mestre":
+
+
         try:
             from storage.memory_manager import update_memory
             patch = {"identity": {"mestre": {"value": str(valor).strip()[:256]}}}
             update_memory(patch)
+
+
         except Exception:
             pass
     if chave == "cidade_padrao":
+
+        
         try:
             from storage.memory_manager import update_memory
             patch = {"preferences": {"cidade": {"value": str(valor).strip()[:256]}}}
@@ -146,8 +161,6 @@ def recarregar_identidade_painel() -> None:
         globals()["cidade_padrao"] = str(cp).strip()[:256]
 
 
-
-
 cfg = carregar_tudo()
 
 QWEN_API_KEY = cfg.get("qwen", "")
@@ -170,7 +183,7 @@ OPENWEATHER_API_KEY = cfg.get("openweather_api_key", "")
 
 NOME_MESTRE = cfg.get("nome_mestre", "Chefe")
 voz_atual = cfg.get("voz", "pt-BR-AntonioNeural")
-DEVICE_INDEX = cfg.get("device_index", 0)
+DEVICE_INDEX = cfg.get("device_index", 1)
 tema_ativo = cfg.get("tema_ativo", "MIDNIGHT_MINIMAL")
 notas = cfg.get("notas", "")
 cidade_padrao = cfg.get("cidade_padrao", "")

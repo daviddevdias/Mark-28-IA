@@ -21,11 +21,26 @@ MAX_VALUE_LEN: int = 400
 memoria_cache: dict | None = None
 
 
+
+
+
+
+
 def pasta_raiz_app() -> Path:
     return Path(sys.executable).parent if getattr(sys, "frozen", False) else Path(__file__).resolve().parent.parent
 
 
+
+
+
+
+
 MEMORY_PATH: Path = pasta_raiz_app() / "api" / "long_term.json"
+
+
+
+
+
 
 
 def estrutura_memoria_vazia() -> dict:
@@ -37,6 +52,11 @@ def estrutura_memoria_vazia() -> dict:
         "wishes": {},
         "notes": {},
     }
+
+
+
+
+
 
 
 def load_memory(force: bool = False) -> dict:
@@ -69,6 +89,11 @@ def load_memory(force: bool = False) -> dict:
             return memoria_cache
 
 
+
+
+
+
+
 def save_memory(memory: dict) -> None:
     global memoria_cache
 
@@ -81,10 +106,20 @@ def save_memory(memory: dict) -> None:
         memoria_cache = memory
 
 
+
+
+
+
+
 def invalidate_cache() -> None:
     global memoria_cache
     with trava_memoria:
         memoria_cache = None
+
+
+
+
+
 
 
 def get_nome() -> str:
@@ -95,6 +130,11 @@ def get_nome() -> str:
     return (v or "").strip() or "Usuário"
 
 
+
+
+
+
+
 def get_cidade() -> str:
     cp = (getattr(config, "cidade_padrao", None) or "").strip()
     if cp:
@@ -102,11 +142,21 @@ def get_cidade() -> str:
     return load_memory().get("preferences", {}).get("cidade", {}).get("value", "") or ""
 
 
+
+
+
+
+
 def get_value(category: str, key: str, default: Any = None) -> Any:
     node = load_memory().get(category, {}).get(key, {})
     if isinstance(node, dict):
         return node.get("value", default)
     return node or default
+
+
+
+
+
 
 
 def format_memory_for_prompt() -> str:
@@ -122,6 +172,11 @@ def format_memory_for_prompt() -> str:
             out.append(f"  - {k}: {val}")
 
     return "\n".join(out)
+
+
+
+
+
 
 
 def aplicar_patch_memoria(target: dict, updates: dict) -> bool:
@@ -148,6 +203,11 @@ def aplicar_patch_memoria(target: dict, updates: dict) -> bool:
     return changed
 
 
+
+
+
+
+
 def update_memory(patch: dict) -> dict:
     if not isinstance(patch, dict) or not patch:
         return load_memory()
@@ -159,8 +219,18 @@ def update_memory(patch: dict) -> dict:
         return mem
 
 
+
+
+
+
+
 LISTA_CATEGORIAS_MEMORIA = "identity, preferences, projects, relationships, wishes, notes"
 TEXTO_PROMPT_EXTRACAO = "Extraia fatos da conversa e retorne apenas JSON:\n"
+
+
+
+
+
 
 
 def json_da_resposta_ia(raw: str) -> dict | None:
@@ -174,6 +244,11 @@ def json_da_resposta_ia(raw: str) -> dict | None:
             except Exception:
                 return None
     return None
+
+
+
+
+
 
 
 async def process_memory_logic(user_text: str, core_text: str) -> None:

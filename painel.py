@@ -9,6 +9,11 @@ from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWidgets import QApplication, QMainWindow
 
+
+
+
+
+
 main_async_loop = None
 CONFIG_CORE_FILE = "config_core.json"
 SMART_FILE = "config_smart.json"
@@ -478,11 +483,9 @@ class JarvisBridge(QObject):
 
 
 
+
+
 class PainelCore(QMainWindow):
-
-
-
-
 
 
 

@@ -12,7 +12,7 @@ from engine.controller import processar_diretriz
 from tasks.alarm import alarme_ativo, parar_alarme_total
 
 try:
-    from logs.observability import registrar_acao, registrar_metrica, Temporizador as _Temporizador
+    from storage.observability import registrar_acao, registrar_metrica, Temporizador as _Temporizador
     _OBS = True
 except Exception:
     _OBS = False

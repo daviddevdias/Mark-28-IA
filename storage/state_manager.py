@@ -6,6 +6,11 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+
+
+
+
+
 @dataclass
 class EstadoSistema:
     ia_modo:         str   = "ollama"
@@ -24,6 +29,11 @@ class EstadoSistema:
     flags:           dict  = field(default_factory=dict)
 
 
+
+
+
+
+
 class StateManager:
 
     def __init__(self) -> None:
@@ -31,9 +41,21 @@ class StateManager:
         self.lock     = threading.RLock()
         self.watchers: dict[str, list] = {}
 
+
+
+
+
+
+
     def get(self, chave: str, default: Any = None) -> Any:
         with self.lock:
             return getattr(self.estado, chave, default)
+
+
+
+
+
+
 
     def set(self, chave: str, valor: Any) -> None:
         with self.lock:
@@ -54,9 +76,21 @@ class StateManager:
         except Exception:
             pass
 
+
+
+
+
+
+
     def update(self, dados: dict) -> None:
         for k, v in dados.items():
             self.set(k, v)
+
+
+
+
+
+
 
     def snapshot(self) -> dict:
         with self.lock:
@@ -65,20 +99,50 @@ class StateManager:
                 for k in self.estado.__dataclass_fields__
             }
 
+
+
+
+
+
+
     def watch(self, chave: str, fn) -> None:
         self.watchers.setdefault(chave, []).append(fn)
+
+
+
+
+
+
 
     def set_contexto(self, chave: str, valor: Any) -> None:
         with self.lock:
             self.estado.contexto_ativo[chave] = valor
 
+
+
+
+
+
+
     def get_contexto(self, chave: str, default: Any = None) -> Any:
         with self.lock:
             return self.estado.contexto_ativo.get(chave, default)
 
+
+
+
+
+
+
     def set_flag(self, flag: str, valor: bool = True) -> None:
         with self.lock:
             self.estado.flags[flag] = valor
+
+
+
+
+
+
 
     def get_flag(self, flag: str) -> bool:
         with self.lock:
