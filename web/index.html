@@ -4,9 +4,13 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>J.A.R.V.I.S ◈ MARK XXVIII</title>
+    <link rel="preconnect" href="https://fonts.bunny.net">
+    <link href="https://fonts.bunny.net/css?family=chakra-petch:300,400,500,600,700;jetbrains-mono:400,500,600,700;syne:400,500,600,700,800" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+
+<canvas id="bgCanvas"></canvas>
 
 <div id="app">
 
@@ -16,15 +20,19 @@
                 <svg viewBox="0 0 64 64" class="arc-reactor-svg">
                     <defs>
                         <radialGradient id="arcGrad" cx="50%" cy="50%" r="50%">
-                            <stop offset="0%" style="stop-color:#fff2cc;stop-opacity:1" />
-                            <stop offset="45%" style="stop-color:#ffb400;stop-opacity:1" />
+                            <stop offset="0%"   style="stop-color:#fff2cc;stop-opacity:1" />
+                            <stop offset="45%"  style="stop-color:#ffb400;stop-opacity:1" />
                             <stop offset="100%" style="stop-color:#cc5500;stop-opacity:0.9" />
                         </radialGradient>
+                        <filter id="arcGlow">
+                            <feGaussianBlur stdDeviation="2" result="blur"/>
+                            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                        </filter>
                     </defs>
                     <circle class="arc-ring arc-r3" cx="32" cy="32" r="28" fill="none" />
                     <circle class="arc-ring arc-r2" cx="32" cy="32" r="20" fill="none" />
                     <circle class="arc-ring arc-r1" cx="32" cy="32" r="12" fill="none" />
-                    <circle cx="32" cy="32" r="6" fill="url(#arcGrad)" class="arc-core" />
+                    <circle cx="32" cy="32" r="6" fill="url(#arcGrad)" class="arc-core" filter="url(#arcGlow)" />
                 </svg>
             </div>
             <div class="topnav-titles">
@@ -34,7 +42,7 @@
         </div>
 
         <div class="topnav-nav-cluster">
-            <button type="button" class="nav-scroll-fab" id="navScrollLeft" aria-label="Menu para a esquerda">◀</button>
+            <button type="button" class="nav-scroll-fab" id="navScrollLeft"  aria-label="Menu para a esquerda">◀</button>
             <nav class="topnav-scroll" id="topnavScroll">
                 <div class="sidebar-nav" id="navBtns"></div>
             </nav>
@@ -57,12 +65,13 @@
         <header class="topbar">
             <span class="topbar-title" id="pageTitle">PAINEL CENTRAL</span>
             <div class="topbar-right">
-                <div id="iaBadge" onclick="navegarPara(window.PG.IA)" title="Modelo ativo — clique para trocar"></div>
+                <div id="iaBadge"
+                     onclick="navegarPara(window.PG.IA)"
+                     title="Modelo ativo — clique para trocar"></div>
                 <div class="topbar-sep"></div>
                 <span id="clock">00:00:00</span>
             </div>
         </header>
-
         <div class="content" id="content"></div>
     </main>
 
@@ -77,7 +86,7 @@
         <p>Confirmar desligamento completo do sistema?</p>
         <div class="modal-btns">
             <button class="btn btn-danger" onclick="desligarJarvis()">DESLIGAR</button>
-            <button class="btn btn-ghost" onclick="fecharModal('modalShutdown')">CANCELAR</button>
+            <button class="btn btn-ghost"  onclick="fecharModal('modalShutdown')">CANCELAR</button>
         </div>
     </div>
 </div>
@@ -88,29 +97,32 @@
         <h3>FECHAR INTERFACE</h3>
         <p>Apenas ocultar o painel?</p>
         <div class="modal-btns">
-            <button class="btn btn-warn" onclick="fecharPainel()">FECHAR</button>
+            <button class="btn btn-warn"  onclick="fecharPainel()">FECHAR</button>
             <button class="btn btn-ghost" onclick="fecharModal('modalClose')">CANCELAR</button>
         </div>
     </div>
 </div>
 
-<script src="bus.js"></script>
-<script src="state.js"></script>
-<script src="bridge.js"></script>
+<script src="core/bus.js"></script>
+<script src="core/state.js"></script>
+<script src="core/ui.js"></script>
+<script src="core/bridge.js"></script>
+
 <script src="pages/weather.js"></script>
 <script src="pages/dash.js"></script>
 <script src="pages/alarmes.js"></script>
-<script src="pages/monitor.js"></script>
-<script src="pages/chat.js"></script>
+<script src="pages/comandos.js"></script>
 <script src="pages/voz.js"></script>
 <script src="pages/visao.js"></script>
-<script src="pages/comandos.js"></script>
+<script src="pages/monitor.js"></script>
+<script src="pages/chat.js"></script>
 <script src="pages/notas.js"></script>
 <script src="pages/ia.js"></script>
 <script src="pages/config.js"></script>
 <script src="pages/temas.js"></script>
-<script src="nav.js"></script>
-<script src="ui.js"></script>
-<script src="app.js"></script>
+
+<script src="core/nav.js"></script>
+<script src="core/app.js"></script>
+
 </body>
 </html>

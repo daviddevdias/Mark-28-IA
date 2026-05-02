@@ -346,6 +346,13 @@ def ouvir_sync_queued():
 
 
 
+def listar_microfones() -> list:
+    try:
+        import speech_recognition as sr
+        mics = sr.Microphone.list_microphone_names()
+        return [f"{i}: {nome}" for i, nome in enumerate(mics)]
+    except Exception:
+        return []
 
 
 

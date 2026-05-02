@@ -1,5 +1,6 @@
 'use strict';
 
+
 function receberDoJarvis(data) {
     if (data.cpu !== undefined) {
         state.metricas._cpu_raw = data.cpu;
@@ -14,19 +15,21 @@ function receberDoJarvis(data) {
     }
 
     if (data.resposta) {
-        const s = String(data.resposta).slice(0, 120);
-        addLog('ok', s);
+        const s = String(data.resposta);
+        addLog('ok', s.slice(0, 120));
         toast(s.slice(0, 90));
-        if (state.chatHist.length && state.chatHist[state.chatHist.length - 1]?.role === 'user') {
+        const hist = state.chatHist;
+        if (hist.length && hist[hist.length - 1]?.role === 'user') {
             document.getElementById('typingIndicator')?.remove();
-            state.chatHist.push({ role: 'jarvis', text: s });
+            hist.push({ role: 'jarvis', text: s });
             if (state.page === PG.CHAT) renderChat();
         }
     }
 
     if (data.erro) {
-        addLog('err', String(data.erro).slice(0, 120));
-        toast(String(data.erro).slice(0, 90), 'err');
+        const msg = String(data.erro).slice(0, 200);
+        addLog('err', msg);
+        toast(msg.slice(0, 90), 'err');
     }
 
     if (data.ia_status) {
@@ -41,44 +44,43 @@ function receberDoJarvis(data) {
 
     if (data.visao_status) {
         const el = document.getElementById('visaoLoader');
-        if (el) el.textContent = data.visao_status;
+        if (el) { el.style.display = 'block'; el.textContent = data.visao_status; }
         toast(data.visao_status);
     }
 
-    if (data.visao_img) {
-        const frame  = document.getElementById('visaoFrame');
-        const loader = document.getElementById('visaoLoader');
-        if (frame && loader) {
-            loader.style.display = 'none';
-            frame.src = 'data:image/jpeg;base64,' + data.visao_img;
-            frame.style.display = 'block';
+    if (data.visao_img !== undefined || data.visao_resultado !== undefined) {
+        if (typeof finalizarAnaliseVisual === 'function') {
+            finalizarAnaliseVisual(data.visao_img || '', data.visao_resultado || '');
         }
-    }
-
-    if (data.visao_resultado) {
-        const el = document.getElementById('visaoResultado');
-        if (el) el.innerHTML = esc(data.visao_resultado).replace(/\n/g, '<br>');
-        addLog('ok', 'Análise visual concluída.');
+        if (data.visao_resultado) addLog('ok', 'Análise visual concluída.');
     }
 
     if (data.visao_erro) {
         toast(data.visao_erro, 'err');
-        const el = document.getElementById('visaoResultado');
-        if (el) el.innerHTML = `<span style="color:var(--red);">ERRO: ${esc(data.visao_erro)}</span>`;
+        addLog('err', 'Visão: ' + String(data.visao_erro).slice(0, 120));
+        if (typeof finalizarAnaliseVisual === 'function') {
+            finalizarAnaliseVisual('', JSON.stringify({
+                ok: false,
+                tipo: 'erro',
+                resumo: data.visao_erro,
+                problema: data.visao_erro,
+                sugestao_rapida: '',
+            }));
+        }
     }
 
     if (data.monitor_status) {
         state.monitor.ativo = data.monitor_status === 'ativo';
         if (data.monitor_intervalo) state.monitor.intervalo = data.monitor_intervalo;
         if (state.page === PG.MONITOR) atualizarHeaderMonitor();
-        addLog(state.monitor.ativo ? 'ok' : 'warn',
-               state.monitor.ativo ? `Monitor ativo (${state.monitor.intervalo}s)` : 'Monitor desativado.');
+        addLog(
+            state.monitor.ativo ? 'ok' : 'warn',
+            state.monitor.ativo
+                ? `Monitor ativo (${state.monitor.intervalo}s)`
+                : 'Monitor desativado.'
+        );
     }
-
-    if (data.monitor_evento) {
-        processarEventoMonitor(data.monitor_evento);
-    }
-
+    if (data.monitor_evento)  processarEventoMonitor(data.monitor_evento);
     if (data.monitor_dica) {
         state.monitor.ultima_dica = data.monitor_dica;
         exibirDicaMonitor(data.monitor_dica, data.monitor_tipo || state.monitor.ultimo_tipo);
@@ -97,45 +99,43 @@ function receberDoJarvis(data) {
 
     if (data.alarmes_lista) {
         state.alarmes.lista = data.alarmes_lista;
-        Bus.emit('alarmes:updated', data.alarmes_lista);
+        if (typeof Bus !== 'undefined') Bus.emit('alarmes:updated', data.alarmes_lista);
         if (state.page === PG.ALARMES) renderPage();
     }
-
     if (data.alarme_disparado) {
         state.alarmes.alarmeAtivo = true;
-        Bus.emit('alarme:disparado', data.alarme_disparado);
+        if (typeof Bus !== 'undefined') Bus.emit('alarme:disparado', data.alarme_disparado);
         mostrarNotificacaoAlarme(data.alarme_disparado);
     }
-
     if (data.alarme_parado) {
         state.alarmes.alarmeAtivo = false;
-        Bus.emit('alarme:parado', {});
+        if (typeof Bus !== 'undefined') Bus.emit('alarme:parado', {});
     }
 }
-
 window.receberDoJarvis = receberDoJarvis;
+
 
 function bridge(method) {
     return new Promise(res => {
         if (!window.jarvis || typeof window.jarvis[method] !== 'function') return res(null);
         try { window.jarvis[method](r => res(r)); }
-        catch(e) { res(null); }
+        catch (e) { res(null); }
     });
 }
+
 
 function bridgeCall(method, arg) {
     return new Promise(res => {
         if (!window.jarvis || typeof window.jarvis[method] !== 'function') return res(null);
         try { window.jarvis[method](arg, r => res(r)); }
-        catch(e) { res(null); }
+        catch (e) { res(null); }
     });
 }
-
-window.bridge = bridge;
+window.bridge     = bridge;
 window.bridgeCall = bridgeCall;
 
 const scriptWebChannel = document.createElement('script');
-scriptWebChannel.src = 'qrc:///qtwebchannel/qwebchannel.js';
+scriptWebChannel.src   = 'qrc:///qtwebchannel/qwebchannel.js';
 document.head.appendChild(scriptWebChannel);
 
 scriptWebChannel.onload = () => {
@@ -145,14 +145,15 @@ scriptWebChannel.onload = () => {
             state.bridgeReady = true;
             window.jarvis.dados_para_ui.connect(raw => {
                 try { receberDoJarvis(JSON.parse(raw)); }
-                catch(e) { console.error('[BRIDGE] Parse error:', e); }
+                catch (e) { console.error('[BRIDGE] Parse error:', e, raw); }
             });
             loadData();
         });
-    } catch(e) {
+    } catch (e) {
         addLog('warn', 'Modo demonstração ativo — bridge Qt não detectada');
     }
 };
+
 
 async function loadData() {
     try {
@@ -164,26 +165,38 @@ async function loadData() {
             bridge('obter_biblioteca_comandos'),
         ]);
 
-        if (temas) state.themes = JSON.parse(temas);
+        if (temas) {
+            try { state.themes = JSON.parse(temas); } catch (e) {}
+        }
 
         if (cfg) {
-            const c = JSON.parse(cfg);
-            Object.assign(state.apis, c);
-            if (c.notas)          state.notas             = c.notas;
-            if (c.cidade_padrao)  state.weather.city      = c.cidade_padrao;
+            try {
+                const c = JSON.parse(cfg);
+                Object.assign(state.apis, c);
+                if (c.notas)         state.notas         = c.notas;
+                if (c.cidade_padrao) {
+                    state.apis.cidade_padrao = c.cidade_padrao;
+                    state.weather.city  = c.cidade_padrao;
+                    if (state.page === PG.WEATHER && typeof fetchWeather === 'function') {
+                        fetchWeather(c.cidade_padrao);
+                    }
+                }
+            } catch (e) {}
         }
 
         if (iaRaw) {
-            const ia = JSON.parse(iaRaw);
-            state.ia = { modo: ia.modo || 'ollama', modelo: ia.modelo || '', ollama: !!ia.ollama };
-            updateIABadge();
+            try {
+                const ia = JSON.parse(iaRaw);
+                state.ia = { modo: ia.modo || 'ollama', modelo: ia.modelo || '', ollama: !!ia.ollama };
+                if (typeof updateIABadge === 'function') updateIABadge();
+            } catch (e) {}
         }
 
         if (vozRaw) {
             try {
                 const v = JSON.parse(vozRaw);
                 state.voz.deviceIndex = Number(v.device_index) || 0;
-                state.voz.microfones = Array.isArray(v.microfones) ? v.microfones : [];
+                state.voz.microfones  = Array.isArray(v.microfones) ? v.microfones : [];
             } catch (e) {}
         }
 
@@ -203,16 +216,16 @@ async function loadData() {
         }
         if (ta && state.themes[ta]) {
             state.theme = ta;
-            applyTheme(ta);
+            if (typeof applyTheme === 'function') applyTheme(ta);
         }
 
-        await carregarAlarmesBridge();
+        if (typeof carregarAlarmesBridge === 'function') await carregarAlarmesBridge();
 
-    } catch(e) {
-        addLog('warn', 'Dados do sistema indisponíveis — usando padrões');
+    } catch (e) {
+        if (typeof addLog === 'function') addLog('warn', 'Dados do sistema indisponíveis — usando padrões');
     }
-    renderPage();
+
+    if (typeof renderPage === 'function') renderPage();
     setTimeout(() => window.dispatchEvent(new Event('resize')), 200);
 }
-
 window.loadData = loadData;

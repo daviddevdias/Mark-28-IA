@@ -77,11 +77,14 @@ def iniciar_ollama():
             return
     except Exception:
         pass
+
+
     path = achar_ollama()
     if path:
         print("OLLAMA Inicializando com suporte AMD RX 580...")
         env = os.environ.copy()
         env["HSA_OVERRIDE_GFX_VERSION"] = "8.0.3"
+        env["OLLAMA_ORIGINS"] = "*"
         subprocess.Popen([path, "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
         time.sleep(3)
 
@@ -107,6 +110,8 @@ async def engine(ui: PainelCore):
     iniciar_sentinela()
     iniciar_sistema_alarmes()
     sincronizar_config()
+
+
     try:
         from brain.event_bus import bus
         from brain.watchdog import watchdog, registrar_modulos_padrao
@@ -116,26 +121,38 @@ async def engine(ui: PainelCore):
         watchdog.iniciar()
     except Exception as e:
         log.warning("watchdog/event_bus não carregou: %s", e)
+
+
     try:
         from storage.observability import registrar_acao, purgar_antigos
         purgar_antigos(dias=7)
         registrar_acao("startup", modulo="main", descricao="Jarvis inicializado", sucesso=True)
     except Exception as e:
         log.warning("observability não carregou: %s", e)
+
+
     threading.Thread(target=iniciar_telegram, daemon=True, name="TelegramBot").start()
+
+
     while not get_shutdown_event().is_set():
         try:
             config.recarregar_identidade_painel()
             resultado = await ouvir_comando()
             if not resultado or not isinstance(resultado, str):
                 continue
+
+
             ativo, cmd = processar_wake(resultado)
             if not ativo or not isinstance(cmd, str):
                 continue
+
+
             cmd = cmd.strip()
             if not cmd:
                 await falar(resposta_ativacao_aleatoria())
                 continue
+
+
             await executar(cmd, ui)
         except Exception:
             log.exception("erro no ciclo principal")
@@ -153,8 +170,12 @@ def engine_thread(ui: PainelCore):
     set_loop(loop)
     registrar_loop_alarme(loop)
     registrar_loop_monitor_voz(loop)
+
+
     try:
         loop.run_until_complete(engine(ui))
+    except Exception as e:
+        log.critical("Engine finalizada com erro: %s", e)
     finally:
         loop.close()
 
@@ -165,22 +186,40 @@ def engine_thread(ui: PainelCore):
 
 
 def iniciar_sistema():
-    iniciar_ollama()
+    ui = PainelCore()
+
+
     try:
         ui = PainelCore()
         hud = JarvisUI()
+
+
         try:
             hud.btn_code.clicked.disconnect()
         except TypeError:
             pass
+
+
         hud.btn_code.clicked.connect(lambda: (ui.show(), ui.raise_(), ui.activateWindow()))
         hud.show()
+
+
         registrar_falar(falar)
         registrar_falar_alarme(falar)
-        threading.Thread(target=engine_thread, args=(ui,), daemon=True, name="CoreEngine").start()
-        sys.exit(app.exec())
+
+
+        core_thread = threading.Thread(target=engine_thread, args=(ui,), daemon=True, name="CoreEngine")
+        core_thread.start()
+
+
+        exit_code = app.exec()
+        get_shutdown_event().set()
+        sys.exit(exit_code)
+
+
     except Exception as e:
-        print(f"Falha na subida: {e}")
+        print(f"Falha na subida do sistema: {e}")
+        sys.exit(1)
 
 
 

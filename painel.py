@@ -9,11 +9,6 @@ from PyQt6.QtWebChannel import QWebChannel
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWidgets import QApplication, QMainWindow
 
-
-
-
-
-
 main_async_loop = None
 CONFIG_CORE_FILE = "config_core.json"
 SMART_FILE = "config_smart.json"
@@ -47,8 +42,12 @@ CAMPOS_CONFIG_CORE = {
 def resolver_arquivo(chave: str) -> str:
     if chave == "notas":
         return NOTAS_FILE
+
+
     if chave in CAMPOS_CONFIG_CORE:
         return CONFIG_CORE_FILE
+
+
     return SMART_FILE
 
 
@@ -62,6 +61,8 @@ def limpar_prefixo(cmd: str) -> str:
     for prefixo in ("core,", "core"):
         if c.startswith(prefixo):
             c = c[len(prefixo) :].strip()
+
+
     return c
 
 
@@ -80,6 +81,8 @@ def montar_biblioteca_comandos() -> list[dict]:
             chave = "|".join(keywords)
             if chave in visto:
                 continue
+
+
             visto.add(chave)
             exemplo = " ".join(keywords)
             biblioteca.append(
@@ -146,12 +149,6 @@ async def run_test_voice() -> None:
 
     await falar("Teste de síntese de voz. Painel JARVIS operacional.")
 
-
-
-
-
-
-
 class JarvisBridge(QObject):
     dados_para_ui = pyqtSignal(str)
 
@@ -214,6 +211,8 @@ class JarvisBridge(QObject):
             texto = await processar_comando(diretriz)
             if texto:
                 self.dados_para_ui.emit(json.dumps({"resposta": texto}))
+
+
         except Exception as e:
             self.dados_para_ui.emit(json.dumps({"erro": str(e)}))
 
@@ -322,6 +321,8 @@ class JarvisBridge(QObject):
         tema = dados.get("tema", dados.get("tema_ativo", ""))
         if isinstance(tema, dict):
             return json.dumps(tema)
+
+
         return json.dumps(str(tema) if tema else "")
 
 
@@ -418,28 +419,45 @@ class JarvisBridge(QObject):
 
 
 
-    async def rotina_visao_ui(self):
+    @pyqtSlot(str)
+    def solicitar_analise_visual_com_prompt(self, prompt_usuario: str):
+        global main_async_loop
+        if main_async_loop is not None and not main_async_loop.is_closed():
+            asyncio.run_coroutine_threadsafe(self.rotina_visao_ui(prompt_usuario), main_async_loop)
+
+
+
+
+
+
+
+    async def rotina_visao_ui(self, prompt_personalizado: str = None):
         try:
             from vision.capture import analisar_tela, capturar_frame_base64
 
+            prompt_final = prompt_personalizado or "Descreve o que está visível no ecrã e se há erros óbvios."
+
             self.dados_para_ui.emit(json.dumps({"visao_status": "A capturar o ecrã..."}))
+
+            await asyncio.sleep(0.8)
+
             loop = asyncio.get_running_loop()
             b64 = await loop.run_in_executor(None, capturar_frame_base64)
+
             if not b64:
-                self.dados_para_ui.emit(json.dumps({"visao_erro": "Falha na captura."}))
+                self.dados_para_ui.emit(json.dumps({"visao_erro": "Falha na captura de tela."}))
                 return
-            self.dados_para_ui.emit(
-                json.dumps(
-                    {
-                        "visao_img": b64,
-                        "visao_status": "Imagem capturada. A analisar...",
-                    }
-                )
-            )
-            analise = await analisar_tela(
-                "Descreve o que está visível no ecrã e se há erros óbvios."
-            )
-            self.dados_para_ui.emit(json.dumps({"visao_resultado": analise}))
+
+
+            self.dados_para_ui.emit(json.dumps({"visao_status": "Imagem capturada. A analisar com Qwen-VL..."}))
+
+            analise = await analisar_tela(prompt_final)
+
+            self.dados_para_ui.emit(json.dumps({
+                "visao_img": b64,
+                "visao_resultado": analise,
+            }))
+
         except Exception as e:
             self.dados_para_ui.emit(json.dumps({"visao_erro": str(e)}))
 
@@ -456,6 +474,8 @@ class JarvisBridge(QObject):
             cidade = (getattr(config, "cidade_padrao", None) or "").strip() or dados.get(
                 "cidade_padrao", "São Paulo"
             )
+
+
         global main_async_loop
         if main_async_loop is not None and not main_async_loop.is_closed():
             asyncio.run_coroutine_threadsafe(self.rotina_clima(cidade), main_async_loop)
@@ -483,9 +503,87 @@ class JarvisBridge(QObject):
 
 
 
+    @pyqtSlot(result=str)
+    def obter_alarmes(self) -> str:
+        try:
+            from tasks import alarm
+            return json.dumps(alarm.carregar_alarmes())
+        except Exception:
+            return "[]"
 
+
+
+
+
+
+
+    @pyqtSlot(str)
+    def salvar_alarme(self, dados_json: str):
+        try:
+            from tasks import alarm
+            import asyncio
+            alarme = json.loads(dados_json)
+            alarmes = alarm.carregar_alarmes()
+            alarmes.append(alarme)
+            alarm.salvar_alarmes(alarmes)
+            if alarm.falar_callback and alarm.alarm_loop_ativo:
+                asyncio.run_coroutine_threadsafe(
+                    alarm.falar_callback("Senhor, despertador configurado."),
+                    alarm.alarm_loop_ativo
+                )
+
+
+        except Exception:
+            pass
+
+
+
+
+
+
+
+    @pyqtSlot(str)
+    def remover_alarme(self, dados_json: str):
+        try:
+            from tasks import alarm
+            req = json.loads(dados_json)
+            alarm.remover_alarme(req.get("hora"), req.get("missao"), req.get("data"))
+        except Exception:
+            pass
+
+
+
+
+
+
+
+    @pyqtSlot()
+    def parar_alarme(self):
+        try:
+            from tasks import alarm
+            alarm.parar_alarme_total()
+        except Exception:
+            pass
+
+
+
+
+
+
+
+    @pyqtSlot()
+    def limpar_alarmes_concluidos(self):
+        try:
+            from tasks import alarm
+            alarm.limpar_alarmes_concluidos()
+        except Exception:
+            pass
 
 class PainelCore(QMainWindow):
+
+
+
+
 
 
 
@@ -497,6 +595,8 @@ class PainelCore(QMainWindow):
             app = QApplication.instance()
             if app is not None:
                 app.setQuitOnLastWindowClosed(False)
+
+
         except Exception:
             pass
         try:
@@ -526,6 +626,12 @@ class PainelCore(QMainWindow):
         except Exception:
             pass
 
+
+
+
+
+
+
         def hook_voz(on: bool, vol: float = 1.0) -> None:
             try:
                 self.bridge.dados_para_ui.emit(
@@ -533,6 +639,8 @@ class PainelCore(QMainWindow):
                 )
             except Exception:
                 pass
+
+
         config.registrar_callback_voz_painel(hook_voz)
 
 

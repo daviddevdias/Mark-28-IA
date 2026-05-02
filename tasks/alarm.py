@@ -13,7 +13,7 @@ try:
 except ImportError:
     PYGAME = False
 
-DB_ALARMES = "logs/alarmes.json"
+DB_ALARMES = "api/alarme.json"
 lock = threading.Lock()
 alarme_ativo = False
 falar_callback = None
@@ -239,21 +239,7 @@ def adicionar_alarme(
     }
     alarmes.append(alarme)
     salvar_alarmes(alarmes)
-    if dias_semana is not None:
-        nomes = [n for n, i in DIAS_SEMANA.items() if i in dias_semana and "-" not in n]
-        rotulo = ", ".join(nomes) if nomes else "dias selecionados"
-        confirmacoes = [
-            f"Alarme semanal configurado. Toda {rotulo} as {hora}, Senhor.",
-            f"Cronometro semanal: {rotulo} as {hora}.",
-        ]
-    else:
-        rotulo = f"{data} " if data else ""
-        confirmacoes = [
-            f"Protocolo concluido. Alarme {rotulo}as {hora}, Senhor.",
-            f"Cronometro sincronizado para {rotulo}{hora}. Estarei atento.",
-            f"Alerta agendado para {rotulo}{hora}.",
-        ]
-    return random.choice(confirmacoes)
+    return "Senhor, despertador configurado."
 
 
 
@@ -307,9 +293,9 @@ def snooze_alarme() -> str:
 def buscar_arquivo_musica() -> str:
     base = os.path.dirname(os.path.abspath(__file__))
     candidatos = [
-        os.path.join(base, "assets", "despertar.mp3"),
-        os.path.join(os.getcwd(), "assets", "despertar.mp3"),
-        os.path.join(base, "despertar.mp3"),
+        os.path.join(base, "assets", "despertar.wav"),
+        os.path.join(os.getcwd(), "assets", "despertar.wav"),
+        os.path.join(base, "despertar.wav"),
     ]
     for c in candidatos:
         if os.path.exists(c):
@@ -368,10 +354,7 @@ def avisar_voz_alarme(missao: str):
     import asyncio
     fn = falar_callback
     loop = alarm_loop_ativo
-    texto = (
-        f"Atenção Senhor. Alarme em vigor. {missao or 'Hora do evento'}. "
-        "Monitor principal acionado. Sistemas operantes."
-    )
+    texto = f"Senhor, agora estou despertando. {missao}"
     if fn and loop and not loop.is_closed():
         try:
             fut = asyncio.run_coroutine_threadsafe(fn(texto), loop)
