@@ -3,6 +3,8 @@
 function pgDash(wrap) {
     const m = state.metricas;
 
+    
+
     wrap.innerHTML = `
         <div class="dash-grid">
             ${metricCard('CPU',        'v-cpu','p-cpu', Math.round(m.cpu)+'%', m.cpu, 'var(--accent)')}
@@ -55,6 +57,9 @@ function pgDash(wrap) {
     updateMetrics();
 }
 
+
+
+
 function metricCard(lbl, idV, idP, val, pct, cor) {
     const col = pct > 85 ? 'var(--red)' : pct > 65 ? 'var(--orange)' : cor;
     return `
@@ -69,6 +74,8 @@ function metricCard(lbl, idV, idP, val, pct, cor) {
         </div>`;
 }
 
+
+
 function spec(k, v) {
     return `
         <div class="spec-block">
@@ -76,6 +83,8 @@ function spec(k, v) {
             <div class="spec-val">${v}</div>
         </div>`;
 }
+
+
 
 function quickBtn(icon, label, cmd, col, bg) {
     return `
@@ -88,12 +97,18 @@ function quickBtn(icon, label, cmd, col, bg) {
         </div>`;
 }
 
+
+
+
 function ocultarPainelQt() {
     try {
         if (window.jarvis?.ocultar_painel) { window.jarvis.ocultar_painel(); return; }
     } catch(e) {}
     toast('Bridge não conectada.', 'warn');
 }
+
+
+
 
 function uptime() {
     const s = Math.floor((Date.now() - state.metricas.uptime_start) / 1000);

@@ -28,6 +28,10 @@ function pgConfig(wrap) {
         { key:'spotify_sec', label:'SPOTIFY SECRET',    tip:'Spotify Dashboard' },
     ];
 
+
+
+
+
     wrap.innerHTML = `
         <div class="page-header">
             <div>
@@ -61,6 +65,9 @@ function pgConfig(wrap) {
                     </div>`).join('')}
             </div>
         </div>
+
+
+        
 
         <div class="settings-section">
             <div class="section-heading"><h3>PREFERÊNCIAS</h3><div class="section-line"></div></div>

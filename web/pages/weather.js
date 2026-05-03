@@ -1,5 +1,11 @@
 'use strict';
 
+
+
+
+
+
+
 function wxIcon(desc) {
     if (!desc) return '🌡️';
     const d = desc.toLowerCase();
@@ -15,6 +21,12 @@ function wxIcon(desc) {
 }
 window.wxIcon = wxIcon;
 
+
+
+
+
+
+
 function wxConditionKey(desc) {
     if (!desc) return 'clear';
     const d = desc.toLowerCase();
@@ -25,6 +37,12 @@ function wxConditionKey(desc) {
     if (d.includes('cloud') || d.includes('overcast')) return 'cloudy';
     return 'clear';
 }
+
+
+
+
+
+
 
 function normalizeWeather(raw, cityFallback) {
     if (!raw || raw.error) return null;
@@ -88,46 +106,74 @@ function normalizeWeather(raw, cityFallback) {
     return null;
 }
 
+
+
+
+
+
+
 function degToCard(deg) {
     if (deg == null) return '';
     return ['N', 'NE', 'L', 'SE', 'S', 'SO', 'O', 'NO'][Math.round(deg / 45) % 8];
 }
+
+
+
+
+
+
 
 function pgWeather(wrap) {
     const currentCity = state.apis.cidade_padrao || state.weather.city || 'São Paulo';
     state.weather.city = currentCity;
 
     wrap.innerHTML = `
-
     <div class="wx-root">
         <div class="wx-topbar">
             <div class="wx-search-wrap">
-                <input class="wx-input" id="wxCity" placeholder="Buscar cidade..." value="${esc(currentCity)}" autocomplete="off">
+                <input class="wx-input" id="wxCity" placeholder="Buscar cidade..." value="${esc(currentCity)}" autocomplete="on">
             </div>
             <button class="wx-btn" onclick="buscarClima()">BUSCAR</button>
-            <button class="wx-btn-ghost" onclick="atualizarClima()">↺ ATUALIZAR</button>
+            <button class="wx-btn-ghost" onclick="atualizarClima() style="font-weight:700;" >↺ ATUALIZAR</button>
             <div id="wxSourceBadge"></div>
         </div>
         <div id="wxMain" style="flex:1;min-height:0;display:flex;flex-direction:column;gap:16px;"></div>
     </div>`;
 
-    document.getElementById('wxCity')?.addEventListener('keydown', e => { if (e.key === 'Enter') buscarClima(); });
+    const cityInput = document.getElementById('wxCity');
+    if (cityInput) cityInput.addEventListener('keydown', e => { if (e.key === 'Enter') buscarClima(); });
 
     if (state.weather.norm) renderWeatherFull(state.weather.norm);
     else fetchWeather(currentCity);
 }
 window.pgWeather = pgWeather;
 
+
+
+
+
+
+
 function buscarClima() {
-    const city = (document.getElementById('wxCity')?.value || '').trim();
+    const cityInp = document.getElementById('wxCity');
+    const city = (cityInp?.value || '').trim();
     if (!city) return;
+
     state.weather.city = city;
     state.weather.norm = null;
     state.weather.error = null;
+    
     if (window.jarvis) window.jarvis.salvar_configuracao('cidade_padrao', city);
+
     fetchWeather(city);
 }
 window.buscarClima = buscarClima;
+
+
+
+
+
+
 
 function atualizarClima() {
     state.weather.norm = null;
@@ -135,6 +181,12 @@ function atualizarClima() {
     fetchWeather(state.apis.cidade_padrao || state.weather.city || 'São Paulo');
 }
 window.atualizarClima = atualizarClima;
+
+
+
+
+
+
 
 async function fetchWeather(city) {
     const el = document.getElementById('wxMain');
@@ -170,16 +222,30 @@ async function fetchWeather(city) {
 }
 window.fetchWeather = fetchWeather;
 
+
+
+
+
+
+
 function parseWeatherData(raw, city) {
     try {
         const currentCity = state.apis.cidade_padrao || state.weather.city || 'São Paulo';
         const norm = normalizeWeather(raw, city || currentCity);
-        if (!norm) { state.weather.error = raw?.error || 'Dados inválidos.'; renderWeatherError(); return; }
+        
+        if (!norm) {
+            state.weather.error = raw?.error || 'Dados inválidos.';
+            renderWeatherError();
+            return;
+        }
+
         state.weather.norm = norm;
         state.weather.city = norm.city || currentCity;
         state.weather.error = null;
+        
         const inp = document.getElementById('wxCity');
         if (inp && norm.city) inp.value = norm.city;
+
         renderWeatherFull(norm);
     } catch (e) {
         state.weather.error = 'Erro: ' + e.message;
@@ -187,6 +253,12 @@ function parseWeatherData(raw, city) {
     }
 }
 window.parseWeatherData = parseWeatherData;
+
+
+
+
+
+
 
 function renderWeatherError() {
     const el = document.getElementById('wxMain');
@@ -202,6 +274,12 @@ function renderWeatherError() {
 }
 window.renderWeatherError = renderWeatherError;
 
+
+
+
+
+
+
 function startWeatherCanvas(condition, temp) {
     const canvas = document.getElementById('wxBgCanvas');
     if (!canvas) return;
@@ -215,36 +293,26 @@ function startWeatherCanvas(condition, temp) {
     const buildParticles = () => {
         particles = [];
         if (condition === 'rain' || condition === 'storm') {
-            for (let i = 0; i < 120; i++) {
-                particles.push({ x: Math.random() * W, y: Math.random() * H, vx: -1.5, vy: 12 + Math.random() * 8, len: 14 + Math.random() * 10, alpha: .15 + Math.random() * .25 });
-            }
+            for (let i = 0; i < 120; i++) particles.push({ x: Math.random() * W, y: Math.random() * H, vx: -1.5, vy: 12 + Math.random() * 8, len: 14 + Math.random() * 10, alpha: .15 + Math.random() * .25 });
         } else if (condition === 'snow') {
-            for (let i = 0; i < 80; i++) {
-                particles.push({ x: Math.random() * W, y: Math.random() * H, vx: Math.sin(i) * .5, vy: 1 + Math.random() * 1.5, r: 1.5 + Math.random() * 2.5, alpha: .2 + Math.random() * .4, t: Math.random() * Math.PI * 2 });
-            }
+            for (let i = 0; i < 80; i++) particles.push({ x: Math.random() * W, y: Math.random() * H, vx: Math.sin(i) * .5, vy: 1 + Math.random() * 1.5, r: 1.5 + Math.random() * 2.5, alpha: .2 + Math.random() * .4, t: Math.random() * Math.PI * 2 });
         } else if (condition === 'clear') {
             for (let i = 0; i < 40; i++) {
                 const angle = (Math.PI * 2 / 40) * i;
                 particles.push({ angle, speed: .003 + Math.random() * .005, len: 60 + Math.random() * 80, alpha: .04 + Math.random() * .06 });
             }
         } else if (condition === 'cloudy' || condition === 'fog') {
-            for (let i = 0; i < 6; i++) {
-                particles.push({ x: Math.random() * W, y: 20 + Math.random() * (H * .6), vx: .15 + Math.random() * .2, r: 60 + Math.random() * 80, alpha: .05 + Math.random() * .06 });
-            }
+            for (let i = 0; i < 6; i++) particles.push({ x: Math.random() * W, y: 20 + Math.random() * (H * .6), vx: .15 + Math.random() * .2, r: 60 + Math.random() * 80, alpha: .05 + Math.random() * .06 });
         }
     };
 
     buildParticles();
 
     const tCol = temp > 32 ? '#ff6600' : temp > 22 ? '#ffb400' : temp > 10 ? '#00c8ff' : '#88aaff';
-
     const bgGrads = {
-        clear:  ['#0a0800', '#1a1000'],
-        rain:   ['#060810', '#03060d'],
-        storm:  ['#04050c', '#020305'],
-        snow:   ['#080c14', '#050810'],
-        cloudy: ['#070a10', '#040608'],
-        fog:    ['#08090e', '#05060a'],
+        clear:  ['#0a0800', '#1a1000'], rain:   ['#060810', '#03060d'],
+        storm:  ['#04050c', '#020305'], snow:   ['#080c14', '#050810'],
+        cloudy: ['#070a10', '#040608'], fog:    ['#08090e', '#05060a']
     };
     const [gc1, gc2] = bgGrads[condition] || bgGrads.clear;
 
@@ -253,54 +321,36 @@ function startWeatherCanvas(condition, temp) {
         if (!document.getElementById('wxBgCanvas')) return;
         frame++;
         const grad = ctx.createLinearGradient(0, 0, W, H);
-        grad.addColorStop(0, gc1);
-        grad.addColorStop(1, gc2);
-        ctx.fillStyle = grad;
-        ctx.fillRect(0, 0, W, H);
+        grad.addColorStop(0, gc1); grad.addColorStop(1, gc2);
+        ctx.fillStyle = grad; ctx.fillRect(0, 0, W, H);
 
         if (condition === 'rain' || condition === 'storm') {
-            ctx.strokeStyle = 'rgba(180,220,255,.35)';
-            ctx.lineWidth = .8;
+            ctx.strokeStyle = 'rgba(180,220,255,.35)'; ctx.lineWidth = .8;
             particles.forEach(p => {
                 ctx.globalAlpha = p.alpha;
-                ctx.beginPath();
-                ctx.moveTo(p.x, p.y);
-                ctx.lineTo(p.x + p.vx * 1.5, p.y + p.len);
-                ctx.stroke();
-                p.x += p.vx;
-                p.y += p.vy;
+                ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + p.vx * 1.5, p.y + p.len); ctx.stroke();
+                p.x += p.vx; p.y += p.vy;
                 if (p.y > H) { p.y = -p.len; p.x = Math.random() * W; }
             });
             ctx.globalAlpha = 1;
-            if (condition === 'storm' && Math.random() < .003) {
-                ctx.fillStyle = 'rgba(200,220,255,.06)';
-                ctx.fillRect(0, 0, W, H);
-            }
+            if (condition === 'storm' && Math.random() < .003) { ctx.fillStyle = 'rgba(200,220,255,.06)'; ctx.fillRect(0, 0, W, H); }
         } else if (condition === 'snow') {
             particles.forEach(p => {
-                ctx.globalAlpha = p.alpha;
-                ctx.fillStyle = '#fff';
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-                ctx.fill();
-                p.t += .02;
-                p.x += Math.sin(p.t) * .5 + p.vx;
-                p.y += p.vy;
+                ctx.globalAlpha = p.alpha; ctx.fillStyle = '#fff';
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
+                p.t += .02; p.x += Math.sin(p.t) * .5 + p.vx; p.y += p.vy;
                 if (p.y > H) { p.y = -5; p.x = Math.random() * W; }
             });
             ctx.globalAlpha = 1;
         } else if (condition === 'clear') {
             const cx = W * .75, cy = H * .25;
             const sunRad = ctx.createRadialGradient(cx, cy, 0, cx, cy, 120);
-            sunRad.addColorStop(0, tCol + '28');
-            sunRad.addColorStop(1, 'transparent');
-            ctx.fillStyle = sunRad;
-            ctx.fillRect(0, 0, W, H);
+            sunRad.addColorStop(0, tCol + '28'); sunRad.addColorStop(1, 'transparent');
+            ctx.fillStyle = sunRad; ctx.fillRect(0, 0, W, H);
             particles.forEach(p => {
                 p.angle += p.speed;
                 ctx.globalAlpha = p.alpha * (.7 + .3 * Math.sin(frame * .02 + p.angle));
-                ctx.strokeStyle = tCol;
-                ctx.lineWidth = 1.5;
+                ctx.strokeStyle = tCol; ctx.lineWidth = 1.5;
                 ctx.beginPath();
                 ctx.moveTo(cx + Math.cos(p.angle) * 35, cy + Math.sin(p.angle) * 35);
                 ctx.lineTo(cx + Math.cos(p.angle) * (35 + p.len), cy + Math.sin(p.angle) * (35 + p.len));
@@ -311,22 +361,24 @@ function startWeatherCanvas(condition, temp) {
             particles.forEach(p => {
                 ctx.globalAlpha = p.alpha * (.8 + .2 * Math.sin(frame * .01 + p.x * .01));
                 const cg = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
-                cg.addColorStop(0, 'rgba(180,200,220,.7)');
-                cg.addColorStop(1, 'transparent');
+                cg.addColorStop(0, 'rgba(180,200,220,.7)'); cg.addColorStop(1, 'transparent');
                 ctx.fillStyle = cg;
-                ctx.beginPath();
-                ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
-                ctx.fill();
+                ctx.beginPath(); ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2); ctx.fill();
                 p.x += p.vx;
                 if (p.x - p.r > W) p.x = -p.r;
             });
             ctx.globalAlpha = 1;
         }
-
         requestAnimationFrame(tick);
     };
     tick();
 }
+
+
+
+
+
+
 
 function renderWeatherFull(wx) {
     const el = document.getElementById('wxMain');
@@ -349,7 +401,7 @@ function renderWeatherFull(wx) {
             <div class="wx-fc-lo">${d.lo}°</div>
             ${d.chanceRain >= 20 ? `<div class="wx-fc-rain">💧${d.chanceRain}%</div>` : ''}
         </div>`;
-    }).join('') : `<div style="color:rgba(255,255,255,.2);font-family:var(--mono);font-size:12px;grid-column:1/-1;text-align:center;padding:24px;">Previsão indisponível.</div>`;
+    }).join('') : `<div style="color:rgba(255,255,255,.2);font-family:var(--mono);font-size:14px;grid-column:1/-1;text-align:center;padding:24px;font-weight:700;">Previsão indisponível.</div>`;
 
     const alerts = [];
     if (wx.temp > 35) alerts.push({ i: '🔥', m: 'Calor extremo — hidrate-se', c: 'var(--red)' });
@@ -372,13 +424,10 @@ function renderWeatherFull(wx) {
     const badge = document.getElementById('wxSourceBadge');
     if (badge) badge.innerHTML = `<div class="wx-source"><div class="wx-source-dot"></div>${wx.source === 'owm' ? 'OWM' : 'WTTR.IN'}</div>`;
 
-    el.innerHTML = html`
+    el.innerHTML = `
     <div style="animation:pageEnter .35s var(--ease) both;display:flex;flex-direction:column;gap:16px;">
-
       <div class="wx-hero">
-        <div class="wx-canvas-wrap">
-            <canvas id="wxBgCanvas"></canvas>
-        </div>
+        <div class="wx-canvas-wrap"><canvas id="wxBgCanvas"></canvas></div>
         <div class="wx-hero-left">
             <div class="wx-hero-overlay"></div>
             <div class="wx-hero-content">
@@ -390,46 +439,29 @@ function renderWeatherFull(wx) {
             <div class="wx-icon-mega">${wx.icon}</div>
         </div>
         <div class="wx-stats-panel">
-            <div class="wx-stat">
-                <div class="wx-stat-lbl">💧 UMIDADE</div>
-                <div class="wx-stat-val" style="color:var(--accent);">${wx.humidity}<span>%</span></div>
-            </div>
-            <div class="wx-stat">
-                <div class="wx-stat-lbl">💨 VENTO</div>
-                <div class="wx-stat-val" style="color:var(--accent2);">${wx.wind}<span> km/h</span></div>
-                ${wx.windDir ? `<div class="wx-stat-sub">${wx.windDir}</div>` : ''}
-            </div>
-            <div class="wx-stat">
-                <div class="wx-stat-lbl">🌡️ PRESSÃO</div>
-                <div class="wx-stat-val" style="color:var(--yellow);">${wx.pressure}<span> hPa</span></div>
-            </div>
-            <div class="wx-stat">
-                <div class="wx-stat-lbl">☀️ ÍNDICE UV</div>
-                <div class="wx-stat-val" style="color:${uvCol};">${wx.uv || '—'}</div>
-                <div class="wx-stat-sub">${uvLbl}</div>
-            </div>
-            <div class="wx-stat">
-                <div class="wx-stat-lbl">👁️ VISIBILIDADE</div>
-                <div class="wx-stat-val" style="color:rgba(200,210,255,.8);">${wx.vis}<span> km</span></div>
-            </div>
-            <div class="wx-stat">
-                <div class="wx-stat-lbl">☁️ NEBULOSIDADE</div>
-                <div class="wx-stat-val" style="color:rgba(180,200,220,.7);">${wx.cloud}<span>%</span></div>
-            </div>
+            <div class="wx-stat"><div class="wx-stat-lbl">💧 UMIDADE</div><div class="wx-stat-val" style="color:var(--accent);">${wx.humidity}<span>%</span></div></div>
+            <div class="wx-stat"><div class="wx-stat-lbl">💨 VENTO</div><div class="wx-stat-val" style="color:var(--accent2);">${wx.wind}<span> km/h</span></div>${wx.windDir ? `<div class="wx-stat-sub">${wx.windDir}</div>` : ''}</div>
+            <div class="wx-stat"><div class="wx-stat-lbl">🌡️ PRESSÃO</div><div class="wx-stat-val" style="color:var(--yellow);">${wx.pressure}<span> hPa</span></div></div>
+            <div class="wx-stat"><div class="wx-stat-lbl">☀️ ÍNDICE UV</div><div class="wx-stat-val" style="color:${uvCol};">${wx.uv || '—'}</div><div class="wx-stat-sub">${uvLbl}</div></div>
+            <div class="wx-stat"><div class="wx-stat-lbl">👁️ VISIBILIDADE</div><div class="wx-stat-val" style="color:rgba(200,210,255,.8);">${wx.vis}<span> km</span></div></div>
+            <div class="wx-stat"><div class="wx-stat-lbl">☁️ NEBULOSIDADE</div><div class="wx-stat-val" style="color:rgba(180,200,220,.7);">${wx.cloud}<span>%</span></div></div>
         </div>
       </div>
-
       <div class="wx-section-label">PREVISÃO · PRÓXIMOS 6 DIAS</div>
       <div class="wx-forecast-grid">${forecastHTML}</div>
-
       <div class="wx-section-label">ALERTAS ATIVOS</div>
       <div class="wx-alerts">${alertsHTML}</div>
-
     </div>`;
 
     requestAnimationFrame(() => startWeatherCanvas(wx.condition || 'clear', wx.temp));
 }
 window.renderWeatherFull = renderWeatherFull;
+
+
+
+
+
+
 
 function renderWeather() {
     if (state.weather.norm) renderWeatherFull(state.weather.norm);

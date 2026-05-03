@@ -8,13 +8,17 @@
 
 function pgIA(wrap) {
     const { ia } = state;
-    wrap.innerHTML = `
+    wrap.innerHTML =`
         <div class="page-header">
             <div>
                 <div class="page-title">MODELO DE IA</div>
                 <div class="page-sub">Selecione e gerencie o motor de inteligência</div>
             </div>
         </div>
+
+
+
+
 
         <div class="ia-grid">
             <div class="ia-option ${ia.modo === 'ollama' ? 'ia-active' : ''}"
@@ -40,7 +44,7 @@ function pgIA(wrap) {
 
         <div class="card" style="padding:22px;margin-top:0;">
             <div class="card-accent" style="background:linear-gradient(90deg,var(--accent),transparent);"></div>
-            <div style="font-family:var(--mono);font-size:10px;font-weight:700;
+            <div style="font-family:var(--mono);    font-size:10px; font-weight:700;
                  color:var(--text3);letter-spacing:3px;margin-bottom:18px;margin-top:6px;">
                  STATUS DO MOTOR
             </div>

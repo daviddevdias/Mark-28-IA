@@ -1843,10 +1843,11 @@ select.input option {
 
 .wx-city-label {
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 17px;
+    text-transform: uppercase;
     letter-spacing: 5px;
     color: var(--accent);
-    margin-bottom: 12px;
+    margin-bottom: 13px;
     display: flex;
     align-items: center;
     gap: 10px;
@@ -1917,7 +1918,7 @@ select.input option {
 
 .wx-feels {
     font-family: var(--mono);
-    font-size: 12px;
+    font-size: 14px;
     color: rgba(255, 255, 255, .38);
     letter-spacing: 1.5px;
 }
@@ -2012,7 +2013,7 @@ select.input option {
 
 .wx-stat-lbl {
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 14px;
     letter-spacing: 3px;
     color: rgba(255, 255, 255, .28);
 }
@@ -2062,7 +2063,7 @@ select.input option {
 
 .wx-section-label {
     font-family: var(--mono);
-    font-size: 10px;
+    font-size: 14px;
     letter-spacing: 5px;
     color: rgba(255, 255, 255, .28);
     display: flex;

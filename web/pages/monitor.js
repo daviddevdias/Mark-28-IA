@@ -62,6 +62,13 @@ function mostrarAlertaFlutuante(ev) {
         document.body.appendChild(alerta);
     }
 
+
+
+
+
+
+    
+
     alerta.style.borderColor = cor;
     alerta.style.boxShadow   = `0 0 24px ${cor}44`;
     alerta.innerHTML = `
