@@ -134,7 +134,7 @@ function pgWeather(wrap) {
                 <input class="wx-input" id="wxCity" placeholder="Buscar cidade..." value="${esc(currentCity)}" autocomplete="on">
             </div>
             <button class="wx-btn" onclick="buscarClima()">BUSCAR</button>
-            <button class="wx-btn-ghost" onclick="atualizarClima() style="font-weight:700;" >↺ ATUALIZAR</button>
+            <button class="wx-btn-ghost" onclick="atualizarClima()" style="font-weight:700;" >↺ ATUALIZAR</button>
             <div id="wxSourceBadge"></div>
         </div>
         <div id="wxMain" style="flex:1;min-height:0;display:flex;flex-direction:column;gap:16px;"></div>
@@ -145,6 +145,8 @@ function pgWeather(wrap) {
 
     if (state.weather.norm) renderWeatherFull(state.weather.norm);
     else fetchWeather(currentCity);
+
+    loopClima();
 }
 window.pgWeather = pgWeather;
 
@@ -175,12 +177,26 @@ window.buscarClima = buscarClima;
 
 
 
-function atualizarClima() {
+async function atualizarClima() {
     state.weather.norm = null;
     state.weather.error = null;
-    fetchWeather(state.apis.cidade_padrao || state.weather.city || 'São Paulo');
+    return fetchWeather(state.apis.cidade_padrao || state.weather.city || 'São Paulo');
 }
 window.atualizarClima = atualizarClima;
+
+
+let climaRodando = false;
+
+async function loopClima() {
+    if (climaRodando) return;
+    climaRodando = true;
+
+    while (true) {
+        await atualizarClima();
+        await new Promise(r => setTimeout(r, 60000));
+    }
+}
+
 
 
 

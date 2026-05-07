@@ -26,12 +26,37 @@ log = __import__("logging").getLogger("jarvis.tools_mapper")
 
 
 def executar_no_loop_atual(coro) -> Any:
+    """Executa uma corrotina a partir de contexto síncrono, sem deadlock.
+
+    Estratégia:
+    - Se NÃO há loop rodando (thread de worker / import-time): usa asyncio.run().
+    - Se HÁ um loop rodando mas estamos em uma thread diferente (ex: executor do tool_cache):
+      usa run_coroutine_threadsafe — seguro porque a thread atual NÃO está bloqueando o loop.
+    - Nunca chama fut.result() a partir da própria thread do loop (causaria deadlock).
+    """
     try:
         loop = asyncio.get_running_loop()
-        fut = asyncio.run_coroutine_threadsafe(coro, loop)
-        return fut.result(timeout=30)
     except RuntimeError:
+        # Nenhum loop ativo nesta thread — pode criar um novo com segurança
         return asyncio.run(coro)
+
+    # Há um loop rodando. Verificamos se esta thread É a thread do loop.
+    import threading
+    loop_thread = getattr(loop, "_thread_id", None)
+    current_thread = threading.get_ident()
+
+    if loop_thread is not None and loop_thread == current_thread:
+        # Estamos NA thread do loop — run_coroutine_threadsafe bloquearia com fut.result().
+        # Lançamos exceção explícita: o chamador síncrono não deveria estar aqui;
+        # deve ser refatorado para async ou chamado via executor.
+        raise RuntimeError(
+            "executar_no_loop_atual() chamado dentro da thread do loop de eventos. "
+            "Refatore o gerenciador para async ou chame-o via run_in_executor()."
+        )
+
+    # Thread diferente da do loop — run_coroutine_threadsafe é seguro
+    fut = asyncio.run_coroutine_threadsafe(coro, loop)
+    return fut.result(timeout=30)
 
 
 

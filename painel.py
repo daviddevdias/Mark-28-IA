@@ -145,7 +145,7 @@ def montar_biblioteca_comandos() -> list[dict]:
 
 
 async def run_test_voice() -> None:
-    from audio.audio import falar
+    from audio.voz import falar
 
     await falar("Teste de síntese de voz. Painel JARVIS operacional.")
 
@@ -334,7 +334,7 @@ class JarvisBridge(QObject):
     @pyqtSlot(result=str)
     def obter_config_voz(self) -> str:
         try:
-            from audio.audio import listar_microfones
+            from audio.voz import listar_microfones
 
             mics = listar_microfones()
         except Exception:
@@ -367,7 +367,7 @@ class JarvisBridge(QObject):
     @pyqtSlot()
     def interromper_voz_painel(self):
         try:
-            from audio.audio import interromper_voz
+            from audio.voz import interromper_voz
 
             interromper_voz()
         except Exception:

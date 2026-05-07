@@ -1,9 +1,8 @@
 import subprocess
 import platform
-import psutil
 from pathlib import Path
 
-from engine.cmd_security import avaliar, executar as executar_seguro
+from engine.cmd_security import avaliar
 
 try:
     import pyautogui
@@ -13,6 +12,7 @@ try:
 except ImportError:
     PYAUTOGUI = False
 
+
 try:
     from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
     from comtypes import CLSCTX_ALL
@@ -21,7 +21,9 @@ try:
 except ImportError:
     PYCAW_AVAILABLE = False
 
+
 OS = platform.system()
+
 
 
 
@@ -32,6 +34,8 @@ OS = platform.system()
 def fechar_janela() -> str:
     if not PYAUTOGUI:
         return "Interação de interface indisponível."
+
+
     try:
         key    = "command" if OS == "Darwin" else "alt"
         action = "q" if OS == "Darwin" else "f4"
@@ -46,9 +50,12 @@ def fechar_janela() -> str:
 
 
 
+
 def minimizar_tudo() -> str:
     if not PYAUTOGUI:
         return "Interação de interface indisponível."
+
+
     try:
         combos = {
             "Windows": ("win", "d"),
@@ -66,9 +73,12 @@ def minimizar_tudo() -> str:
 
 
 
+
 def print_tela() -> str:
     if not PYAUTOGUI:
         return "Interação de interface indisponível."
+
+
     try:
         combos = {
             "Windows": ("win", "shift", "s"),
@@ -86,6 +96,7 @@ def print_tela() -> str:
 
 
 
+
 def bloquear_tela() -> str:
     try:
         cmds = {
@@ -96,10 +107,13 @@ def bloquear_tela() -> str:
         av = avaliar(" ".join(cmds.get(OS, [])))
         if not av.permitido:
             return f"Bloqueio defensivo por restrição: {av.motivo}"
+
+
         subprocess.run(cmds.get(OS, []), check=True)
         return "Sessão do sistema trancada com sucesso."
     except Exception:
         return "A solicitação de segurança falhou em nível de OS."
+
 
 
 
@@ -125,9 +139,12 @@ def limpar_lixeira() -> str:
 
 
 
+
 def injetar_volume_pycaw(nivel: int) -> bool:
     if not PYCAW_AVAILABLE or OS != "Windows":
         return False
+
+
     try:
         devices = AudioUtilities.GetSpeakers()
         interface = devices.Activate(IAudioEndpointVolume._iid_, CLSCTX_ALL, None)
@@ -143,11 +160,14 @@ def injetar_volume_pycaw(nivel: int) -> bool:
 
 
 
+
 def ajustar_volume(nivel: int) -> str:
     nivel = max(0, min(100, nivel))
     try:
         if injetar_volume_pycaw(nivel):
             return f"Parâmetros de áudio ajustados com precisão via hardware interno para {nivel}%."
+
+
         if OS == "Windows":
             nircmd = Path("nircmd.exe")
             if nircmd.exists():
@@ -160,9 +180,12 @@ def ajustar_volume(nivel: int) -> str:
                     f"1..{nivel // 2} | ForEach-Object {{ $obj.SendKeys([char]175) }}"
                 )
                 subprocess.run(["powershell", "-Command", script], capture_output=True)
+
+
         return f"A injeção de evento confirmou a alteração para {nivel}%."
     except Exception:
         return "Os drivers de áudio não acataram a modificação solicitada."
+
 
 
 
@@ -178,15 +201,22 @@ def desligar_computador(atraso: int = 30) -> str:
             cmd = ["sudo", "shutdown", "-h", f"+{atraso // 60 or 1}"]
         else:
             cmd = ["shutdown", "-h", f"+{atraso // 60 or 1}"]
+
+
         av = avaliar(" ".join(cmd))
         if not av.permitido:
             return f"Ação barreada: {av.motivo}"
+
+
         subprocess.run(cmd, check=True)
         if atraso == 0:
             return "Iniciando sequência de queda imediata. Foi uma honra, Senhor."
+
+
         return f"Desligamento programado. Tempo restante: {atraso} segundos."
     except Exception:
         return "O processo mestre impediu a queda do sistema."
+
 
 
 
@@ -200,9 +230,12 @@ def cancelar_desligamento() -> str:
             subprocess.run(["shutdown", "/a"], check=True)
         else:
             subprocess.run(["sudo", "shutdown", "-c"], check=True)
+
+
         return "A queda programada foi suspensa. Reestabelecendo operações padrão."
     except Exception:
         return "Falha grave. O contador de desligamento não responde ao cancelamento."
+
 
 
 
@@ -218,9 +251,13 @@ def reiniciar_computador(atraso: int = 30) -> str:
             cmd = ["sudo", "shutdown", "-r", f"+{atraso // 60 or 1}"]
         else:
             cmd = ["shutdown", "-r", f"+{atraso // 60 or 1}"]
+
+
         av = avaliar(" ".join(cmd))
         if not av.permitido:
             return f"Tentativa interceptada: {av.motivo}"
+
+
         subprocess.run(cmd, check=True)
         return f"Ciclo de força agendado para daqui a {atraso} segundos, Senhor."
     except Exception:
@@ -232,10 +269,13 @@ def reiniciar_computador(atraso: int = 30) -> str:
 
 
 
+
 def computer_settings(parameters: dict) -> str:
     action = parameters.get("action", "").lower()
     if action == "volume":
         return ajustar_volume(int(parameters.get("nivel", 50)))
+
+
     actions = {
         "fechar":                fechar_janela,
         "minimizar_tudo":        minimizar_tudo,

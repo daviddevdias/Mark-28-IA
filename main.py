@@ -19,7 +19,7 @@ from PyQt6.QtWidgets import QApplication
 
 import config
 from painel import PainelCore, set_loop
-from audio.audio import ouvir_comando, falar
+from audio.voz import ouvir_comando, falar
 from engine.core import processar_comando, inicializar_ia
 from engine.controller import get_shutdown_event
 from storage.memory_bridge import sincronizar_config

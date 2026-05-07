@@ -42,6 +42,8 @@ class MemoriaItem:
 def conectar() -> sqlite3.Connection:
     os.makedirs(os.path.dirname(DB_PATH), exist_ok=True)
     c = sqlite3.connect(DB_PATH, check_same_thread=False, timeout=5)
+    c.execute("PRAGMA journal_mode=WAL;")
+    c.execute("PRAGMA synchronous=NORMAL;")
     c.row_factory = sqlite3.Row
     c.execute("""
         CREATE TABLE IF NOT EXISTS memoria (

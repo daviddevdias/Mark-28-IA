@@ -2,46 +2,20 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import re
 import time
-import threading
 from dataclasses import dataclass, field
-from enum import Enum
-from typing import Any, Callable, AsyncIterator
+from typing import Any, Callable
 
-log = logging.getLogger("jarvis.core")
-
-INTERVALO_CHECK = 30.0
-MAX_FALHAS      = 3
-COOLDOWN_RESET  = 60.0
-SEPARADORES     = re.compile(r"(?<=[.!?;:])\s+|(?<=,)\s{2,}")
-MIN_CHUNK       = 20
-
-
-
-
-
-
-
-class StatusModulo(Enum):
-    OK          = "ok"
-    DEGRADADO   = "degradado"
-    FALHOU      = "falhou"
-    REINICIANDO = "reiniciando"
-
-
-
-
-
-
+log = logging.getLogger("jarvis.tool_interface")
 
 @dataclass
 class ToolResult:
-    status:   str         = "ok"
-    mensagem: str         = ""
-    dados:    dict        = field(default_factory=dict)
-    duracao:  float       = 0.0
-    erro:     str         = ""
+    status:   str  = "ok"
+    mensagem: str  = ""
+    dados:    dict = field(default_factory=dict)
+    duracao:  float = 0.0
+    erro:     str  = ""
+
 
 
 
@@ -59,10 +33,10 @@ class ToolResult:
 
 
 
+
     def para_texto(self) -> str:
-        if self.erro:
-            return f"Erro: {self.erro}"
-        return self.mensagem or str(self.dados)
+        return f"Erro: {self.erro}" if self.erro else (self.mensagem or str(self.dados))
+
 
 
 
@@ -80,9 +54,11 @@ class ToolResult:
 
 
 
+
     @staticmethod
     def falhou(erro: str, mensagem: str = "") -> "ToolResult":
         return ToolResult(status="erro", erro=erro, mensagem=mensagem)
+
 
 
 
@@ -94,14 +70,9 @@ class ToolResult:
     def pendente(mensagem: str) -> "ToolResult":
         return ToolResult(status="pendente", mensagem=mensagem)
 
-
-
-
-
-
-
 ToolFn = Callable[[dict, dict], ToolResult]
 REGISTRY: dict[str, ToolFn] = {}
+
 
 
 
@@ -119,10 +90,21 @@ def registrar_tool(nome: str, fn: ToolFn) -> None:
 
 
 
+
 def tool(nome: str):
+
+
+
+
+
+
+
+
     def decorator(fn: ToolFn) -> ToolFn:
         registrar_tool(nome, fn)
         return fn
+
+
     return decorator
 
 
@@ -131,8 +113,14 @@ def tool(nome: str):
 
 
 
+
 async def executar_tool(nome: str, entrada: dict, contexto: dict | None = None) -> ToolResult:
-    ctx = contexto or {}
+    ctx    = contexto or {}
+    inicio = time.time()
+    sucesso = True
+
+    cfg: object = None
+    timeout_s   = 15.0
     try:
         from brain.tool_cache import carregar_config, cache as tool_cache
         cfg       = carregar_config(nome)
@@ -140,96 +128,64 @@ async def executar_tool(nome: str, entrada: dict, contexto: dict | None = None) 
         if cfg.cache and cfg.ttl_s > 0:
             cached = tool_cache.get(nome, entrada)
             if cached is not None:
-                log.debug("Tool '%s' respondeu do cache.", nome)
-                return ToolResult(status="ok", mensagem=str(cached), duracao=0.0)
+                return ToolResult(status="ok", mensagem=str(cached))
+
+
     except Exception:
-        cfg       = None
-        timeout_s = 15.0
-    try:
-        from storage.observability import registrar_acao, registrar_metrica
-        obs_ok = True
-    except Exception:
-        obs_ok = False
-    fn     = REGISTRY.get(nome)
-    inicio = time.time()
-    sucesso = True
-    resultado: ToolResult
+        pass
+
+
+    fn = REGISTRY.get(nome)
     try:
         if fn is None:
-            from engine.tools_mapper import despachar as despachar_legacy
-            try:
-                resultado_str = await asyncio.wait_for(
-                    despachar_legacy(nome, entrada), timeout=timeout_s
-                )
-                resultado = ToolResult(
-                    status="ok",
-                    mensagem=str(resultado_str),
-                    duracao=time.time() - inicio,
-                )
-            except asyncio.TimeoutError:
-                resultado = ToolResult(
-                    status="erro",
-                    erro=f"Timeout: '{nome}' excedeu {timeout_s:.0f}s.",
-                    duracao=time.time() - inicio,
-                )
-                sucesso = False
-            except Exception as exc:
-                resultado = ToolResult(status="erro", erro=str(exc), duracao=time.time() - inicio)
-                sucesso = False
+            from engine.tools_mapper import despachar as despachar_legado
+            raw = await asyncio.wait_for(despachar_legado(nome, entrada), timeout=timeout_s)
+        elif asyncio.iscoroutinefunction(fn):
+            raw = await asyncio.wait_for(fn(entrada, ctx), timeout=timeout_s)
         else:
-            try:
-                if asyncio.iscoroutinefunction(fn):
-                    raw = await asyncio.wait_for(fn(entrada, ctx), timeout=timeout_s)
-                else:
-                    loop = asyncio.get_event_loop()
-                    raw  = await asyncio.wait_for(
-                        loop.run_in_executor(None, fn, entrada, ctx), timeout=timeout_s
-                    )
-                if isinstance(raw, ToolResult):
-                    raw.duracao = time.time() - inicio
-                    resultado   = raw
-                else:
-                    resultado = ToolResult(
-                        status="ok", mensagem=str(raw), duracao=time.time() - inicio
-                    )
-            except asyncio.TimeoutError:
-                resultado = ToolResult(
-                    status="erro",
-                    erro=f"Timeout: '{nome}' excedeu {timeout_s:.0f}s.",
-                    duracao=time.time() - inicio,
-                )
-                sucesso = False
-            except Exception as exc:
-                log.error("Tool '%s' lançou exceção: %s", nome, exc)
-                resultado = ToolResult(status="erro", erro=str(exc), duracao=time.time() - inicio)
-                sucesso = False
-        if (
-            cfg is not None
-            and cfg.cache
-            and cfg.ttl_s > 0
-            and resultado.sucesso
-            and not resultado.mensagem.startswith(("Erro", "Timeout"))
-        ):
-            try:
-                from brain.tool_cache import cache as tool_cache_set
-                tool_cache_set.set(nome, entrada, resultado.mensagem, cfg.ttl_s)
-            except Exception:
-                pass
-        return resultado
-    finally:
-        if obs_ok:
-            try:
-                duracao_ms = int((time.time() - inicio) * 1000)
-                registrar_acao(
-                    tipo="tool_exec",
-                    modulo=nome,
-                    descricao=str(entrada)[:200],
-                    duracao_ms=duracao_ms,
-                    sucesso=sucesso,
-                )
-                registrar_metrica(f"tool.{nome}.duracao_ms", duracao_ms, "ms")
-            except Exception:
-                pass
+            raw = await asyncio.wait_for(
+                asyncio.get_event_loop().run_in_executor(None, fn, entrada, ctx),
+                timeout=timeout_s,
+            )
+
+
+        resultado = raw if isinstance(raw, ToolResult) else ToolResult(status="ok", mensagem=str(raw))
+
+    except asyncio.TimeoutError:
+        sucesso   = False
+        resultado = ToolResult(status="erro", erro=f"Timeout: '{nome}' excedeu {timeout_s:.0f}s.")
+    except Exception as exc:
+        sucesso   = False
+        log.error("Tool '%s' erro: %s", nome, exc)
+        resultado = ToolResult(status="erro", erro=str(exc))
+
+
+    resultado.duracao = time.time() - inicio
+
+    if (
+        cfg and cfg.cache and cfg.ttl_s > 0
+        and resultado.sucesso
+        and not resultado.mensagem.startswith(("Erro", "Timeout"))
+    ):
+        try:
+            from brain.tool_cache import cache as cache_local
+            cache_local.set(nome, entrada, resultado.mensagem, cfg.ttl_s)
+        except Exception:
+            pass
+
+
+    try:
+        from storage.observability import registrar_acao, registrar_metrica
+        duracao_ms = int(resultado.duracao * 1000)
+        registrar_acao(tipo="tool_exec", modulo=nome, descricao=str(entrada)[:200],
+                       duracao_ms=duracao_ms, sucesso=sucesso)
+        registrar_metrica(f"tool.{nome}.duracao_ms", duracao_ms, "ms")
+    except Exception:
+        pass
+
+
+    return resultado
+
 
 
 
@@ -243,4 +199,6 @@ def listar_tools() -> list[str]:
         externas = set(EXECUTOR_FERRAMENTAS.keys())
     except (ImportError, AttributeError):
         externas = set()
+
+
     return sorted(set(REGISTRY.keys()) | externas)

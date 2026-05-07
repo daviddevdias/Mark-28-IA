@@ -47,6 +47,8 @@ monitor_async_loop = None
 def conectar_banco_monitor() -> sqlite3.Connection:
     os.makedirs(os.path.dirname(_DB_PATH), exist_ok=True)
     conn = sqlite3.connect(_DB_PATH, check_same_thread=False, timeout=5)
+    conn.execute("PRAGMA journal_mode=WAL;")
+    conn.execute("PRAGMA synchronous=NORMAL;")
     conn.execute("""
         CREATE TABLE IF NOT EXISTS alertas (
             id        INTEGER PRIMARY KEY AUTOINCREMENT,

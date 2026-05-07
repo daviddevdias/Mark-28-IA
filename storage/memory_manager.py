@@ -101,9 +101,11 @@ def save_memory(memory: dict) -> None:
     tmp = MEMORY_PATH.with_suffix(".tmp")
 
     with trava_memoria:
-        tmp.write_text(json.dumps(memory, indent=2, ensure_ascii=False), encoding="utf-8")
+        serializado = json.dumps(memory, indent=2, ensure_ascii=False)
+        tmp.write_text(serializado, encoding="utf-8")
         tmp.replace(MEMORY_PATH)
-        memoria_cache = memory
+        # Armazena uma cópia profunda: mutações externas no dict não corrompem o cache
+        memoria_cache = json.loads(serializado)
 
 
 
@@ -213,7 +215,9 @@ def update_memory(patch: dict) -> dict:
         return load_memory()
 
     with trava_memoria:
-        mem = load_memory()
+        # Força releitura do disco dentro do lock para capturar escritas concorrentes
+        # que possam ter ocorrido entre a última leitura e esta escrita
+        mem = load_memory(force=True)
         if aplicar_patch_memoria(mem, patch):
             save_memory(mem)
         return mem

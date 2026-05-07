@@ -5,22 +5,62 @@ import json
 import time
 from typing import Any, Optional
 
-from audio.audio import falar
+from audio.voz import falar
 from storage.memory_manager import load_memory, get_nome, process_memory_logic
 from engine.ia_router import router, detectar_modelo, desligar_monitor, info_monitor
 from engine.controller import processar_diretriz
 from tasks.alarm import alarme_ativo, parar_alarme_total
 
 try:
-    from storage.observability import registrar_acao, registrar_metrica, Temporizador as _Temporizador
-    _OBS = True
+    from storage.observability import registrar_acao, registrar_metrica, Temporizador as Temporizador_OBS
+    OBS = True
 except Exception:
-    _OBS = False
+    OBS = False
 
 ui_bridge = None
-AGUARDANDO_CONFIRMACAO = False
-ULTIMA_ANALISE_OBJ = None
-ULTIMA_SUGESTAO = 0.0
+
+import threading as _threading
+from dataclasses import dataclass as _dataclass, field as _field
+
+@_dataclass
+class EstadoMonitor:
+    aguardando_confirmacao: bool = False
+    ultima_analise_obj: object = None
+    ultima_sugestao: float = 0.0
+    lock: _threading.Lock = _field(default_factory=_threading.Lock, repr=False, compare=False)
+
+
+
+
+
+
+
+
+    def adquirir(self):
+        return self.lock
+
+monitor_state = EstadoMonitor()
+
+
+
+
+
+
+
+
+def get_aguardando() -> bool:
+    return monitor_state.aguardando_confirmacao
+
+
+
+
+
+
+
+
+def set_aguardando(v: bool) -> None:
+    with monitor_state.lock:
+        monitor_state.aguardando_confirmacao = v
 
 ALERTAS = {
     "erro": "Detectei um erro na tela.",
@@ -34,18 +74,38 @@ ALERTAS = {
 }
 
 
+
+
+
+
+
+
 def registrar_ui_bridge(bridge) -> None:
     global ui_bridge
     ui_bridge = bridge
 
 
+
+
+
+
+
+
 def emitir(dados: dict) -> None:
     if ui_bridge is None:
         return
+
+
     try:
         ui_bridge.dados_para_ui.emit(json.dumps(dados))
     except Exception:
         pass
+
+
+
+
+
+
 
 
 def contexto() -> str:
@@ -57,14 +117,30 @@ def contexto() -> str:
         cidade = get_cidade_painel()
     except Exception:
         cidade = ""
+
+
     ctx = f"Mestre: {nome}. Cidade padrão (clima): {cidade}."
     if isinstance(mem, dict) and "preferences" in mem:
         ctx += f" Pref: {mem['preferences']}."
+
+
     return ctx
+
+
+
+
+
+
 
 
 async def inicializar_ia() -> None:
     await detectar_modelo()
+
+
+
+
+
+
 
 
 async def analisar_tela_agora() -> None:
@@ -76,6 +152,7 @@ async def analisar_tela_agora() -> None:
     if not img:
         await falar("Não consegui capturar a tela.")
         return
+
 
     raw = await chamar_qwen(SYSTEM_RAPIDO, "Analise esta tela. Há erros ou situações relevantes?", img, 150)
     resultado = parse(raw, img)
@@ -106,6 +183,12 @@ async def analisar_tela_agora() -> None:
         await falar(resultado.resumo)
 
 
+
+
+
+
+
+
 async def analisar_camera_agora() -> None:
     await falar("A capturar a camara.")
 
@@ -116,6 +199,7 @@ async def analisar_camera_agora() -> None:
     if not img:
         await falar("Camara indisponivel. Instale opencv-python e ligue a webcam.")
         return
+
 
     raw = await chamar_qwen(
         SYSTEM_RAPIDO,
@@ -146,12 +230,19 @@ async def analisar_camera_agora() -> None:
         await falar(resultado.resumo)
 
 
+
+
+
+
+
+
 async def ligar_monitoramento(comando: str) -> None:
     from vision.capture import MonitorConfig, parar_monitor, estado
 
     if estado.rodando:
         parar_monitor()
         await asyncio.sleep(0.5)
+
 
     intervalo = max(5.0, float(next((t for t in comando.split() if t.isdigit()), "8")))
 
@@ -171,9 +262,14 @@ async def ligar_monitoramento(comando: str) -> None:
     await falar(f"Monitoramento ativo. Intervalo de {int(intervalo)} segundos.")
 
 
+
+
+
+
+
+
 async def desligar_monitoramento() -> None:
-    global AGUARDANDO_CONFIRMACAO
-    AGUARDANDO_CONFIRMACAO = False
+    set_aguardando(False)
 
     stats = desligar_monitor()
     emitir({"monitor_status": "inativo", "monitor_stats": stats})
@@ -181,6 +277,12 @@ async def desligar_monitoramento() -> None:
     problemas = stats.get("total_problemas", 0)
     await falar(f"Monitoramento suspenso. {problemas} problema(s) registrados.")
     print(f"[SISTEMA] Monitor desligado — problemas: {problemas}")
+
+
+
+
+
+
 
 
 async def status_do_sistema() -> None:
@@ -192,31 +294,45 @@ async def status_do_sistema() -> None:
         )
     else:
         msg = "Sistema em repouso."
+
+
     await falar(msg)
+
+
+
+
+
+
 
 
 def quer_parar_alarme(cmd: str) -> bool:
     return any(p in cmd.lower() for p in ("parar", "desligar", "acordei", "chega", "ok"))
 
 
-async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) -> str | None:
-    global AGUARDANDO_CONFIRMACAO, ULTIMA_ANALISE_OBJ
 
+
+
+
+
+
+async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) -> str | None:
     if not comando.strip() and not imagem_monitor:
         return None
 
-    _ts_inicio = time.time()
+
+    ts_inicio = time.time()
 
     if alarme_ativo and quer_parar_alarme(comando):
         msg = parar_alarme_total()
         await falar(msg)
         return msg or None
 
-    if AGUARDANDO_CONFIRMACAO:
+
+    if monitor_state.aguardando_confirmacao:
         cmd = comando.lower()
         if any(p in cmd for p in ("analisar","resolver","ajuda jarvis" "continua",)):
-            AGUARDANDO_CONFIRMACAO = False
-            obj = ULTIMA_ANALISE_OBJ
+            set_aguardando(False)
+            obj = monitor_state.ultima_analise_obj
             if obj and obj.img_b64:
                 from vision.capture import gerar_dica_profunda
 
@@ -226,36 +342,46 @@ async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) 
                     f"Sugira solução para: {obj.problema if obj else 'problema na tela'}",
                     memoria=contexto(),
                 )
+
+
             emitir({"monitor_dica": dica, "monitor_tipo": obj.tipo if obj else "erro"})
             print(f"\n[SOLUÇÃO]: {dica}\n")
             await falar(dica)
             return dica
 
+
         if any(p in cmd for p in ("não precisa", "não", "ignora","ignorar isso", "ok", "beleza")):
-            AGUARDANDO_CONFIRMACAO = False
+            set_aguardando(False)
             msg = "Entendido. Monitoramento continua."
             await falar(msg)
             return msg
 
+
         msg = "Ainda aguardo confirmação. Diga sim ou não."
         await falar(msg)
         return msg
+
 
     resultado = await processar_diretriz(comando)
     if resultado is not None:
         if resultado:
             print(f"\n[LOCAL]: {resultado}\n")
             await falar(resultado)
-            if _OBS:
+            if OBS:
                 try:
-                    _dur = int((time.time() - _ts_inicio) * 1000)
+                    dur = int((time.time() - ts_inicio) * 1000)
                     registrar_acao("comando_local", descricao=comando[:200],
-                                   modulo="controller", duracao_ms=_dur, sucesso=True)
-                    registrar_metrica("cmd.duracao_ms", _dur, "ms")
+                                   modulo="controller", duracao_ms=dur, sucesso=True)
+                    registrar_metrica("cmd.duracao_ms", dur, "ms")
                 except Exception:
                     pass
+
+
             return resultado
+
+
         return None
+
 
     resposta = await router.responder(
         pergunta=comando, nome=get_nome(), memoria=contexto(), imagem=imagem_monitor
@@ -264,25 +390,32 @@ async def processar_comando(comando: str, imagem_monitor: Optional[Any] = None) 
         print(f"\n[IA]: {resposta}\n")
         await falar(resposta)
         asyncio.create_task(process_memory_logic(comando, resposta))
-        if _OBS:
+        if OBS:
             try:
-                _dur = int((time.time() - _ts_inicio) * 1000)
+                dur = int((time.time() - ts_inicio) * 1000)
                 registrar_acao("comando_ia", descricao=comando[:200],
-                               modulo="ia_router", duracao_ms=_dur, sucesso=True)
-                registrar_metrica("cmd.duracao_ms", _dur, "ms")
-                registrar_metrica("ia.resposta_ms", _dur, "ms")
+                               modulo="ia_router", duracao_ms=dur, sucesso=True)
+                registrar_metrica("cmd.duracao_ms", dur, "ms")
+                registrar_metrica("ia.resposta_ms", dur, "ms")
             except Exception:
                 pass
+
+
     return resposta or None
 
 
-async def loop_monitoramento(resultado) -> None:
-    global AGUARDANDO_CONFIRMACAO, ULTIMA_ANALISE_OBJ, ULTIMA_SUGESTAO
 
+
+
+
+
+
+async def loop_monitoramento(resultado) -> None:
     from vision.capture import ResultadoAnalise
 
-    if not isinstance(resultado, ResultadoAnalise) or AGUARDANDO_CONFIRMACAO:
+    if not isinstance(resultado, ResultadoAnalise) or monitor_state.aguardando_confirmacao:
         return
+
 
     agora = time.time()
     emitir(
@@ -298,16 +431,22 @@ async def loop_monitoramento(resultado) -> None:
         }
     )
 
+
+
+    
+
     if resultado.ok:
         emitir({"monitor_ultimo_ok": resultado.resumo})
         return
 
-    if (agora - ULTIMA_SUGESTAO) < 45.0:
+
+    if (agora - monitor_state.ultima_sugestao) < 45.0:
         return
 
-    ULTIMA_ANALISE_OBJ = resultado
-    AGUARDANDO_CONFIRMACAO = True
-    ULTIMA_SUGESTAO = agora
+
+    monitor_state.ultima_analise_obj = resultado
+    set_aguardando(True)
+    monitor_state.ultima_sugestao = agora
 
     alerta = ALERTAS.get(resultado.tipo, "Detectei algo incomum na tela.")
 

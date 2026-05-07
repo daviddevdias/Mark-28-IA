@@ -45,7 +45,7 @@ function pgDash(wrap) {
 
         <div class="quick-grid">
             ${quickBtn('⛨','BLOQUEAR TELA', 'bloquear',       'var(--purple)', 'rgba(136,85,0,.07)')}
-            ${quickBtn('⌾','CAPTURAR TELA', 'captura',        'var(--accent)', 'rgba(255,160,0,.07)')}
+            ${quickBtn('⌾','CAPTURAR TELA', 'captura')}
             ${quickBtn('⌦','LIMPAR LIXEIRA','limpar lixeira', 'var(--red)',    'rgba(255,34,85,.06)')}
             ${quickBtn('▣','MINIMIZAR TUDO','minimizar',      'var(--accent2)','rgba(255,106,0,.07)')}
             ${quickBtn('⨯','FECHAR JANELA', 'fechar',         'var(--orange)', 'rgba(255,122,0,.06)')}
@@ -56,7 +56,7 @@ function pgDash(wrap) {
     renderLog();
     updateMetrics();
 }
-
+diags
 
 
 

@@ -13,7 +13,7 @@ try:
 except ImportError:
     PYGAME = False
 
-DB_ALARMES = "api/alarme.json"
+DB_ALARMES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "api", "alarme.json")
 lock = threading.Lock()
 alarme_ativo = False
 falar_callback = None
@@ -55,9 +55,11 @@ SNOOZE_MINUTOS = 10
 
 
 
+
 def registrar_falar_alarme(fn):
     global falar_callback
     falar_callback = fn
+
 
 
 
@@ -75,9 +77,11 @@ def registrar_loop_alarme(loop):
 
 
 
+
 def limpar_acentos(s: str) -> str:
     s = unicodedata.normalize("NFD", s.lower())
     return "".join(c for c in s if unicodedata.category(c) != "Mn")
+
 
 
 
@@ -97,6 +101,8 @@ def parse_alarme_voz(cmd: str) -> tuple[str | None, str | None, str, list[int] |
             data_iso = date(int(m_iso.group(1)), int(m_iso.group(2)), int(m_iso.group(3))).isoformat()
         except ValueError:
             data_iso = None
+
+
     if not data_iso:
         m_do = re.search(r"\b(?:dia)?\s*(\d{1,2})\s+do\s+(\d{1,2})(?:\s+de\s+(\d{4}))?\b", low)
         if m_do:
@@ -106,6 +112,8 @@ def parse_alarme_voz(cmd: str) -> tuple[str | None, str | None, str, list[int] |
                 data_iso = date(yi0, mth0, d0).isoformat()
             except ValueError:
                 data_iso = None
+
+
     if not data_iso:
         m_sl = re.search(r"\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b", raw)
         if m_sl:
@@ -116,13 +124,19 @@ def parse_alarme_voz(cmd: str) -> tuple[str | None, str | None, str, list[int] |
                 d, mth = a, b
             else:
                 d, mth = a, b
+
+
             yi = int(y) if y else datetime.now().year
             if y and yi < 100:
                 yi += 2000
+
+
             try:
                 data_iso = date(yi, mth, d).isoformat()
             except ValueError:
                 data_iso = None
+
+
     if not data_iso:
         m_pt = re.search(r"(?:^|\s)(?:dia)?\s*(\d{1,2})\s+de\s+([a-z]+)(?:\s+de\s+(\d{2,4}))?", low)
         if m_pt:
@@ -134,14 +148,20 @@ def parse_alarme_voz(cmd: str) -> tuple[str | None, str | None, str, list[int] |
                 yi = int(yraw) if yraw else datetime.now().year
                 if yraw and yi < 100:
                     yi += 2000
+
+
                 try:
                     data_iso = date(yi, mi, d).isoformat()
                 except ValueError:
                     data_iso = None
+
+
     if not data_iso:
         encontrados = [idx for nome, idx in DIAS_SEMANA.items() if nome in low]
         if encontrados:
             dias_semana = list(set(encontrados))
+
+
     m_hm = re.search(r"(\d{1,2})\s*[:h]\s*(\d{2})\b", low)
     if m_hm:
         hora = f"{int(m_hm.group(1)):02d}:{int(m_hm.group(2)):02d}"
@@ -153,6 +173,8 @@ def parse_alarme_voz(cmd: str) -> tuple[str | None, str | None, str, list[int] |
             m_d = re.search(r"\b(\d{1,2})\s*h\b", low)
             if m_d:
                 hora = f"{int(m_d.group(1)):02d}:00"
+
+
     missao = re.sub(
         r"\s+", " ",
         re.sub(
@@ -165,7 +187,10 @@ def parse_alarme_voz(cmd: str) -> tuple[str | None, str | None, str, list[int] |
     ).strip()[:120]
     if not missao:
         missao = "Alarme"
+
+
     return data_iso, hora, missao, dias_semana
+
 
 
 
@@ -176,12 +201,15 @@ def parse_alarme_voz(cmd: str) -> tuple[str | None, str | None, str, list[int] |
 def carregar_alarmes() -> list:
     if not os.path.exists(DB_ALARMES):
         return []
+
+
     with lock:
         try:
             with open(DB_ALARMES, encoding="utf-8") as f:
                 return json.load(f)
         except Exception:
             return []
+
 
 
 
@@ -201,13 +229,17 @@ def salvar_alarmes(alarmes: list) -> None:
 
 
 
+
 def limpar_alarmes_concluidos() -> int:
     alarmes = carregar_alarmes()
     antes = len(alarmes)
     ativos = [a for a in alarmes if a.get("status") != "concluido"]
     if len(ativos) < antes:
         salvar_alarmes(ativos)
+
+
     return antes - len(ativos)
+
 
 
 
@@ -225,6 +257,8 @@ def adicionar_alarme(
 ) -> str:
     if not hora or ":" not in hora:
         return "Senhor, o formato de tempo parece inconsistente. Poderia repetir?"
+
+
     alarmes = carregar_alarmes()
     alarme = {
         "hora": hora,
@@ -247,6 +281,7 @@ def adicionar_alarme(
 
 
 
+
 def remover_alarme(hora: str, missao: str, data: str | None = None) -> str:
     alarmes = carregar_alarmes()
     novos = [
@@ -259,6 +294,8 @@ def remover_alarme(hora: str, missao: str, data: str | None = None) -> str:
     ]
     if len(novos) == len(alarmes):
         return "Senhor, nao encontrei esse alarme."
+
+
     salvar_alarmes(novos)
     return f"Alarme das {hora} foi desativado."
 
@@ -268,8 +305,10 @@ def remover_alarme(hora: str, missao: str, data: str | None = None) -> str:
 
 
 
+
 def listar_alarmes() -> list:
     return [a for a in carregar_alarmes() if a["status"] == "pendente"]
+
 
 
 
@@ -290,6 +329,7 @@ def snooze_alarme() -> str:
 
 
 
+
 def buscar_arquivo_musica() -> str:
     base = os.path.dirname(os.path.abspath(__file__))
     candidatos = [
@@ -300,7 +340,10 @@ def buscar_arquivo_musica() -> str:
     for c in candidatos:
         if os.path.exists(c):
             return c
+
+
     return ""
+
 
 
 
@@ -313,9 +356,13 @@ def invocar_som_alarme():
     caminho = buscar_arquivo_musica()
     if not caminho or not PYGAME:
         return
+
+
     try:
         if not pygame.mixer.get_init():
             pygame.mixer.init(frequency=44100, size=-16, channels=2, buffer=2048)
+
+
         pygame.mixer.set_num_channels(max(pygame.mixer.get_num_channels(), 4))
         sound_alarme = pygame.mixer.Sound(caminho)
         sound_alarme.set_volume(1.0)
@@ -323,6 +370,8 @@ def invocar_som_alarme():
         canal_alarme.play(sound_alarme, loops=-1)
         while alarme_ativo and canal_alarme.get_busy():
             time.sleep(0.3)
+
+
         if canal_alarme:
             canal_alarme.stop()
     except Exception:
@@ -337,12 +386,14 @@ def invocar_som_alarme():
 
 
 
+
 def ligar_tela_tv():
     try:
         from tasks.smart_home import ligar_tv
         ligar_tv()
     except Exception:
         pass
+
 
 
 
@@ -368,12 +419,14 @@ def avisar_voz_alarme(missao: str):
 
 
 
+
 def deflagrar_rotina_alarme(alarme: dict):
     global alarme_ativo
     alarme_ativo = True
     threading.Thread(target=ligar_tela_tv, daemon=True).start()
     threading.Thread(target=lambda: avisar_voz_alarme(str(alarme.get("missao", ""))), daemon=True).start()
     threading.Thread(target=invocar_som_alarme, daemon=True).start()
+
 
 
 
@@ -389,12 +442,15 @@ def parar_alarme_total():
             canal_alarme.stop()
     except Exception:
         pass
+
+
     encerrar = [
         "Protocolo encerrado. Mantenha o foco, Senhor.",
         "Ameaça neutralizada. Estou na escuta.",
         "Comando aceito. Alarme silenciado.",
     ]
     return random.choice(encerrar)
+
 
 
 
@@ -415,6 +471,8 @@ def checagem_temporizador_loop():
         for alarme in alarmes:
             if alarme["status"] != "pendente":
                 continue
+
+
             d = (alarme.get("data") or "").strip()
             dias = alarme.get("dias_semana")
             if dias is not None:
@@ -422,26 +480,45 @@ def checagem_temporizador_loop():
                     continue
             elif d and d != hoje_iso:
                 continue
+
+
             if alarme["hora"] != agora_hm:
                 continue
+
+
             chave = f"{d or str(dia_semana_atual)}|{alarme['hora']}|{alarme['missao']}"
             if ultimo_disparo.get(chave) == hoje_iso:
                 continue
+
+
             ultimo_disparo[chave] = hoje_iso
             threading.Thread(target=deflagrar_rotina_alarme, args=(alarme,), daemon=True).start()
             if not alarme.get("repetir") and dias is None:
                 alarme["status"] = "concluido"
                 modificados = True
 
+
         if modificados:
             salvar_alarmes(alarmes)
+
 
         ciclo += 1
         if ciclo >= 3600:
             limpar_alarmes_concluidos()
+            try:
+                import asyncio
+                from storage.optimizer import comprimir_banco_auditoria, purgar_resumos_antigos
+                asyncio.run(comprimir_banco_auditoria())
+                purgar_resumos_antigos(dias=365)
+            except Exception:
+                pass
+
+
             ciclo = 0
 
+
         time.sleep(1)
+
 
 
 

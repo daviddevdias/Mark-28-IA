@@ -20,6 +20,8 @@ log = logging.getLogger("jarvis.obs")
 def conectar_banco() -> sqlite3.Connection:
     os.makedirs(os.path.dirname(_DB_PATH), exist_ok=True)
     c = sqlite3.connect(_DB_PATH, check_same_thread=False, timeout=5)
+    c.execute("PRAGMA journal_mode=WAL;")
+    c.execute("PRAGMA synchronous=NORMAL;")
     c.row_factory = sqlite3.Row
     c.execute("""
         CREATE TABLE IF NOT EXISTS acoes (

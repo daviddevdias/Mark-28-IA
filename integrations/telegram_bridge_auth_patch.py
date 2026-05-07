@@ -17,7 +17,7 @@ from engine.ia_router import router
 from storage.memory_manager import get_nome
 from tasks.alarm import adicionar_alarme, listar_alarmes, remover_alarme
 from tasks.weather import obter_previsao_hoje, verificar_chuva_amanha
-from audio.audio import falar, interromper_voz
+from audio.voz import falar, interromper_voz
 import config
 from integrations.telegram_auth import carregar_config, requer_autorizacao
 
