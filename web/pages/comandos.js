@@ -1,11 +1,5 @@
 'use strict';
 
-
-
-
-
-
-
 async function pgComandos(wrap) {
     wrap.innerHTML =`
         <div class="page-header">
@@ -13,8 +7,11 @@ async function pgComandos(wrap) {
                 <div class="page-title">⌬ BIBLIOTECA DE COMANDOS</div>
                 <div class="page-sub">Rotas de voz e atalhos reconhecidos pelo núcleo</div>
             </div>
-            <input class="input" id="cmdFilterIn" placeholder="Filtrar…" style="max-width:280px;"
-                   value="${esc(state.cmdFilter)}">
+            <div style="display:flex;gap:10px;align-items:center;">
+                <button class="btn" id="btnCmdRefresh">ATUALIZAR</button>
+                <input class="input" id="cmdFilterIn" placeholder="Filtrar…" style="max-width:280px;"
+                       value="${esc(state.cmdFilter)}">
+            </div>
         </div>
         <div id="cmdListMount" style="margin-top:14px;">
             <div style="color:var(--text3);font-family:var(--mono);font-size:13px;">A carregar…</div>
@@ -26,16 +23,31 @@ async function pgComandos(wrap) {
         renderCmdList();
     });
 
+    document.getElementById('btnCmdRefresh')?.addEventListener('click', async () => {
+        await carregarBibliotecaComandos();
+        renderCmdList();
+        toast('Biblioteca atualizada.');
+    });
+
+    await carregarBibliotecaComandos();
+    renderCmdList();
+}
+
+async function carregarBibliotecaComandos() {
     if (window.jarvis?.obter_biblioteca_comandos) {
         try {
             const raw = await new Promise(res => {
-                try { window.jarvis.obter_biblioteca_comandos(r => res(r)); }
-                catch (err) { res(null); }
+                try {
+                    window.jarvis.obter_biblioteca_comandos(r => res(r));
+                } catch {
+                    res(null);
+                }
             });
             if (raw) state.cmdLibrary = JSON.parse(raw);
-        } catch (e) { state.cmdLibrary = state.cmdLibrary || []; }
+        } catch {
+            state.cmdLibrary = state.cmdLibrary || [];
+        }
     }
-    renderCmdList();
 }
 
 
@@ -46,8 +58,6 @@ async function pgComandos(wrap) {
 
 function renderCmdList() {
     const mount = document.getElementById('cmdListMount');
-
-        
     if (!mount) return;
     const q = (state.cmdFilter || '').trim().toLowerCase();
     const items = (state.cmdLibrary || []).filter(it => {
@@ -64,7 +74,16 @@ function renderCmdList() {
     }
 
 
-    mount.innerHTML =`<div class="cmd-grid">${items.map(it =>`
+    mount.innerHTML =`
+      <div style="display:flex;justify-content:space-between;align-items:center;margin:6px 2px 14px;">
+        <div style="color:var(--text3);font-family:var(--mono);font-size:12px;letter-spacing:2px;">
+          ${items.length} comando(s)
+        </div>
+        <div style="color:var(--text3);font-family:var(--mono);font-size:12px;">
+          Fonte: núcleo + ferramentas
+        </div>
+      </div>
+      <div class="cmd-grid">${items.map(it =>`
         <div class="cmd-card">
             <div class="cmd-card-top">
                 <span class="cmd-icon">${it.icon || '◈'}</span>

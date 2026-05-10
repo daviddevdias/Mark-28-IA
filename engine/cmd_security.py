@@ -52,12 +52,9 @@ def _audit(
                 "VALUES (?,?,?,?,?,?,?)",
                 (
                     datetime.now().isoformat(timespec="seconds"),
-                    origem,
-                    ferramenta,
-                    comando[:500],
-                    resultado[:500],
-                    int(bloqueado),
-                    motivo[:200],
+                    origem, ferramenta,
+                    comando[:500], resultado[:500],
+                    int(bloqueado), motivo[:200],
                 ),
             )
             conn.commit()
@@ -87,6 +84,7 @@ class Avaliacao:
     categoria: Categoria = Categoria.BLOQUEADO
     motivo:    str       = ""
     cmd:       Optional[str] = None
+
 
 BLOQUEIOS = [
     r"rm\s+-rf\s+[/~\$]",
@@ -123,7 +121,7 @@ REGRAS: list[Regra] = [
 ]
 
 BLOQUEIOS_COMPILADOS = [re.compile(p, re.IGNORECASE) for p in BLOQUEIOS]
-INJECOES             = [";", "&&", "||", "`", "$(", ">{", "<(", "2>&1 |"]
+INJECOES = [";", "&&", "||", "`", "$(", ">{", "<(", "2>&1 |"]
 
 
 def sanitizar(cmd: str) -> str:
@@ -193,7 +191,7 @@ def executar(
             _audit(comando, resultado="CANCELADO pelo usuário", origem=origem, ferramenta=ferramenta)
             return "Execução cancelada."
 
-    cmd        = av.cmd or comando
+    cmd = av.cmd or comando
     usar_shell = any(r.shell and r.padrao.match(cmd) for r in REGRAS)
 
     try:
@@ -228,43 +226,38 @@ def executar(
         _audit(cmd, resultado=msg, origem=origem, ferramenta=ferramenta)
         return msg
 
+
 class SecurityBlockError(Exception):
     pass
 
+
 def validar_codigo_ast(codigo_fonte: str) -> bool:
-
-
     modulos_proibidos = {'os', 'sys', 'shutil', 'subprocess', 'socket', 'requests', 'pty'}
     funcoes_proibidas = {'eval', 'exec', 'open', '__import__', 'getattr', 'setattr', 'compile'}
-    
+
     try:
         arvore = ast.parse(codigo_fonte)
     except SyntaxError as e:
         log.error("Erro de sintaxe gerado pelo Agent S: %s", e)
         return False
-        
+
     for no in ast.walk(arvore):
-
-
         if isinstance(no, ast.Import):
             for alias in no.names:
                 if alias.name.split('.')[0] in modulos_proibidos:
                     log.warning("Agent S tentou importar módulo proibido: %s", alias.name)
                     return False
-                    
         elif isinstance(no, ast.ImportFrom):
             if no.module and no.module.split('.')[0] in modulos_proibidos:
                 log.warning("Agent S tentou importar de módulo proibido: %s", no.module)
                 return False
-                
-
-
         elif isinstance(no, ast.Call):
             if isinstance(no.func, ast.Name) and no.func.id in funcoes_proibidas:
                 log.warning("Agent S tentou usar função crítica: %s", no.func.id)
                 return False
-                
+
     return True
+
 
 def audit_recente(limite: int = 50) -> list[dict]:
     try:

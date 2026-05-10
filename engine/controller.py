@@ -1,4 +1,5 @@
 from __future__ import annotations
+
 import asyncio
 import base64
 import json
@@ -9,6 +10,7 @@ import time
 from collections import deque
 from datetime import datetime
 from typing import Any, Awaitable, Callable, Optional
+
 import aiohttp
 import config
 from engine.tools import TOOL_DECLARATIONS
@@ -17,13 +19,13 @@ from vision.capture import status_monitor as info_monitor, parar_monitor as desl
 log = logging.getLogger("engine.controller")
 
 URL_OLLAMA = "http://127.0.0.1:11434/api/chat"
-TIMEOUT    = 25.0
-MAX_HIST   = 20
-MAX_TOOLS  = 5
-COOLDOWN   = 30.0
-OPTIONS    = {"num_predict": 400, "temperature": 0.7}
+TIMEOUT = 25.0
+MAX_HIST = 20
+MAX_TOOLS = 5
+COOLDOWN = 30.0
+OPTIONS = {"num_predict": 400, "temperature": 0.7}
 
-PREFERIDOS       = ["gemma4:e4b", "gemma4", "llama3.2", "llama3.1", "qwen2.5", "phi4", "mistral"]
+PREFERIDOS = ["gemma4:e4b", "gemma4", "llama3.2", "llama3.1", "qwen2.5", "phi4", "mistral"]
 TOOLS_SUPORTADOS = ["gemma4", "llama4", "llama3.1", "llama3.2", "qwen", "phi4"]
 
 SYSTEM = (
@@ -32,39 +34,17 @@ SYSTEM = (
     "REGRAS: 1. SEMPRE confirme o que fez em uma frase natural. "
     "2. Se abrir um app, diga algo como 'Sistema carregado, Senhor'. "
     "3. Use tool_calls para ações."
+    "4. faça frases de 3 linhas para ser mais rapido para enviar a resposta a mim!"
 )
 
-modelo:       str   = ""
-disponivel:   bool  = False
+modelo: str = ""
+disponivel: bool = False
 ultimo_check: float = 0.0
 
 SHUTDOWN_EVENT = asyncio.Event()
 Handler = Callable[[str], Awaitable[Optional[str]]]
 
 ROUTES: list[tuple[tuple[str, ...], Handler]] = []
-
-
-
-
-
-
-
-
-def route(*keywords: str):
-
-
-
-
-
-
-
-
-    def decorator(fn: Handler) -> Handler:
-        ROUTES.append((keywords, fn))
-        return fn
-
-
-    return decorator
 
 PREFIXOS_SPOTIFY = [
     "buscar no spotify", "tocar no spotify", "procurar no spotify",
@@ -74,16 +54,10 @@ PREFIXOS_SPOTIFY = [
     "musica", "musicas",
 ]
 PREFIXOS_YOUTUBE = ["buscar no youtube", "tocar no youtube", "youtube"]
-PREFIXOS_WEB     = [
+PREFIXOS_WEB = [
     "pesquisar na web", "pesquisar no google", "buscar na web",
     "pesquisar", "pesquisa", "buscar", "busca",
 ]
-
-
-
-
-
-
 
 
 def system_msg(ctx: str) -> str:
@@ -91,50 +65,20 @@ def system_msg(ctx: str) -> str:
     return SYSTEM.format(ctx=f"{ctx} | Horário Atual: {agora}"[:400])
 
 
-
-
-
-
-
-
 def suporta_tools(nome: str) -> bool:
     return any(s in nome.lower() for s in TOOLS_SUPORTADOS)
 
 
-
-
-
-
-
-
 def normalizar(texto: str) -> str:
     t = re.sub(r"\s+", " ", texto.lower().strip())
-    for src, dst in [("ã","a"),("â","a"),("á","a"),("à","a"),("ê","e"),("é","e"),
-                     ("í","i"),("ó","o"),("ô","o"),("õ","o"),("ú","u"),("ç","c")]:
+    for src, dst in {"ã":"a","â":"a","á":"a","à":"a","ê":"e","é":"e","í":"i","ó":"o","ô":"o","õ":"o","ú":"u","ç":"c"}.items():
         t = t.replace(src, dst)
     return t
 
 
-
-
-
-
-
-
 def extrair_numero(texto: str) -> Optional[int]:
     m = re.search(r"\d+", texto)
-    if m:
-        return int(m.group())
-
-
-    if not m:
-        return None
-
-
-
-
-
-
+    return int(m.group()) if m else None
 
 
 def extrair_termo(cmd: str, prefixos: list) -> str:
@@ -143,25 +87,11 @@ def extrair_termo(cmd: str, prefixos: list) -> str:
         if texto.startswith(p):
             texto = texto[len(p):].strip()
             break
-
-
     return re.sub(r"^(a musica|o|a|as|os|um|uma)\s+", "", texto).strip()
-
-
-
-
-
-
 
 
 def get_shutdown_event() -> asyncio.Event:
     return SHUTDOWN_EVENT
-
-
-
-
-
-
 
 
 async def detectar_modelo() -> bool:
@@ -173,45 +103,27 @@ async def detectar_modelo() -> bool:
                 if r.status != 200:
                     disponivel = False
                     return False
-
-
                 modelos = [m["name"] for m in (await r.json()).get("models", [])]
                 if not modelos:
                     disponivel = False
                     return False
-
-
                 modelo = next(
                     (m for p in PREFERIDOS for m in modelos if m.startswith(p)),
                     modelos[0],
                 )
-                disponivel    = True
-                ultimo_check  = time.time()
-                print(f"OLLAMA Modelo Ativo: {modelo}")
+                disponivel = True
+                ultimo_check = time.time()
+                print("OLLAMA Ligado comunicando! Versão 1.0")
                 return True
     except Exception:
         disponivel = False
         return False
 
 
-
-
-
-
-
-
 async def check(force: bool = False) -> None:
     if not force and disponivel and (time.time() - ultimo_check) < COOLDOWN:
         return
-
-
     await detectar_modelo()
-
-
-
-
-
-
 
 
 def ligar_monitor(intervalo_s: float = 10.0, callback=None) -> None:
@@ -223,91 +135,31 @@ def ligar_monitor(intervalo_s: float = 10.0, callback=None) -> None:
         log.error("Erro ao ligar monitor: %s", e)
 
 
-
-
-
-
-
-
 class Historico:
-
-
-
-
-
-
-
-
     def __init__(self):
         self.turns: deque[dict] = deque(maxlen=MAX_HIST)
-
-
-
-
-
-
-
 
     def add(self, role: str, content: Any) -> None:
         self.turns.append({"role": role, "content": content})
 
-
-
-
-
-
-
-
     def add_tool(self, call_id: str, name: str, result: str) -> None:
         self.turns.append({"role": "tool", "tool_call_id": call_id, "name": name, "content": result})
 
+    def msgs(self) -> list[dict]:
+        return list(self.turns)
 
+    def pop(self) -> None:
+        if self.turns:
+            self.turns.pop()
 
-
-
-
-
-
-    def msgs(self) -> list[dict]: return list(self.turns)
-
-
-
-
-
-
-
-
-    def pop(self)  -> None:
-        if self.turns: self.turns.pop()
-
-
-
-
-
-
-
-
-    def clear(self) -> None: self.turns.clear()
-
-
-
-
-
-
+    def clear(self) -> None:
+        self.turns.clear()
 
 
 class IARRouter:
-
-
-
-
-
-
-
-
     def __init__(self):
         self.historico = Historico()
-        self.provedor  = "ollama"
+        self.provedor = "ollama"
 
     @property
     def status(self) -> dict:
@@ -317,107 +169,60 @@ class IARRouter:
     def modo_atual(self) -> str:
         return self.provedor
 
-
-
-
-
-
-
-
     def definir_modo(self, modo: str) -> str:
         if modo == "gemini":
             if not config.GEMINI_API_KEY:
                 return "Chave da API do Gemini ausente no sistema."
-
-
             self.provedor = "gemini"
             return "Conexão estabelecida com os servidores do Google Gemini."
-
-
         if modo in ("openrouter", "auto"):
             if not config.QWEN_API_KEY:
                 return "Chave da API externa ausente no sistema."
-
-
             self.provedor = "openrouter"
             return "Modelos externos do OpenRouter ativados com sucesso."
-
-
         self.provedor = "ollama"
         return f"Processamento neural local ativado. Modelo: {modelo or 'nenhum detectado'}."
-
-
-
-
-
-
-
 
     def resetar_conversa(self) -> str:
         self.historico.clear()
         return "Conversa resetada."
 
-
-
-
-
-
-
-
     async def chat(self, messages: list[dict], tools: bool = True) -> dict | None:
         if self.provedor in ("gemini", "openrouter"):
             if self.provedor == "gemini":
-                url  = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
+                url = "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions"
                 hdrs = {"Authorization": f"Bearer {config.GEMINI_API_KEY}", "Content-Type": "application/json"}
                 payload = {"model": "gemini-1.5-flash", "messages": messages, "temperature": 0.7}
             else:
-                url  = "https://openrouter.ai/api/v1/chat/completions"
+                url = "https://openrouter.ai/api/v1/chat/completions"
                 hdrs = {"Authorization": f"Bearer {config.QWEN_API_KEY}", "Content-Type": "application/json"}
                 payload = {"model": config.CURRENT_MODEL, "messages": messages, "temperature": 0.7}
-
-
             if tools:
                 payload["tools"] = TOOL_DECLARATIONS
-
-
             try:
                 async with aiohttp.ClientSession() as s:
                     async with s.post(url, headers=hdrs, json=payload,
                                       timeout=aiohttp.ClientTimeout(total=TIMEOUT)) as r:
-                        if r.status != 200: return None
-
-
+                        if r.status != 200:
+                            return None
                         return (await r.json()).get("choices", [{}])[0].get("message")
             except Exception:
                 return None
 
-
         if not modelo:
             return None
-
-
         payload = {"model": modelo, "messages": messages, "stream": False, "options": OPTIONS}
         if tools and suporta_tools(modelo):
             payload["tools"] = TOOL_DECLARATIONS
-
-
         try:
             async with aiohttp.ClientSession() as s:
                 async with s.post(URL_OLLAMA, json=payload,
                                   timeout=aiohttp.ClientTimeout(total=TIMEOUT)) as r:
-                    if r.status != 200: return None
-
-
+                    if r.status != 200:
+                        return None
                     return (await r.json()).get("message")
         except Exception:
             return None
-
-
-
-
-
-
-
 
     async def dispatch(self, name: str, args: dict) -> str:
         try:
@@ -426,41 +231,21 @@ class IARRouter:
         except Exception as e:
             return f"Erro na ferramenta '{name}': {e}"
 
-
-
-
-
-
-
-
     def montar_content(self, text: str, imagem: Any) -> Any:
         if imagem is None:
             return text
-
-
         if isinstance(imagem, str) and os.path.isfile(imagem):
             try:
                 imagem = open(imagem, "rb").read()
             except Exception:
                 return text
-
-
         if isinstance(imagem, bytes):
             url = f"data:image/png;base64,{base64.b64encode(imagem).decode()}"
         elif isinstance(imagem, str) and imagem.startswith("data:"):
             url = imagem
         else:
             return text
-
-
         return [{"type": "text", "text": text}, {"type": "image_url", "image_url": {"url": url}}]
-
-
-
-
-
-
-
 
     async def responder(self, pergunta: str, nome: str = "Chefe",
                         memoria: str = "", imagem: Any = None) -> str:
@@ -468,61 +253,37 @@ class IARRouter:
             await check()
             if not disponivel:
                 await check(force=True)
-
-
             if not disponivel:
                 return "Ollama offline. Rode 'ollama serve' no terminal ou mude para a nuvem."
-
-
             if not modelo:
                 return "Nenhum modelo detectado. Recomendo: ollama pull"
-
 
         self.historico.add("user", self.montar_content(pergunta, imagem))
         msgs = [{"role": "system", "content": system_msg(memoria)}] + self.historico.msgs()
 
         for i in range(MAX_TOOLS):
             msg = await self.chat(msgs)
-            
-
-            if msg is None:
-                self.historico.pop()
-                msg = await self.chat(msgs, tools=False)
-
-                if msg is None:
-                    return "Perdemos o sinal de conexão com o servidor de IA. Tente novamente."
-
-
             tool_calls = msg.get("tool_calls") or []
             if not tool_calls:
                 reply = (msg.get("content") or "").strip()
                 if not reply or (reply.startswith("{") and reply.endswith("}")):
                     reply = "Comando processado, Senhor."
-
-
                 self.historico.add("assistant", reply)
                 return reply
-
 
             msgs.append({"role": "assistant", "content": msg.get("content") or "", "tool_calls": tool_calls})
             self.historico.add("assistant", msg.get("content") or "")
 
             for tc in tool_calls:
                 call_id = tc.get("id", f"call_{i}")
-                fn      = tc.get("function", {})
-                raw     = fn.get("arguments", {})
-                args    = json.loads(raw) if isinstance(raw, str) else (raw or {})
-                result  = await self.dispatch(fn.get("name", ""), args)
+                fn = tc.get("function", {})
+                raw = fn.get("arguments", {})
+                args = json.loads(raw) if isinstance(raw, str) else (raw or {})
+                result = await self.dispatch(fn.get("name", ""), args)
                 msgs.append({"role": "tool", "tool_call_id": call_id, "name": fn.get("name"), "content": result})
                 self.historico.add_tool(call_id, fn.get("name", ""), result)
 
         return "Protocolo concluído."
-
-
-
-
-
-
 
 
 async def silencio(cmd: str) -> str:
@@ -531,22 +292,10 @@ async def silencio(cmd: str) -> str:
     return "Protocolo de silêncio ativado."
 
 
-
-
-
-
-
-
 async def bloquear(cmd: str) -> str:
     from tasks.computer_control import bloquear_tela
     bloquear_tela()
     return "Sessão bloqueada, Senhor."
-
-
-
-
-
-
 
 
 async def minimizar(cmd: str) -> str:
@@ -555,22 +304,10 @@ async def minimizar(cmd: str) -> str:
     return "Janelas recolhidas."
 
 
-
-
-
-
-
-
 async def fechar(cmd: str) -> str:
     from tasks.computer_control import fechar_janela
     fechar_janela()
     return "Interface encerrada."
-
-
-
-
-
-
 
 
 async def screenshot(cmd: str) -> str:
@@ -579,22 +316,10 @@ async def screenshot(cmd: str) -> str:
     return "Captura de tela realizada."
 
 
-
-
-
-
-
-
 async def limpar_lixo(cmd: str) -> str:
     from tasks.computer_control import limpar_lixeira
     limpar_lixeira()
     return "Lixeira purgada."
-
-
-
-
-
-
 
 
 async def trabalho(cmd: str) -> str:
@@ -604,77 +329,38 @@ async def trabalho(cmd: str) -> str:
     return "Modo de trabalho iniciado. Sistemas prontos."
 
 
-
-
-
-
-
-
 async def tv_ligar(cmd: str) -> str:
     from tasks.smart_home import energia_tv, buscar_id_tv, diagnosticar_falha_tv
-    if energia_tv(True): return "Televisão ligada."
-
-
+    if energia_tv(True):
+        return "Televisão ligada."
     if not buscar_id_tv():
         return diagnosticar_falha_tv()
-
-
     return "A TV não respondeu ao sinal de energia."
-
-
-
-
-
-
 
 
 async def tv_desligar(cmd: str) -> str:
     from tasks.smart_home import desligar_tv, buscar_id_tv, diagnosticar_falha_tv
-    if desligar_tv(): return "Televisão desligada."
-
-
+    if desligar_tv():
+        return "Televisão desligada."
     if not buscar_id_tv():
         return diagnosticar_falha_tv()
-
-
     return "Falha ao cessar energia da TV."
-
-
-
-
-
-
 
 
 async def tv_volume(cmd: str) -> str:
     from tasks.smart_home import enviar_comando_tv
     nivel = extrair_numero(cmd)
-    if nivel is None: return "Por favor, indique o nível do volume."
-
-
+    if nivel is None:
+        return "Por favor, indique o nível do volume."
     nivel = max(0, min(100, nivel))
     if enviar_comando_tv("setVolume", "audioVolume", [nivel]):
         return f"Volume ajustado para {nivel} por cento."
-
-
     return "Falha no ajuste de áudio da TV."
-
-
-
-
-
-
 
 
 async def tv_youtube(cmd: str) -> str:
     from tasks.smart_home import abrir_youtube_tv
     return abrir_youtube_tv()
-
-
-
-
-
-
 
 
 async def musica(cmd: str) -> str:
@@ -683,15 +369,7 @@ async def musica(cmd: str) -> str:
     termo = extrair_termo(cmd, PREFIXOS_SPOTIFY)
     if termo:
         return spotify_stark.abrir_e_buscar(termo)
-
-
     return "Qual música devo buscar?"
-
-
-
-
-
-
 
 
 async def playlist(cmd: str) -> str:
@@ -699,32 +377,14 @@ async def playlist(cmd: str) -> str:
     return spotify_stark.listar_e_tocar_playlist(re.sub(r"\bplaylist\b", "", cmd).strip())
 
 
-
-
-
-
-
-
 async def favoritas(cmd: str) -> str:
     from tasks.spotify_manager import spotify_stark
     return spotify_stark.tocar_minhas_favoritas()
 
 
-
-
-
-
-
-
-async def pausar(cmd: str)   -> str:
+async def pausar(cmd: str) -> str:
     from tasks.spotify_manager import spotify_stark
     return spotify_stark.controlar_reproducao("pause")
-
-
-
-
-
-
 
 
 async def continuar(cmd: str) -> str:
@@ -732,21 +392,9 @@ async def continuar(cmd: str) -> str:
     return spotify_stark.controlar_reproducao("play")
 
 
-
-
-
-
-
-
-async def proxima(cmd: str)  -> str:
+async def proxima(cmd: str) -> str:
     from tasks.spotify_manager import spotify_stark
     return spotify_stark.controlar_reproducao("proxima")
-
-
-
-
-
-
 
 
 async def anterior(cmd: str) -> str:
@@ -754,26 +402,12 @@ async def anterior(cmd: str) -> str:
     return spotify_stark.controlar_reproducao("anterior")
 
 
-
-
-
-
-
-
 async def youtube(cmd: str) -> str:
     from tasks.browser import jarvis_web
     termo = extrair_termo(cmd, PREFIXOS_YOUTUBE)
     if termo:
         return jarvis_web.run(jarvis_web.tocar_youtube(termo))
-
-
     return "Qual vídeo deseja assistir?"
-
-
-
-
-
-
 
 
 async def pesquisa(cmd: str) -> str:
@@ -781,15 +415,7 @@ async def pesquisa(cmd: str) -> str:
     termo = extrair_termo(cmd, PREFIXOS_WEB)
     if termo:
         return jarvis_web.run(jarvis_web.smart_search(termo))
-
-
     return "O que devo pesquisar?"
-
-
-
-
-
-
 
 
 async def monitorar(cmd: str) -> str:
@@ -798,22 +424,10 @@ async def monitorar(cmd: str) -> str:
     return "Sentinela de tela ativada."
 
 
-
-
-
-
-
-
 async def parar_monitor(cmd: str) -> str:
     from engine.core import desligar_monitoramento
     await desligar_monitoramento()
     return "Monitoramento cessado."
-
-
-
-
-
-
 
 
 async def status_monitor(cmd: str) -> str:
@@ -822,22 +436,10 @@ async def status_monitor(cmd: str) -> str:
     return "Status do sistema reportado."
 
 
-
-
-
-
-
-
 async def olha_tela(cmd: str) -> str:
     from engine.core import analisar_tela_agora
     await analisar_tela_agora()
     return "Análise de tela concluída."
-
-
-
-
-
-
 
 
 async def olha_camera(cmd: str) -> str:
@@ -846,39 +448,20 @@ async def olha_camera(cmd: str) -> str:
     return "Análise de câmera concluída."
 
 
-
-
-
-
-
-
 async def alarme(cmd: str) -> str:
     from tasks.alarm import parse_alarme_voz, adicionar_alarme
-    data_iso, hora, missao = parse_alarme_voz(cmd)
+    data_iso, hora, missao, _ = parse_alarme_voz(cmd)
     if not hora:
         m = re.search(r"(\d{1,2})[:h](\d{2})", cmd.replace(" e ", ":"))
         if m:
             hora = f"{int(m.group(1)):02d}:{int(m.group(2)):02d}"
         else:
             m2 = re.search(r"(\d{1,2})", cmd)
-            if m2:
-                hora = f"{int(m2.group(1)):02d}:00"
-            else:
-                hora = None
-
-
+            hora = f"{int(m2.group(1)):02d}:00" if m2 else None
         if not hora:
             return "Diga a data e hora do alarme."
-
-
         missao = missao or "Alarme agendado"
     return adicionar_alarme(hora, missao, data=data_iso)
-
-
-
-
-
-
 
 
 async def parar_alarme(cmd: str) -> str:
@@ -887,56 +470,57 @@ async def parar_alarme(cmd: str) -> str:
     spotify_stark.controlar_reproducao("pause")
     return parar_alarme_total()
 
+
 ROUTES_LEGADAS: list[tuple[tuple[str, ...], Handler]] = [
-    (("silencio",),                      silencio),
-    (("mutar",),                         silencio),
-    (("bloquear",),                      bloquear),
-    (("lock",),                          bloquear),
-    (("minimizar",),                     minimizar),
-    (("fechar",),                        fechar),
-    (("screenshot",),                    screenshot),
-    (("captura",),                       screenshot),
-    (("limpar", "lixeira"),              limpar_lixo),
-    (("limpar",),                        limpar_lixo),
-    (("trabalho",),                      trabalho),
-    (("ligar",   "tv"),                  tv_ligar),
-    (("liga",    "tv"),                  tv_ligar),
-    (("desligar","tv"),                  tv_desligar),
-    (("desliga", "tv"),                  tv_desligar),
-    (("youtube", "tv"),                  tv_youtube),
-    (("youtube", "televisao"),           tv_youtube),
-    (("volume",),                        tv_volume),
-    (("spotify",),                       musica),
-    (("tocar",   "musica"),              musica),
-    (("musica",),                        musica),
-    (("playlist",),                      playlist),
-    (("favoritas",),                     favoritas),
-    (("pausar",),                        pausar),
-    (("continuar",),                     continuar),
-    (("proxima",),                       proxima),
-    (("anterior",),                      anterior),
-    (("youtube",),                       youtube),
-    (("pesquisar", "google"),            pesquisa),
-    (("pesquisar", "web"),               pesquisa),
-    (("pesquisar",),                     pesquisa),
-    (("pesquisa",),                      pesquisa),
-    (("monitorar", "tela"),              monitorar),
-    (("monitorar",),                     monitorar),
-    (("desligar", "monitor"),            parar_monitor),
-    (("desativar", "monitor"),           parar_monitor),
-    (("monitor",  "status"),             status_monitor),
-    (("olha",    "tela"),                olha_tela),
-    (("analisa", "tela"),                olha_tela),
-    (("olha",    "camera"),              olha_camera),
-    (("camera",),                        olha_camera),
-    (("ver",     "camera"),              olha_camera),
-    (("agendar", "alarme"),              alarme),
-    (("criar",   "alarme"),              alarme),
-    (("despertar",),                     alarme),
-    (("parar",   "alarme"),              parar_alarme),
-    (("parar",   "musica"),              parar_alarme),
-    (("desligar","alarme"),              parar_alarme),
-    (("acordei",),                       parar_alarme),
+    (("silencio",),                  silencio),
+    (("mutar",),                     silencio),
+    (("bloquear",),                  bloquear),
+    (("lock",),                      bloquear),
+    (("minimizar",),                 minimizar),
+    (("fechar",),                    fechar),
+    (("screenshot",),                screenshot),
+    (("captura",),                   screenshot),
+    (("limpar", "lixeira"),          limpar_lixo),
+    (("limpar",),                    limpar_lixo),
+    (("trabalho",),                  trabalho),
+    (("ligar",   "tv"),              tv_ligar),
+    (("liga",    "tv"),              tv_ligar),
+    (("desligar","tv"),              tv_desligar),
+    (("desliga", "tv"),              tv_desligar),
+    (("youtube", "tv"),              tv_youtube),
+    (("youtube", "televisao"),       tv_youtube),
+    (("volume",),                    tv_volume),
+    (("spotify",),                   musica),
+    (("tocar",   "musica"),          musica),
+    (("musica",),                    musica),
+    (("playlist",),                  playlist),
+    (("favoritas",),                 favoritas),
+    (("pausar",),                    pausar),
+    (("continuar",),                 continuar),
+    (("proxima",),                   proxima),
+    (("anterior",),                  anterior),
+    (("youtube",),                   youtube),
+    (("pesquisar", "google"),        pesquisa),
+    (("pesquisar", "web"),           pesquisa),
+    (("pesquisar",),                 pesquisa),
+    (("pesquisa",),                  pesquisa),
+    (("monitorar", "tela"),          monitorar),
+    (("monitorar",),                 monitorar),
+    (("desligar", "monitor"),        parar_monitor),
+    (("desativar", "monitor"),       parar_monitor),
+    (("monitor",  "status"),         status_monitor),
+    (("olha",    "tela"),            olha_tela),
+    (("analisa", "tela"),            olha_tela),
+    (("olha",    "camera"),          olha_camera),
+    (("camera",),                    olha_camera),
+    (("ver",     "camera"),          olha_camera),
+    (("agendar", "alarme"),          alarme),
+    (("criar",   "alarme"),          alarme),
+    (("despertar",),                 alarme),
+    (("parar",   "alarme"),          parar_alarme),
+    (("parar",   "musica"),          parar_alarme),
+    (("desligar","alarme"),          parar_alarme),
+    (("acordei",),                   parar_alarme),
 ]
 
 ROUTES.extend(ROUTES_LEGADAS)
@@ -948,37 +532,17 @@ for route_item in ROUTES:
             PREFIXO_MAP.setdefault(kw[:n], kw)
 
 
-
-
-
-
-
-
 def expandir(cmd: str) -> str:
     return " ".join(PREFIXO_MAP.get(tok, tok) for tok in cmd.split())
 
 
-
-
-
-
-
-
 def buscar_handler(cmd: str) -> Optional[Handler]:
-    exp    = expandir(cmd)
+    exp = expandir(cmd)
     tokens = exp.split()
     for keywords, handler in ROUTES:
         if all(kw in tokens for kw in keywords):
             return handler
-
-
     return None
-
-
-
-
-
-
 
 
 async def processar_diretriz(texto: str) -> Optional[str]:
@@ -989,19 +553,15 @@ async def processar_diretriz(texto: str) -> Optional[str]:
         cidade = wx.extrair_cidade_do_utterance(texto)
         if "amanh" in cmd:
             return wx.verificar_chuva_amanha(cidade)
-
-
         return wx.obter_previsao_hoje(cidade)
-
 
     handler = buscar_handler(cmd)
     if handler is None:
         return None
-
-
     try:
         return await handler(cmd)
     except Exception as e:
         return f"Erro na diretriz: {e}"
+
 
 router = IARRouter()

@@ -2,6 +2,8 @@ import speech_recognition as sr
 import asyncio
 
 
+from audio.voz import limpar_texto_stt
+
 
 
 
@@ -13,7 +15,7 @@ def capturar_audio_sincrono(segundos: int) -> str:
         reconhecedor.adjust_for_ambient_noise(fonte, duration=1)
         try:
             audio = reconhecedor.record(fonte, duration=segundos)
-            return reconhecedor.recognize_google(audio)
+            return limpar_texto_stt(reconhecedor.recognize_google(audio, language="pt-BR"))
         except Exception:
             return ""
 

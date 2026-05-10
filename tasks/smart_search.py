@@ -20,42 +20,18 @@ DDG_HEADERS = {
     "Accept-Language": "pt-BR,pt;q=0.9",
 }
 
-
-
-
-
-
-
 def cache_get(chave: str) -> Optional[str]:
     entry = cache.get(chave)
     if entry and (time.time() - entry[1]) < CACHE_TTL:
         return entry[0]
     return None
 
-
-
-
-
-
-
 def cache_set(chave: str, valor: str) -> None:
     cache[chave] = (valor, time.time())
-
-
-
-
-
-
 
 def limpar_html(texto: str) -> str:
     texto = re.sub(r"<[^>]+>", " ", texto)
     return re.sub(r"\s+", " ", texto).strip()
-
-
-
-
-
-
 
 def buscar_ddg_api(termo: str) -> str:
     try:
@@ -76,12 +52,6 @@ def buscar_ddg_api(termo: str) -> str:
         log.debug("DDG API: %s", exc)
         return ""
 
-
-
-
-
-
-
 def buscar_wikipedia(termo: str) -> str:
     try:
         r = requests.get(
@@ -97,12 +67,6 @@ def buscar_wikipedia(termo: str) -> str:
         log.debug("Wikipedia: %s", exc)
         return ""
 
-
-
-
-
-
-
 def buscar_ddg_html(termo: str) -> str:
     try:
         from html.parser import HTMLParser
@@ -115,23 +79,11 @@ def buscar_ddg_html(termo: str) -> str:
                 self.cap = False
                 self.buf: list[str] = []
 
-
-
-
-
-
-
             def handle_starttag(self, tag, attrs):
                 cls = dict(attrs).get("class", "")
                 if "result__snippet" in cls or "result__body" in cls:
                     self.cap = True
                     self.buf = []
-
-
-
-
-
-
 
             def handle_endtag(self, tag):
                 if self.cap and tag in ("span", "div", "a"):
@@ -139,12 +91,6 @@ def buscar_ddg_html(termo: str) -> str:
                     if len(t) > 20:
                         self.snippets.append(t)
                     self.cap = False
-
-
-
-
-
-
 
             def handle_data(self, data):
                 if self.cap:
@@ -159,12 +105,6 @@ def buscar_ddg_html(termo: str) -> str:
         log.debug("DDG HTML: %s", exc)
         return ""
 
-
-
-
-
-
-
 def buscar_ddg_lite(termo: str) -> str:
     try:
         from html.parser import HTMLParser
@@ -177,23 +117,11 @@ def buscar_ddg_lite(termo: str) -> str:
                 self.cap = False
                 self.buf: list[str] = []
 
-
-
-
-
-
-
             def handle_starttag(self, tag, attrs):
                 cls = dict(attrs).get("class", "")
                 if "result-snippet" in cls or tag == "td":
                     self.cap = True
                     self.buf = []
-
-
-
-
-
-
 
             def handle_endtag(self, tag):
                 if self.cap and tag in ("td", "span", "div"):
@@ -201,12 +129,6 @@ def buscar_ddg_lite(termo: str) -> str:
                     if len(t) > 20:
                         self.snippets.append(t)
                     self.cap = False
-
-
-
-
-
-
 
             def handle_data(self, data):
                 if self.cap:
@@ -221,12 +143,6 @@ def buscar_ddg_lite(termo: str) -> str:
         log.debug("DDG Lite: %s", exc)
         return ""
 
-
-
-
-
-
-
 async def buscar_playwright(termo: str) -> str:
     try:
         from tasks.browser import jarvis_web
@@ -234,12 +150,6 @@ async def buscar_playwright(termo: str) -> str:
     except Exception as exc:
         log.debug("Playwright: %s", exc)
         return ""
-
-
-
-
-
-
 
 def buscar_sync(termo: str) -> str:
     chave = f"search:{termo.lower()[:80]}"
@@ -258,12 +168,6 @@ def buscar_sync(termo: str) -> str:
     if resultado:
         cache_set(chave, resultado)
     return resultado or f"Sem resultados para '{termo}'."
-
-
-
-
-
-
 
 async def buscar(termo: str, usar_browser: bool = False) -> str:
     chave = f"search:{termo.lower()[:80]}"
@@ -286,12 +190,6 @@ async def buscar(termo: str, usar_browser: bool = False) -> str:
     resultado = resultado or f"Sem resultados para '{termo}'."
     cache_set(chave, resultado)
     return resultado
-
-
-
-
-
-
 
 def limpar_cache_busca() -> None:
     cache.clear()

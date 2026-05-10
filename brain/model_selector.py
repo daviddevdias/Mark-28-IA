@@ -25,6 +25,13 @@ PERFIS: dict[str, PerfilModelo] = {
     "qwen/qwen-vl-max": PerfilModelo("qwen/qwen-vl-max", NivelModelo.PESADO,        2048, ["visao", "codigo", "plano", "analise", "agente"]),
 }
 
+
+
+
+
+
+
+
 RAPIDO_REGEX = re.compile(
     r"^(oi|ol[aá]|ei|ok|sim|n[aã]o|obrigado|tchau|status|volume|parar|continuar|"
     r"pr[oó]xim[ao]|anterior|pausar|ligar|desligar|hora|data)\b",

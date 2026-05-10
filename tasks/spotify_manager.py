@@ -7,32 +7,14 @@ from spotipy.oauth2 import SpotifyOAuth
 import config
 from typing import Optional
 
-
-
-
-
-
-
 class SpotifyManager:
     instancia_unica: Optional["SpotifyManager"] = None
-
-
-
-
-
-
 
     def __new__(cls) -> "SpotifyManager":
         if cls.instancia_unica is None:
             cls.instancia_unica = super(SpotifyManager, cls).__new__(cls)
             cls.instancia_unica.inicializado = False
         return cls.instancia_unica
-
-
-
-
-
-
 
     def __init__(self) -> None:
         if hasattr(self, "inicializado") and self.inicializado:
@@ -60,12 +42,6 @@ class SpotifyManager:
             pass
         self.inicializado: bool = True
 
-
-
-
-
-
-
     def focar_spotify(self) -> bool:
         try:
             janelas = [
@@ -83,12 +59,6 @@ class SpotifyManager:
         except Exception:
             return False
 
-
-
-
-
-
-
     def executar_via_api(self, termo: str) -> bool:
         if not self.sp:
             return False
@@ -101,12 +71,6 @@ class SpotifyManager:
             return False
         except Exception:
             return False
-
-
-
-
-
-
 
     def listar_e_tocar_playlist(self, nome_busca: str = "") -> str:
         if not self.sp:
@@ -138,12 +102,6 @@ class SpotifyManager:
         except Exception:
             return "Ocorreu um erro ao conectar com o Spotify."
 
-
-
-
-
-
-
     def abrir_e_buscar(self, termo: str) -> str:
         if self.executar_via_api(termo):
             return f"Tocando {termo} imediatamente pela integração direta."
@@ -155,12 +113,6 @@ class SpotifyManager:
             pyautogui.press("enter")
             return f"Busca local por {termo} executada."
         return "Aplicativo iniciado, mas necessita intervenção para tocar."
-
-
-
-
-
-
 
     def tocar_minhas_favoritas(self) -> str:
         if not self.sp:
@@ -176,12 +128,6 @@ class SpotifyManager:
                 pyautogui.press("enter")
                 return "Favoritas ativadas pelo modo de segurança."
             return "Abri a lista de favoritas na sua tela."
-
-
-
-
-
-
 
     def controlar_reproducao(self, acao: str = "playpause") -> str:
         mapa_teclado = {
@@ -221,12 +167,6 @@ class SpotifyManager:
             pyautogui.press(tecla)
         return "Comando de teclado enviado ao sistema."
 
-
-
-
-
-
-
     def adicionar_aos_favoritos(self) -> str:
         if not self.sp:
             return "Inviável sem integração direta configurada."
@@ -243,11 +183,5 @@ class SpotifyManager:
             return "Nenhuma música sendo reconhecida no momento."
         except Exception:
             return "Houve um bloqueio ao processar o salvamento."
-
-
-
-
-
-
 
 spotify_stark = SpotifyManager()

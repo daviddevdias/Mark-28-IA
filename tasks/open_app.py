@@ -44,12 +44,6 @@ APP_ALIASES = {
     "figma": {"Windows": "Figma", "Darwin": "Figma", "Linux": "figma"},
 }
 
-
-
-
-
-
-
 def verificar_processo_ativo(app_name: str) -> bool:
     target = app_name.lower().replace(".exe", "")
     for proc in psutil.process_iter(['name']):
@@ -60,12 +54,6 @@ def verificar_processo_ativo(app_name: str) -> bool:
             pass
     return False
 
-
-
-
-
-
-
 def padronizar_nome(raw: str) -> str:
     system = platform.system()
     key = raw.lower().strip()
@@ -75,12 +63,6 @@ def padronizar_nome(raw: str) -> str:
         if alias_key in key or key in alias_key:
             return os_map.get(system, raw)
     return raw
-
-
-
-
-
-
 
 def disparar_no_windows(app_name: str) -> bool:
     if shutil.which(app_name):
@@ -107,12 +89,6 @@ def disparar_no_windows(app_name: str) -> bool:
     except Exception:
         return False
 
-
-
-
-
-
-
 def disparar_no_mac(app_name: str) -> bool:
     try:
         res = subprocess.run(["open", "-a", app_name], capture_output=True, timeout=8)
@@ -131,12 +107,6 @@ def disparar_no_mac(app_name: str) -> bool:
     except Exception:
         return False
 
-
-
-
-
-
-
 def disparar_no_linux(app_name: str) -> bool:
     binary = shutil.which(app_name) or shutil.which(app_name.lower())
     if binary:
@@ -151,12 +121,6 @@ def disparar_no_linux(app_name: str) -> bool:
     except Exception:
         pass
     return False
-
-
-
-
-
-
 
 def open_app(parameters=None, **kwargs) -> str:
     app_name = (parameters or {}).get("app_name", "").strip()

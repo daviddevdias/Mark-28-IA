@@ -53,21 +53,9 @@ PLACEHOLDER_LOCAL = frozenset({
     "vivo", "moramos", "onde", "eu", "o", "a",
 })
 
-
-
-
-
-
-
 def remover_acentos(texto: str) -> str:
     texto = unicodedata.normalize("NFD", texto)
     return "".join(c for c in texto if unicodedata.category(c) != "Mn")
-
-
-
-
-
-
 
 def get_cidade_painel() -> str:
     c = (getattr(config, "cidade_padrao", None) or "").strip()
@@ -82,12 +70,6 @@ def get_cidade_painel() -> str:
         pass
     return "Esteio,BR"
 
-
-
-
-
-
-
 def menciona_clima(texto_normalizado: str) -> bool:
     n = texto_normalizado
     if not n:
@@ -99,12 +81,6 @@ def menciona_clima(texto_normalizado: str) -> bool:
     if "chuva" in n and ("amanh" in n or "hoje" in n or "clima" in n or "previs" in n):
         return True
     return False
-
-
-
-
-
-
 
 def extrair_cidade_do_utterance(texto: str) -> str:
     raw = (texto or "").strip()
@@ -138,12 +114,6 @@ def extrair_cidade_do_utterance(texto: str) -> str:
         return ""
     return tail
 
-
-
-
-
-
-
 def padronizar_nome_cidade(cidade: str) -> str:
     if not cidade:
         cidade = get_cidade_painel()
@@ -156,20 +126,8 @@ def padronizar_nome_cidade(cidade: str) -> str:
         cidade = cidade + ",BR"
     return cidade
 
-
-
-
-
-
-
 def carregar_chave_owm() -> str:
     return getattr(config, "OPENWEATHER_API_KEY", os.environ.get("OPENWEATHER_API_KEY", ""))
-
-
-
-
-
-
 
 def requerer_clima_atual_owm(cidade: str) -> Optional[dict]:
     key = carregar_chave_owm()
@@ -189,12 +147,6 @@ def requerer_clima_atual_owm(cidade: str) -> Optional[dict]:
         pass
     return None
 
-
-
-
-
-
-
 def requerer_previsao_owm(cidade: str) -> Optional[dict]:
     key = carregar_chave_owm()
     if not key:
@@ -213,12 +165,6 @@ def requerer_previsao_owm(cidade: str) -> Optional[dict]:
         pass
     return None
 
-
-
-
-
-
-
 def requerer_dados_wttr(cidade: str) -> Optional[dict]:
     cidade_enc = cidade.replace(" ", "+")
     try:
@@ -232,12 +178,6 @@ def requerer_dados_wttr(cidade: str) -> Optional[dict]:
         pass
     return None
 
-
-
-
-
-
-
 def recuperar_cache(chave: str) -> Optional[dict]:
     if chave in cache:
         dados, ts = cache[chave]
@@ -246,20 +186,8 @@ def recuperar_cache(chave: str) -> Optional[dict]:
         del cache[chave]
     return None
 
-
-
-
-
-
-
 def registrar_cache(chave: str, dados: dict) -> None:
     cache[chave] = (dados, datetime.now())
-
-
-
-
-
-
 
 def obter_previsao_hoje(cidade_alvo: str = "") -> str:
     alvo = padronizar_nome_cidade(cidade_alvo or get_cidade_painel())
@@ -316,12 +244,6 @@ def obter_previsao_hoje(cidade_alvo: str = "") -> str:
             pass
 
     return "Dados meteorológicos incompletos."
-
-
-
-
-
-
 
 def verificar_chuva_amanha(cidade_alvo: str = "") -> str:
     alvo = padronizar_nome_cidade(cidade_alvo or get_cidade_painel())
@@ -385,12 +307,6 @@ def verificar_chuva_amanha(cidade_alvo: str = "") -> str:
 
     return "Erro ao montar a previsão."
 
-
-
-
-
-
-
 def previsao_7_dias(cidade_alvo: str = "") -> str:
     alvo = padronizar_nome_cidade(cidade_alvo or get_cidade_painel())
     key = carregar_chave_owm()
@@ -419,20 +335,8 @@ def previsao_7_dias(cidade_alvo: str = "") -> str:
     except Exception as e:
         return f"Erro previsão 7 dias: {e}"
 
-
-
-
-
-
-
 def limpar_cache_clima() -> None:
     cache.clear()
-
-
-
-
-
-
 
 def obter_clima_raw(cidade_alvo: str) -> str:
     alvo = cidade_alvo if cidade_alvo else get_cidade_painel()

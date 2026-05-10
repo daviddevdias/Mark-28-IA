@@ -10,7 +10,6 @@ import threading
 import time
 from datetime import datetime
 
-
 _DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "monitor.db")
 
 ALERTAS = {
@@ -35,13 +34,8 @@ BAT_CRITICA    = 20
 DISCO_CRITICO  = 90.0
 DISCO_OK       = 80.0
 
-falar_callback      = None
+falar_callback     = None
 monitor_async_loop = None
-
-
-
-
-
 
 
 def conectar_banco_monitor() -> sqlite3.Connection:
@@ -62,11 +56,6 @@ def conectar_banco_monitor() -> sqlite3.Connection:
     return conn
 
 
-
-
-
-
-
 def registrar_log_alerta(tipo: str, mensagem: str, valor: float = 0.0) -> None:
     try:
         with conectar_banco_monitor() as conn:
@@ -79,29 +68,14 @@ def registrar_log_alerta(tipo: str, mensagem: str, valor: float = 0.0) -> None:
         pass
 
 
-
-
-
-
-
 def registrar_falar(fn):
     global falar_callback
     falar_callback = fn
 
 
-
-
-
-
-
 def registrar_loop_monitor_voz(loop):
     global monitor_async_loop
     monitor_async_loop = loop
-
-
-
-
-
 
 
 def falar(texto: str) -> None:
@@ -112,24 +86,12 @@ def falar(texto: str) -> None:
             loop = monitor_async_loop
             if loop is None or loop.is_closed():
                 return
-
-            def log_err(fut: asyncio.Future) -> None:
-                try:
-                    fut.result()
-                except Exception:
-                    pass
-
             fut = asyncio.run_coroutine_threadsafe(falar_callback(texto), loop)
-            fut.add_done_callback(log_err)
+            fut.add_done_callback(lambda f: f.exception() if not f.cancelled() else None)
         else:
             falar_callback(texto)
     except Exception:
         pass
-
-
-
-
-
 
 
 def check_internet(host: str = "8.8.8.8", port: int = 53, timeout: float = 3.0) -> bool:
@@ -138,11 +100,6 @@ def check_internet(host: str = "8.8.8.8", port: int = 53, timeout: float = 3.0) 
             return True
     except OSError:
         return False
-
-
-
-
-
 
 
 def obter_temperatura_cpu() -> float | None:
@@ -165,11 +122,6 @@ def obter_temperatura_cpu() -> float | None:
     return None
 
 
-
-
-
-
-
 def finalizar_processos_gargalo(limite_pct: float = 80.0) -> None:
     try:
         procs = [
@@ -188,11 +140,6 @@ def finalizar_processos_gargalo(limite_pct: float = 80.0) -> None:
         pass
 
 
-
-
-
-
-
 def checar_rede() -> None:
     online = check_internet()
     if not online and not ALERTAS["rede"]:
@@ -203,11 +150,6 @@ def checar_rede() -> None:
         registrar_log_alerta("rede", "Conexão restaurada.")
         falar("Conexao restaurada. Sistemas online.")
         ALERTAS["rede"] = False
-
-
-
-
-
 
 
 def checar_temperatura() -> None:
@@ -222,11 +164,6 @@ def checar_temperatura() -> None:
         ALERTAS["temp"] = False
 
 
-
-
-
-
-
 def checar_bateria() -> None:
     bat = psutil.sensors_battery()
     if not bat:
@@ -239,31 +176,6 @@ def checar_bateria() -> None:
         ALERTAS["bateria"] = False
 
 
-
-
-
-
-
-# def checar_ram() -> None:
-#     uso = psutil.virtual_memory().percent
-#     if uso >= RAM_CRITICA and not ALERTAS["ram"]:
-#         registrar_log_alerta("ram", f"RAM em {uso:.0f}%", uso)
-#         falar(f"Memoria RAM em {int(uso)} por cento. Considere fechar programas.")
-#         ALERTAS["ram"] = True
-#         try:
-#             import gc
-#             gc.collect()
-#         except Exception:
-#             pass
-#     elif uso < RAM_OK and ALERTAS["ram"]:
-#         ALERTAS["ram"] = False
-
-
-
-
-
-
-
 def checar_cpu() -> None:
     uso = psutil.cpu_percent(interval=1)
     if uso >= CPU_CRITICO and not ALERTAS["cpu"]:
@@ -273,11 +185,6 @@ def checar_cpu() -> None:
         finalizar_processos_gargalo(limite_pct=85.0)
     elif uso < CPU_OK and ALERTAS["cpu"]:
         ALERTAS["cpu"] = False
-
-
-
-
-
 
 
 def checar_disco() -> None:
@@ -295,19 +202,8 @@ def checar_disco() -> None:
     elif uso < DISCO_OK and ALERTAS["disco"]:
         ALERTAS["disco"] = False
 
-CHECKERS = [
-    checar_rede,
-    checar_temperatura,
-    checar_bateria,
-    # checar_ram,
-    checar_cpu,
-    checar_disco,
-]
 
-
-
-
-
+CHECKERS = [checar_rede, checar_temperatura, checar_bateria, checar_cpu, checar_disco]
 
 
 def monitorar_proativo() -> None:
@@ -320,19 +216,8 @@ def monitorar_proativo() -> None:
         time.sleep(INTERVALO_S)
 
 
-
-
-
-
-
 def iniciar_sentinela() -> None:
-    t = threading.Thread(target=monitorar_proativo, daemon=True, name="Sentinela")
-    t.start()
-
-
-
-
-
+    threading.Thread(target=monitorar_proativo, daemon=True, name="Sentinela").start()
 
 
 def status_hardware() -> dict:
@@ -354,11 +239,6 @@ def status_hardware() -> dict:
         "carregando":      bat.power_plugged if bat else None,
         "alertas":         {k: v for k, v in ALERTAS.items() if v},
     }
-
-
-
-
-
 
 
 def alertas_recentes(limite: int = 50) -> list[dict]:

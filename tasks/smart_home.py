@@ -21,32 +21,14 @@ EXCLUIR_TIPO = (
     "temp", "vibration", "moisture", "siren", "dimmer",
 )
 
-
-
-
-
-
-
 def remover_acentos(s: str) -> str:
     t = (s or "").lower()
     for src, dst in [("ã", "a"), ("â", "a"), ("á", "a"), ("à", "a"), ("ê", "e"), ("é", "e"), ("í", "i"), ("ó", "o"), ("ô", "o"), ("õ", "o"), ("ú", "u"), ("ç", "c")]:
         t = t.replace(src, dst)
     return t
 
-
-
-
-
-
-
 def montar_headers() -> dict:
     return {"Authorization": f"Bearer {config.SMARTTHINGS_TOKEN}"}
-
-
-
-
-
-
 
 def solicitar_api(endpoint: str) -> dict | None:
     if not config.SMARTTHINGS_TOKEN:
@@ -58,12 +40,6 @@ def solicitar_api(endpoint: str) -> dict | None:
         return None
     except Exception:
         return None
-
-
-
-
-
-
 
 def enviar_post(endpoint: str, payload: list) -> bool:
     if not config.SMARTTHINGS_TOKEN:
@@ -81,12 +57,6 @@ def enviar_post(endpoint: str, payload: list) -> bool:
     except Exception:
         return False
 
-
-
-
-
-
-
 def solicitar_ha(endpoint: str) -> dict | None:
     ha_url = getattr(config, "HOME_ASSISTANT_URL", "")
     ha_token = getattr(config, "HOME_ASSISTANT_TOKEN", "")
@@ -101,12 +71,6 @@ def solicitar_ha(endpoint: str) -> dict | None:
     except Exception:
         return None
 
-
-
-
-
-
-
 def carregar_devices(forcar: bool = False) -> list:
     global devices_cache, devices_cache_ts
     agora = time.time()
@@ -119,12 +83,6 @@ def carregar_devices(forcar: bool = False) -> list:
     devices_cache_ts = agora
     return devices_cache
 
-
-
-
-
-
-
 def buscar_device_por_label(label_busca: str) -> str | None:
     label_busca = label_busca.lower().strip()
     for device in carregar_devices():
@@ -133,12 +91,6 @@ def buscar_device_por_label(label_busca: str) -> str | None:
         if label_busca in label or label_busca in name:
             return device["deviceId"]
     return None
-
-
-
-
-
-
 
 def enviar_comando_device(
     device_id: str,
@@ -156,12 +108,6 @@ def enviar_comando_device(
         }
     ]
     return enviar_post(f"devices/{device_id}/commands", payload)
-
-
-
-
-
-
 
 def calcular_pontuacao_tv(device: dict) -> int:
     label = remover_acentos(device.get("label", ""))
@@ -189,12 +135,6 @@ def calcular_pontuacao_tv(device: dict) -> int:
         score += 14
     return score
 
-
-
-
-
-
-
 def gerar_amostra_devices(n: int = 5) -> str:
     try:
         nomes: list[str] = []
@@ -206,23 +146,11 @@ def gerar_amostra_devices(n: int = 5) -> str:
     except Exception:
         return "(erro amostra)"
 
-
-
-
-
-
-
 def diagnosticar_falha_tv() -> str:
     return (
         "O monitor do sistema indica que a TV está offline na rede SmartThings. "
         f"Aparelhos detectados agora: {gerar_amostra_devices(6)}"
     )
-
-
-
-
-
-
 
 def buscar_id_tv(forcar: bool = False) -> str | None:
     global tv_id_cache
@@ -255,12 +183,6 @@ def buscar_id_tv(forcar: bool = False) -> str | None:
             return tv_id_cache
     return None
 
-
-
-
-
-
-
 def energia_tv(ligar: bool) -> bool:
     device_id = buscar_id_tv()
     if not device_id:
@@ -275,51 +197,21 @@ def energia_tv(ligar: bool) -> bool:
             return True
     return False
 
-
-
-
-
-
-
 def enviar_comando_tv(comando: str, capacidade: str, argumentos: list | None = None) -> bool:
     device_id = buscar_id_tv()
     if not device_id:
         return False
     return enviar_comando_device(device_id, comando, capacidade, argumentos)
 
-
-
-
-
-
-
 def ligar_tv() -> bool:
     return energia_tv(True)
-
-
-
-
-
-
 
 def desligar_tv() -> bool:
     return energia_tv(False)
 
-
-
-
-
-
-
 def ajustar_volume_tv(nivel: int) -> bool:
     nivel = max(0, min(100, nivel))
     return enviar_comando_tv("setVolume", "audioVolume", [nivel])
-
-
-
-
-
-
 
 def verificar_luz_acesa(dados: dict) -> bool | None:
     if not dados:
@@ -336,12 +228,6 @@ def verificar_luz_acesa(dados: dict) -> bool | None:
     if v in ("on", "off"):
         return v == "on"
     return None
-
-
-
-
-
-
 
 def abrir_youtube_tv() -> str:
     device_id = buscar_id_tv(True)
@@ -361,12 +247,6 @@ def abrir_youtube_tv() -> str:
             return "YouTube inicializado na TV via protocolo legado."
     return "A TV existe, mas rejeitou a execução do App."
 
-
-
-
-
-
-
 def status_tv() -> str:
     device_id = buscar_id_tv()
     if not device_id:
@@ -384,12 +264,6 @@ def status_tv() -> str:
         estado = str(sw.get("value", "desconhecido")).upper()
         return f"A TV reporta estado: {estado}."
     return "Dispositivo presente, porém silencioso quanto à energia."
-
-
-
-
-
-
 
 def listar_dispositivos() -> str:
     devices = carregar_devices(forcar=True)

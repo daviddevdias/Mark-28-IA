@@ -7,12 +7,6 @@ ASSETS_DIR = BASE_DIR / "assets"
 API_DIR.mkdir(exist_ok=True)
 ASSETS_DIR.mkdir(exist_ok=True)
 
-
-
-
-
-
-
 def ler_json(caminho: Path) -> dict:
     if not caminho.exists():
         return {}
@@ -21,12 +15,6 @@ def ler_json(caminho: Path) -> dict:
     except Exception as e:
         print(f"[CONFIG] Erro ao ler {caminho.name}: {e}")
         return {}
-
-
-
-
-
-
 
 def salvar_json(nome_arquivo: str, dados: dict) -> bool:
     caminho = API_DIR / nome_arquivo
@@ -46,24 +34,12 @@ def salvar_json(nome_arquivo: str, dados: dict) -> bool:
         print(f"[CONFIG] Erro ao salvar {nome_arquivo}: {e}")
         return False
 
-
-
-
-
-
-
 def carregar_tudo() -> dict:
     arquivos = ["config_smart.json", "api_keys.json", "config_core.json", "notas.json"]
     dados = {}
     for nome in arquivos:
         dados.update(ler_json(API_DIR / nome))
     return dados
-
-
-
-
-
-
 
 def definir_valor_ui(chave: str, valor: str) -> None:
     nomes = {
@@ -79,38 +55,24 @@ def definir_valor_ui(chave: str, valor: str) -> None:
     }
     alvo = nomes.get(chave, chave)
     if alvo == "DEVICE_INDEX":
-        
         try:
             globals()["DEVICE_INDEX"] = int(valor)
         except ValueError:
             globals()["DEVICE_INDEX"] = 0
         return
-    
-
-
     if alvo in globals():
         globals()[alvo] = valor
-
-
     else:
         globals()[chave] = valor
 
-
-
     if chave == "nome_mestre":
-
-
         try:
             from storage.memory_manager import update_memory
             patch = {"identity": {"mestre": {"value": str(valor).strip()[:256]}}}
             update_memory(patch)
-
-
         except Exception:
             pass
     if chave == "cidade_padrao":
-
-        
         try:
             from storage.memory_manager import update_memory
             patch = {"preferences": {"cidade": {"value": str(valor).strip()[:256]}}}
@@ -120,21 +82,9 @@ def definir_valor_ui(chave: str, valor: str) -> None:
 
 voz_ui_cb = None
 
-
-
-
-
-
-
 def registrar_callback_voz_painel(cb):
     global voz_ui_cb
     voz_ui_cb = cb
-
-
-
-
-
-
 
 def notificar_voz_painel(on: bool, vol: float = 1.0) -> None:
     fn = voz_ui_cb
@@ -145,12 +95,6 @@ def notificar_voz_painel(on: bool, vol: float = 1.0) -> None:
     except Exception:
         pass
 
-
-
-
-
-
-
 def recarregar_identidade_painel() -> None:
     dados = ler_json(API_DIR / "config_core.json")
     nm = dados.get("nome_mestre")
@@ -159,7 +103,6 @@ def recarregar_identidade_painel() -> None:
     cp = dados.get("cidade_padrao")
     if cp is not None:
         globals()["cidade_padrao"] = str(cp).strip()[:256]
-
 
 cfg = carregar_tudo()
 

@@ -1,12 +1,18 @@
-import os
 import asyncio
+import os
 import queue
 import threading
 import time
+
+import edge_tts
 import pygame
 import speech_recognition as sr
-import edge_tts
+
 import config
+
+import re
+import tempfile
+from typing import Optional
 
 
 
@@ -48,11 +54,93 @@ barge_thread: threading.Thread | None = None
 
 
 
-reconhecedor = sr.Recognizer()
-reconhecedor.pause_threshold = 0.4
-reconhecedor.non_speaking_duration = 0.2
-reconhecedor.energy_threshold = 250
-reconhecedor.dynamic_energy_threshold = False
+def criar_reconhecedor() -> sr.Recognizer:
+    r = sr.Recognizer()
+
+
+    r.pause_threshold = 0.55
+    r.non_speaking_duration = 0.25
+    r.dynamic_energy_threshold = False
+    r.dynamic_energy_adjustment_damping = 0.15
+    r.dynamic_energy_ratio = 1.7
+    return r
+
+
+reconhecedor = criar_reconhecedor()
+
+_whisper_model = None
+_whisper_lock = threading.Lock()
+
+
+def get_whisper_model():
+
+
+
+    global _whisper_model
+    if _whisper_model is not None:
+        return _whisper_model
+
+    with _whisper_lock:
+        if _whisper_model is not None:
+            return _whisper_model
+        try:
+            from faster_whisper import WhisperModel  
+
+            nome_modelo = getattr(config, "WHISPER_MODEL", "") or "small"
+            _whisper_model = WhisperModel(nome_modelo, device="cpu", compute_type="int8")
+            return _whisper_model
+        except Exception:
+            return None
+
+
+def limpar_texto_stt(texto: str) -> str:
+
+
+
+
+    t = (texto or "").strip().lower()
+    if not t:
+        return ""
+
+
+
+    t = re.sub(r"[^\w\s]", " ", t, flags=re.UNICODE)
+    t = re.sub(r"\s+", " ", t).strip()
+    return t
+
+
+def reconhecer_google(audio: sr.AudioData) -> str:
+    return reconhecedor.recognize_google(audio, language="pt-BR")
+
+
+def reconhecer_whisper(audio: sr.AudioData) -> str:
+    model = get_whisper_model()
+    if model is None:
+        return ""
+
+    wav = audio.get_wav_data(convert_rate=16000, convert_width=2)
+    tmp_path: Optional[str] = None
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".wav") as f:
+            f.write(wav)
+            tmp_path = f.name
+
+        segments, _info = model.transcribe(
+            tmp_path,
+            language="pt",
+            vad_filter=True,
+            beam_size=5,
+        )
+        texto = " ".join((seg.text or "").strip() for seg in segments).strip()
+        return texto
+    except Exception:
+        return ""
+    finally:
+        if tmp_path:
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
 
 
 
@@ -66,10 +154,10 @@ def suspender_pygame_mixer_para_capture():
             pygame.mixer.music.stop()
             try:
                 pygame.mixer.music.unload()
-            except:
+            except Exception:
                 pass
             pygame.mixer.quit()
-    except:
+    except Exception:
         pass
 
 
@@ -81,7 +169,7 @@ def suspender_pygame_mixer_para_capture():
 def normalizar_indice_microfone(idx):
     try:
         return int(idx) if idx is not None and int(idx) >= 0 else None
-    except:
+    except Exception:
         return None
 
 
@@ -93,7 +181,7 @@ def normalizar_indice_microfone(idx):
 def ui_falar(on, vol=1.0):
     try:
         config.notificar_voz_painel(on, vol)
-    except:
+    except Exception:
         pass
 
 
@@ -113,7 +201,7 @@ def interromper_voz():
         if pygame.mixer.get_init():
             pygame.mixer.music.stop()
             pygame.mixer.music.unload()
-    except:
+    except Exception:
         pass
 
 
@@ -125,8 +213,7 @@ def interromper_voz():
 def barge_loop():
     idx = normalizar_indice_microfone(getattr(config, "DEVICE_INDEX", None))
 
-    rec = sr.Recognizer()
-    rec.energy_threshold = 220
+    rec = criar_reconhecedor()
 
     while not barge_stop_event.is_set():
 
@@ -141,13 +228,14 @@ def barge_loop():
             with mic_lock:
                 with sr.Microphone(**kwargs) as source:
                     try:
+                        rec.adjust_for_ambient_noise(source, duration=0.15)
                         audio = rec.listen(source, timeout=0.5, phrase_time_limit=1.5)
                     except sr.WaitTimeoutError:
                         continue
 
             try:
-                txt = rec.recognize_google(audio, language="pt-BR").lower().strip()
-            except:
+                txt = limpar_texto_stt(rec.recognize_google(audio, language="pt-BR"))
+            except Exception:
                 txt = ""
 
             if txt:
@@ -155,7 +243,7 @@ def barge_loop():
                 interromper_voz()
                 break
 
-        except:
+        except Exception:
             pass
 
         time.sleep(0.1)
@@ -251,7 +339,7 @@ async def falar(texto):
     try:
         communicate = edge_tts.Communicate(texto, config.voz_atual)
         await communicate.save(arquivo)
-    except:
+    except Exception:
         return
 
     loop = asyncio.get_running_loop()
@@ -280,17 +368,24 @@ def captura_sync():
         with mic_lock:
             with sr.Microphone(**kwargs) as source:
 
-                reconhecedor.adjust_for_ambient_noise(source, duration=0.3)
+                reconhecedor.adjust_for_ambient_noise(source, duration=0.8)
 
                 try:
-                    audio = reconhecedor.listen(source, timeout=8, phrase_time_limit=10)
+                    audio = reconhecedor.listen(source, timeout=10, phrase_time_limit=9)
                 except sr.WaitTimeoutError:
                     return ""
 
-        texto = reconhecedor.recognize_google(audio, language="pt-BR").lower().strip()
+        texto = ""
+        try:
+            texto = limpar_texto_stt(reconhecer_google(audio))
+        except Exception:
+            texto = ""
+
+        if not texto:
+
+            texto = limpar_texto_stt(reconhecer_whisper(audio))
 
         print(f"ouvido: {texto}")
-
         return texto
 
     except Exception as e:
@@ -309,7 +404,7 @@ def run_mic_loop():
             mic_cmd.get()
             resultado = captura_sync()
             mic_rpy.put(resultado)
-        except:
+        except Exception:
             time.sleep(1)
 
 
@@ -340,7 +435,7 @@ def ouvir_sync_queued():
 
     try:
         return mic_rpy.get(timeout=40)
-    except:
+    except Exception:
         return ""
 
 
@@ -348,7 +443,6 @@ def ouvir_sync_queued():
 
 def listar_microfones() -> list:
     try:
-        import speech_recognition as sr
         mics = sr.Microphone.list_microphone_names()
         return [f"{i}: {nome}" for i, nome in enumerate(mics)]
     except Exception:

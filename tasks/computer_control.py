@@ -12,7 +12,6 @@ try:
 except ImportError:
     PYAUTOGUI = False
 
-
 try:
     from pycaw.pycaw import AudioUtilities, IAudioEndpointVolume
     from comtypes import CLSCTX_ALL
@@ -21,20 +20,11 @@ try:
 except ImportError:
     PYCAW_AVAILABLE = False
 
-
 OS = platform.system()
-
-
-
-
-
-
-
 
 def fechar_janela() -> str:
     if not PYAUTOGUI:
         return "Interação de interface indisponível."
-
 
     try:
         key    = "command" if OS == "Darwin" else "alt"
@@ -44,17 +34,9 @@ def fechar_janela() -> str:
     except Exception:
         return "O sistema não pôde encerrar a janela solicitada."
 
-
-
-
-
-
-
-
 def minimizar_tudo() -> str:
     if not PYAUTOGUI:
         return "Interação de interface indisponível."
-
 
     try:
         combos = {
@@ -67,17 +49,9 @@ def minimizar_tudo() -> str:
     except Exception:
         return "Erro na requisição de interface."
 
-
-
-
-
-
-
-
 def print_tela() -> str:
     if not PYAUTOGUI:
         return "Interação de interface indisponível."
-
 
     try:
         combos = {
@@ -90,13 +64,6 @@ def print_tela() -> str:
     except Exception:
         return "Erro ao acionar buffer de tela."
 
-
-
-
-
-
-
-
 def bloquear_tela() -> str:
     try:
         cmds = {
@@ -108,18 +75,10 @@ def bloquear_tela() -> str:
         if not av.permitido:
             return f"Bloqueio defensivo por restrição: {av.motivo}"
 
-
         subprocess.run(cmds.get(OS, []), check=True)
         return "Sessão do sistema trancada com sucesso."
     except Exception:
         return "A solicitação de segurança falhou em nível de OS."
-
-
-
-
-
-
-
 
 def limpar_lixeira() -> str:
     try:
@@ -133,17 +92,9 @@ def limpar_lixeira() -> str:
     except Exception:
         return "Conflito de privilégios ao expurgar a lixeira."
 
-
-
-
-
-
-
-
 def injetar_volume_pycaw(nivel: int) -> bool:
     if not PYCAW_AVAILABLE or OS != "Windows":
         return False
-
 
     try:
         devices = AudioUtilities.GetSpeakers()
@@ -154,19 +105,11 @@ def injetar_volume_pycaw(nivel: int) -> bool:
     except Exception:
         return False
 
-
-
-
-
-
-
-
 def ajustar_volume(nivel: int) -> str:
     nivel = max(0, min(100, nivel))
     try:
         if injetar_volume_pycaw(nivel):
             return f"Parâmetros de áudio ajustados com precisão via hardware interno para {nivel}%."
-
 
         if OS == "Windows":
             nircmd = Path("nircmd.exe")
@@ -181,17 +124,9 @@ def ajustar_volume(nivel: int) -> str:
                 )
                 subprocess.run(["powershell", "-Command", script], capture_output=True)
 
-
         return f"A injeção de evento confirmou a alteração para {nivel}%."
     except Exception:
         return "Os drivers de áudio não acataram a modificação solicitada."
-
-
-
-
-
-
-
 
 def desligar_computador(atraso: int = 30) -> str:
     try:
@@ -202,27 +137,17 @@ def desligar_computador(atraso: int = 30) -> str:
         else:
             cmd = ["shutdown", "-h", f"+{atraso // 60 or 1}"]
 
-
         av = avaliar(" ".join(cmd))
         if not av.permitido:
             return f"Ação barreada: {av.motivo}"
-
 
         subprocess.run(cmd, check=True)
         if atraso == 0:
             return "Iniciando sequência de queda imediata. Foi uma honra, Senhor."
 
-
         return f"Desligamento programado. Tempo restante: {atraso} segundos."
     except Exception:
         return "O processo mestre impediu a queda do sistema."
-
-
-
-
-
-
-
 
 def cancelar_desligamento() -> str:
     try:
@@ -231,17 +156,9 @@ def cancelar_desligamento() -> str:
         else:
             subprocess.run(["sudo", "shutdown", "-c"], check=True)
 
-
         return "A queda programada foi suspensa. Reestabelecendo operações padrão."
     except Exception:
         return "Falha grave. O contador de desligamento não responde ao cancelamento."
-
-
-
-
-
-
-
 
 def reiniciar_computador(atraso: int = 30) -> str:
     try:
@@ -252,29 +169,19 @@ def reiniciar_computador(atraso: int = 30) -> str:
         else:
             cmd = ["shutdown", "-r", f"+{atraso // 60 or 1}"]
 
-
         av = avaliar(" ".join(cmd))
         if not av.permitido:
             return f"Tentativa interceptada: {av.motivo}"
-
 
         subprocess.run(cmd, check=True)
         return f"Ciclo de força agendado para daqui a {atraso} segundos, Senhor."
     except Exception:
         return "O kernel recusou a solicitação de reinício."
 
-
-
-
-
-
-
-
 def computer_settings(parameters: dict) -> str:
     action = parameters.get("action", "").lower()
     if action == "volume":
         return ajustar_volume(int(parameters.get("nivel", 50)))
-
 
     actions = {
         "fechar":                fechar_janela,

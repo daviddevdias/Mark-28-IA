@@ -34,26 +34,14 @@ CAMPOS_CONFIG_CORE = {
 }
 
 
-
-
-
-
-
 def resolver_arquivo(chave: str) -> str:
     if chave == "notas":
         return NOTAS_FILE
 
-
     if chave in CAMPOS_CONFIG_CORE:
         return CONFIG_CORE_FILE
 
-
     return SMART_FILE
-
-
-
-
-
 
 
 def limpar_prefixo(cmd: str) -> str:
@@ -61,7 +49,6 @@ def limpar_prefixo(cmd: str) -> str:
     for prefixo in ("core,", "core"):
         if c.startswith(prefixo):
             c = c[len(prefixo) :].strip()
-
 
     return c
 
@@ -81,10 +68,8 @@ def montar_biblioteca_comandos() -> list[dict]:
             chave = "|".join(keywords)
             if chave in visto:
                 continue
-
-
             visto.add(chave)
-            exemplo = " ".join(keywords)
+            exemplo = " ".join(keywords).strip()
             biblioteca.append(
                 {
                     "cmd": exemplo.upper(),
@@ -98,6 +83,72 @@ def montar_biblioteca_comandos() -> list[dict]:
             )
     except Exception:
         pass
+
+    # Ferramentas disponíveis para o modelo (tool_calls).
+    try:
+        from engine.tools import TOOL_DECLARATIONS
+
+        for t in TOOL_DECLARATIONS or []:
+            fn = (t or {}).get("function") or {}
+            nome = (fn.get("name") or "").strip()
+            if not nome:
+                continue
+            desc = (fn.get("description") or "").strip() or "Ferramenta de ação do Jarvis."
+            params = (fn.get("parameters") or {}).get("properties") or {}
+            passos = []
+            for k, v in params.items():
+                tip = v.get("type") if isinstance(v, dict) else None
+                passos.append(f"{k}{f' ({tip})' if tip else ''}")
+            biblioteca.append(
+                {
+                    "cmd": f"TOOL: {nome}",
+                    "cat": "FERRAMENTAS",
+                    "desc": desc,
+                    "passos": passos[:10],
+                    "handler": nome,
+                    "icon": "⚙",
+                    "poder": "◆",
+                }
+            )
+    except Exception:
+        pass
+
+    # Confirmações longas (evita falha do STT com 'sim/não').
+    biblioteca.append(
+        {
+            "cmd": "CONFIRMAR AJUDA (MONITOR)",
+            "cat": "CONFIRMAÇÃO",
+            "desc": "Quando o Jarvis pergunta se pode ajudar, use frases longas (melhor reconhecimento).",
+            "passos": [
+                "pedido aceito, pode ajudar",
+                "pode analisar",
+                "pode resolver",
+                "aceito a ajuda",
+                "confirmado",
+            ],
+            "handler": "confirmacao_monitor",
+            "icon": "✔",
+            "poder": "◇",
+        }
+    )
+    biblioteca.append(
+        {
+            "cmd": "DISPENSAR AJUDA (MONITOR)",
+            "cat": "CONFIRMAÇÃO",
+            "desc": "Para recusar a ajuda do monitor sem usar 'não' curto.",
+            "passos": [
+                "dispensa ajuda",
+                "não precisa de ajuda",
+                "ignora isso",
+                "pode ignorar",
+                "agora não",
+                "depois",
+            ],
+            "handler": "recusa_monitor",
+            "icon": "✖",
+            "poder": "◇",
+        }
+    )
     extras = [
         {
             "cmd": "OLÁ JARVIS",

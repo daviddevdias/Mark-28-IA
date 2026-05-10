@@ -19,12 +19,6 @@ from brain.tool_cache import despachar as cache_despachar, stats_cache, invalida
 
 log = __import__("logging").getLogger("jarvis.tools_mapper")
 
-
-
-
-
-
-
 def executar_no_loop_atual(coro) -> Any:
     """Executa uma corrotina a partir de contexto síncrono, sem deadlock.
 
@@ -58,12 +52,6 @@ def executar_no_loop_atual(coro) -> Any:
     fut = asyncio.run_coroutine_threadsafe(coro, loop)
     return fut.result(timeout=30)
 
-
-
-
-
-
-
 def gerenciador_web(argumentos: dict) -> str:
     pesquisa = argumentos.get("query", "").strip()
     if not pesquisa:
@@ -72,12 +60,6 @@ def gerenciador_web(argumentos: dict) -> str:
     if not resultado or resultado.startswith("Sem resultados"):
         resultado = jarvis_web.run(jarvis_web.smart_search(pesquisa))
     return resultado or "Sem resultados na web."
-
-
-
-
-
-
 
 def gerenciador_browser(argumentos: dict) -> str:
     acao = argumentos.get("action", "open").lower()
@@ -97,23 +79,11 @@ def gerenciador_browser(argumentos: dict) -> str:
         return f"Pesquisando '{query}'."
     return "Informe uma URL ou termo de pesquisa."
 
-
-
-
-
-
-
 def gerenciador_youtube(argumentos: dict) -> str:
     pesquisa = argumentos.get("query", "").strip()
     if not pesquisa:
         return "Nenhum termo informado para YouTube."
     return jarvis_web.run(jarvis_web.tocar_youtube(pesquisa)) or "Nada encontrado no YouTube."
-
-
-
-
-
-
 
 def gerenciador_spotify(argumentos: dict) -> str:
     acao = argumentos.get("action", "").lower()
@@ -123,24 +93,12 @@ def gerenciador_spotify(argumentos: dict) -> str:
         return spotify_stark.abrir_e_buscar(argumentos["search_query"])
     return spotify_stark.controlar_reproducao(acao or "playpause") or "Spotify controlado."
 
-
-
-
-
-
-
 def gerenciador_clima(argumentos: dict) -> str:
     cidade = argumentos.get("city", "")
     previsao = argumentos.get("forecast", "hoje").lower()
     if previsao == "amanha":
         return verificar_chuva_amanha(cidade) or "Sem previsão disponível."
     return obter_previsao_hoje(cidade) or "Sem informações de clima."
-
-
-
-
-
-
 
 def gerenciador_alarme(argumentos: dict) -> str:
     operacao = argumentos.get("op", "add").lower()
@@ -160,12 +118,6 @@ def gerenciador_alarme(argumentos: dict) -> str:
         data_alarme = None
     return adicionar_alarme(hora, missao, data=data_alarme)
 
-
-
-
-
-
-
 def gerenciador_memoria(argumentos: dict) -> str:
     categoria = argumentos.get("category")
     chave = argumentos.get("key")
@@ -178,12 +130,6 @@ def gerenciador_memoria(argumentos: dict) -> str:
     sucesso = update_memory(f"{categoria}.json", secao)
     return f"{categoria}/{chave} salvo." if sucesso else "Erro ao salvar memória."
 
-
-
-
-
-
-
 def gerenciador_plano(argumentos: dict) -> str:
     from engine.ia_router import router
     objetivo = argumentos.get("goal", "").strip()
@@ -193,20 +139,8 @@ def gerenciador_plano(argumentos: dict) -> str:
     coro = router.responder(f"Crie um plano objetivo para: {objetivo}. Contexto: {contexto}")
     return executar_no_loop_atual(coro) or "Não foi possível criar o plano."
 
-
-
-
-
-
-
 def gerenciador_computador(argumentos: dict) -> str:
     return computer_settings(argumentos)
-
-
-
-
-
-
 
 def gerenciador_codigo(argumentos: dict) -> str:
     from engine.ia_router import router
@@ -226,22 +160,10 @@ def gerenciador_codigo(argumentos: dict) -> str:
         return executar(cmd, timeout=15, ferramenta="code_helper")
     return codigo_gerado or "Falha ao gerar código."
 
-
-
-
-
-
-
 def gerenciador_visao(argumentos: dict) -> str:
     from vision.capture import analisar_tela
     pergunta = argumentos.get("question", "O que está na tela?")
     return executar_no_loop_atual(analisar_tela(pergunta)) or "Falha na análise visual."
-
-
-
-
-
-
 
 def gerenciador_casa_inteligente(argumentos: dict) -> str:
     from tasks.smart_home import (abrir_youtube_tv, buscar_id_tv, energia_tv, diagnosticar_falha_tv, status_tv)
@@ -262,22 +184,10 @@ def gerenciador_casa_inteligente(argumentos: dict) -> str:
             return status_tv()
     return "Use smart_home apenas para a TV."
 
-
-
-
-
-
-
 def gerenciador_troca_ia(argumentos: dict) -> str:
     from engine.ia_router import router
     modo = argumentos.get("mode", "ollama").lower()
     return router.definir_modo(modo)
-
-
-
-
-
-
 
 def gerenciador_cmd(argumentos: dict) -> str:
     comando = argumentos.get("command", "").strip()
@@ -299,12 +209,6 @@ def gerenciador_cmd(argumentos: dict) -> str:
         return f"Comando requer confirmação.\nComando: `{comando}`"
     return executar(comando, timeout=20, ferramenta="cmd_control")
 
-
-
-
-
-
-
 def gerenciador_cache_status(argumentos: dict) -> str:
     acao = argumentos.get("action", "stats").lower()
     if acao == "limpar":
@@ -321,12 +225,6 @@ def gerenciador_cache_status(argumentos: dict) -> str:
         return "\n".join(linhas)
     stats = stats_cache()
     return f"Cache — Hits: {stats['hits']} | Misses: {stats['misses']} | Taxa: {stats['taxa_hit']}"
-
-
-
-
-
-
 
 def gerenciador_agente_visual(argumentos: dict) -> str:
     tarefa = argumentos.get("task", "")
@@ -348,12 +246,6 @@ def gerenciador_agente_visual(argumentos: dict) -> str:
     except Exception as e:
         return f"Erro fatal ao invocar Agente S: {e}"
 
-
-
-
-
-
-
 def gerenciador_visao_3d(argumentos: dict) -> str:
     try:
         from vision.capture import MotorVisaoEspacial
@@ -372,12 +264,6 @@ def gerenciador_visao_3d(argumentos: dict) -> str:
     except Exception as e:
         return f"Erro ao processar visão 3D: {e}"
 
-
-
-
-
-
-
 def gerenciador_traducao_multimodal(argumentos: dict) -> str:
     segundos = argumentos.get("segundos", 10)
     try:
@@ -387,12 +273,6 @@ def gerenciador_traducao_multimodal(argumentos: dict) -> str:
     except Exception as e:
         return f"Falha no pipeline multimodal de tradução: {e}"
 
-
-
-
-
-
-
 def gerenciador_otimizacao_dados(argumentos: dict) -> str:
     try:
         from storage.optimizer import comprimir_banco_auditoria
@@ -400,12 +280,6 @@ def gerenciador_otimizacao_dados(argumentos: dict) -> str:
         return resultado
     except Exception as e:
         return f"Falha no módulo de otimização de banco de dados: {e}"
-
-
-
-
-
-
 
 EXECUTOR_FERRAMENTAS: dict[str, Callable[[dict], str]] = {
     "open_app":         open_app,
@@ -429,12 +303,6 @@ EXECUTOR_FERRAMENTAS: dict[str, Callable[[dict], str]] = {
     "traduzir_audio_ambiente": gerenciador_traducao_multimodal,
     "otimizar_banco_dados": gerenciador_otimizacao_dados,
 }
-
-
-
-
-
-
 
 async def despachar(nome: str, args: dict) -> str:
     func = EXECUTOR_FERRAMENTAS.get(nome)
