@@ -56,7 +56,6 @@ function pgDash(wrap) {
     renderLog();
     updateMetrics();
 }
-diags
 
 
 

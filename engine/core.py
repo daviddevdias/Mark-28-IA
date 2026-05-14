@@ -264,6 +264,7 @@ class SystemOrchestrator:
 ui_manager = UIBridgeManager()
 monitor_state = MonitorState()
 orchestrator = SystemOrchestrator(ui_manager, monitor_state)
+inicializar_ia = orchestrator.inicializar_ia
 
 registrar_ui_bridge = ui_manager.registrar
 processar_comando = orchestrator.processar_comando
