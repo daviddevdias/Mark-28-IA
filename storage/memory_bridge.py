@@ -12,33 +12,15 @@ log = logging.getLogger("memory_bridge")
 T = TypeVar("T")
 Coercer = Callable[[Any], T]
 
-
-
-
-
-
-
 @dataclass
 class SyncReport:
     applied: dict[str, Any] = field(default_factory=dict)
     skipped: dict[str, str] = field(default_factory=dict)
     errors: dict[str, str] = field(default_factory=dict)
 
-
-
-
-
-
-
     @property
     def ok(self) -> bool:
         return not self.errors
-
-
-
-
-
-
 
     def __str__(self) -> str:
         parts = []
@@ -50,20 +32,8 @@ class SyncReport:
             parts.append(f"erros={list(self.errors)}")
         return "SyncReport(" + ", ".join(parts) + ")" if parts else "SyncReport(sem_mudanças)"
 
-
-
-
-
-
-
 _TRUTHY: Final = frozenset({"true", "1", "sim", "yes", "on", "verdadeiro"})
 _FALSY: Final = frozenset({"false", "0", "nao", "não", "no", "off", "falso"})
-
-
-
-
-
-
 
 def coerce_bool(raw: Any) -> bool:
     if isinstance(raw, bool):
@@ -78,12 +48,6 @@ def coerce_bool(raw: Any) -> bool:
             return False
     raise ValueError(f"Não é possível converter {raw!r} para bool")
 
-
-
-
-
-
-
 def coerce_str(raw: Any, min_len: int = 1, max_len: int = 256) -> str:
     v = str(raw).strip()
     if len(v) < min_len:
@@ -92,20 +56,8 @@ def coerce_str(raw: Any, min_len: int = 1, max_len: int = 256) -> str:
         raise ValueError(f"Máximo {max_len} caracteres, recebeu {len(v)}")
     return v
 
-
-
-
-
-
-
 def coerce_float(raw: Any) -> float:
     return float(raw)
-
-
-
-
-
-
 
 @dataclass(frozen=True)
 class FieldSpec:
@@ -114,12 +66,6 @@ class FieldSpec:
     coerce: Coercer
     default: Any = None
     required: bool = False
-
-
-
-
-
-
 
 FIELD_MAP: Final[tuple[FieldSpec, ...]] = (
     FieldSpec(
@@ -178,12 +124,6 @@ FIELD_MAP: Final[tuple[FieldSpec, ...]] = (
     ),
 )
 
-
-
-
-
-
-
 def ler_valor_na_memoria(memory: dict, path: tuple[str, ...]) -> tuple[bool, Any]:
     node: Any = memory
     for key in path:
@@ -195,12 +135,6 @@ def ler_valor_na_memoria(memory: dict, path: tuple[str, ...]) -> tuple[bool, Any
         node = node["value"]
 
     return True, node
-
-
-
-
-
-
 
 def sincronizar_um_campo(spec: FieldSpec, memory: dict, report: SyncReport) -> None:
     attr = spec.config_attr
@@ -233,12 +167,6 @@ def sincronizar_um_campo(spec: FieldSpec, memory: dict, report: SyncReport) -> N
     setattr(config, attr, value)
     log.info("[bridge] %s: %r → %r", attr, current, value)
     report.applied[attr] = value
-
-
-
-
-
-
 
 def sincronizar_config(memory: dict | None = None) -> SyncReport:
     report = SyncReport()

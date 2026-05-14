@@ -7,7 +7,6 @@ import os
 import json
 from typing import Any, Callable
 
-from tasks.browser import jarvis_web, busca_web_sync
 from tasks.spotify_manager import spotify_stark
 from tasks.open_app import open_app
 from tasks.weather import obter_previsao_hoje, verificar_chuva_amanha
@@ -20,46 +19,23 @@ from brain.tool_cache import despachar as cache_despachar, stats_cache, invalida
 log = __import__("logging").getLogger("jarvis.tools_mapper")
 
 def executar_no_loop_atual(coro) -> Any:
-    """Executa uma corrotina a partir de contexto síncrono, sem deadlock.
-
-    Estratégia:
-    - Se NÃO há loop rodando (thread de worker / import-time): usa asyncio.run().
-    - Se HÁ um loop rodando mas estamos em uma thread diferente (ex: executor do tool_cache):
-      usa run_coroutine_threadsafe — seguro porque a thread atual NÃO está bloqueando o loop.
-    - Nunca chama fut.result() a partir da própria thread do loop (causaria deadlock).
-    """
     try:
         loop = asyncio.get_running_loop()
     except RuntimeError:
-        # Nenhum loop ativo nesta thread — pode criar um novo com segurança
         return asyncio.run(coro)
 
-    # Há um loop rodando. Verificamos se esta thread É a thread do loop.
     import threading
     loop_thread = getattr(loop, "_thread_id", None)
     current_thread = threading.get_ident()
 
     if loop_thread is not None and loop_thread == current_thread:
-        # Estamos NA thread do loop — run_coroutine_threadsafe bloquearia com fut.result().
-        # Lançamos exceção explícita: o chamador síncrono não deveria estar aqui;
-        # deve ser refatorado para async ou chamado via executor.
         raise RuntimeError(
             "executar_no_loop_atual() chamado dentro da thread do loop de eventos. "
             "Refatore o gerenciador para async ou chame-o via run_in_executor()."
         )
 
-    # Thread diferente da do loop — run_coroutine_threadsafe é seguro
     fut = asyncio.run_coroutine_threadsafe(coro, loop)
     return fut.result(timeout=30)
-
-def gerenciador_web(argumentos: dict) -> str:
-    pesquisa = argumentos.get("query", "").strip()
-    if not pesquisa:
-        return "Nenhum termo de pesquisa informado."
-    resultado = busca_web_sync(pesquisa)
-    if not resultado or resultado.startswith("Sem resultados"):
-        resultado = jarvis_web.run(jarvis_web.smart_search(pesquisa))
-    return resultado or "Sem resultados na web."
 
 def gerenciador_browser(argumentos: dict) -> str:
     acao = argumentos.get("action", "open").lower()
@@ -78,12 +54,6 @@ def gerenciador_browser(argumentos: dict) -> str:
         webbrowser.open(f"https://www.google.com/search?q={query}")
         return f"Pesquisando '{query}'."
     return "Informe uma URL ou termo de pesquisa."
-
-def gerenciador_youtube(argumentos: dict) -> str:
-    pesquisa = argumentos.get("query", "").strip()
-    if not pesquisa:
-        return "Nenhum termo informado para YouTube."
-    return jarvis_web.run(jarvis_web.tocar_youtube(pesquisa)) or "Nada encontrado no YouTube."
 
 def gerenciador_spotify(argumentos: dict) -> str:
     acao = argumentos.get("action", "").lower()
@@ -264,15 +234,6 @@ def gerenciador_visao_3d(argumentos: dict) -> str:
     except Exception as e:
         return f"Erro ao processar visão 3D: {e}"
 
-def gerenciador_traducao_multimodal(argumentos: dict) -> str:
-    segundos = argumentos.get("segundos", 10)
-    try:
-        from tasks.multimodal import traduzir_ambiente
-        resultado = executar_no_loop_atual(traduzir_ambiente(segundos))
-        return resultado
-    except Exception as e:
-        return f"Falha no pipeline multimodal de tradução: {e}"
-
 def gerenciador_otimizacao_dados(argumentos: dict) -> str:
     try:
         from storage.optimizer import comprimir_banco_auditoria
@@ -284,9 +245,7 @@ def gerenciador_otimizacao_dados(argumentos: dict) -> str:
 EXECUTOR_FERRAMENTAS: dict[str, Callable[[dict], str]] = {
     "open_app":         open_app,
     "computer_control": gerenciador_computador,
-    "web_search":       gerenciador_web,
     "browser_control":  gerenciador_browser,
-    "youtube_video":    gerenciador_youtube,
     "spotify_control":  gerenciador_spotify,
     "weather_report":   gerenciador_clima,
     "set_reminder":     gerenciador_alarme,
@@ -300,7 +259,6 @@ EXECUTOR_FERRAMENTAS: dict[str, Callable[[dict], str]] = {
     "cache_status":     gerenciador_cache_status,
     "visual_gui_actuator": gerenciador_agente_visual,
     "medir_ambiente_3d": gerenciador_visao_3d,
-    "traduzir_audio_ambiente": gerenciador_traducao_multimodal,
     "otimizar_banco_dados": gerenciador_otimizacao_dados,
 }
 

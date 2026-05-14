@@ -11,13 +11,6 @@ LOTE = 100
 MINIMO = 50
 TIMEOUT_IA = 30.0
 
-
-
-
-
-
-
-
 def conectar_banco_auditoria() -> sqlite3.Connection:
     caminho_db = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "logs", "audit.db")
     conexao = sqlite3.connect(caminho_db, timeout=10)
@@ -36,13 +29,6 @@ def conectar_banco_auditoria() -> sqlite3.Connection:
     conexao.commit()
     return conexao
 
-
-
-
-
-
-
-
 async def comprimir_banco_auditoria() -> str:
     conexao = conectar_banco_auditoria()
     try:
@@ -52,7 +38,6 @@ async def comprimir_banco_auditoria() -> str:
         total_antes = cursor.fetchone()["total"]
         if total_antes < MINIMO:
             return f"O banco já está otimizado. Registros atuais: {total_antes}."
-
 
         cursor.execute(
             "SELECT id, comando, resultado, ts FROM audit_log ORDER BY id ASC LIMIT ?",
@@ -76,16 +61,13 @@ async def comprimir_banco_auditoria() -> str:
             if not resumo:
                 raise ValueError("IA retornou resposta vazia")
 
-
         except asyncio.TimeoutError:
             log.warning("[optimizer] IA não respondeu em %.0fs — abortando.", TIMEOUT_IA)
             return f"Compressão abortada: IA não respondeu em {TIMEOUT_IA:.0f}s. Nenhum registro apagado."
 
-
         except Exception as exc:
             log.error("[optimizer] Falha na IA: %s — abortando.", exc)
             return f"Compressão abortada: {exc}. Nenhum registro apagado."
-
 
         from datetime import datetime as dt
         ts_de  = registros[0]["ts"]  if registros else ""
@@ -114,7 +96,6 @@ async def comprimir_banco_auditoria() -> str:
         conexao.rollback()
         log.error("[optimizer] Erro inesperado: %s", exc)
         return f"Falha na otimização: {exc}. Nenhum registro apagado."
-
 
     finally:
         conexao.close()

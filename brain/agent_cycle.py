@@ -13,7 +13,6 @@ log = logging.getLogger("jarvis.agent")
 MAX_PASSOS    = 8
 TIMEOUT_PASSO = 30.0
 
-
 class StatusAgente(Enum):
     OCIOSO     = "ocioso"
     PENSANDO   = "pensando"
@@ -23,18 +22,16 @@ class StatusAgente(Enum):
     CONCLUIDO  = "concluido"
     FALHOU     = "falhou"
 
-
 @dataclass
 class Passo:
     numero:     int
     descricao:  str
-    ferramenta: str  = ""
-    argumentos: dict = field(default_factory=dict)
-    resultado:  str  = ""
-    sucesso:    bool = False
+    ferramenta: str   = ""
+    argumentos: dict  = field(default_factory=dict)
+    resultado:  str   = ""
+    sucesso:    bool  = False
     ts_inicio:  float = 0.0
     ts_fim:     float = 0.0
-
 
 @dataclass
 class PlanoAgente:
@@ -46,7 +43,6 @@ class PlanoAgente:
     ts_inicio:       float        = 0.0
     ts_fim:          float        = 0.0
 
-
 async def pensar(objetivo: str, contexto: str) -> str:
     from engine.ia_router import router
     prompt = (
@@ -57,7 +53,6 @@ async def pensar(objetivo: str, contexto: str) -> str:
         return await asyncio.wait_for(router.responder(prompt), timeout=15.0) or ""
     except Exception:
         return objetivo
-
 
 async def planejar(objetivo: str, analise: str) -> list[dict]:
     from engine.ia_router import router
@@ -79,13 +74,10 @@ async def planejar(objetivo: str, analise: str) -> list[dict]:
         log.warning("Planejamento falhou: %s", exc)
     return [{"passo": 1, "descricao": objetivo, "ferramenta": "", "args": {}}]
 
-
 async def executar_passo(passo: Passo) -> str:
     if not passo.ferramenta:
         from engine.ia_router import router
-        resposta = await asyncio.wait_for(
-            router.responder(passo.descricao), timeout=TIMEOUT_PASSO
-        )
+        resposta = await asyncio.wait_for(router.responder(passo.descricao), timeout=TIMEOUT_PASSO)
         return resposta or "Concluído sem resultado textual."
 
     from engine.tools_mapper import despachar
@@ -93,7 +85,6 @@ async def executar_passo(passo: Passo) -> str:
         despachar(passo.ferramenta, passo.argumentos or {}),
         timeout=TIMEOUT_PASSO,
     )
-
 
 async def validar(objetivo: str, passos: list[Passo]) -> tuple[bool, str]:
     resultados = [f"Passo {p.numero}: {p.resultado[:200]}" for p in passos if p.resultado]
@@ -114,7 +105,6 @@ async def validar(objetivo: str, passos: list[Passo]) -> tuple[bool, str]:
         ultimo = passos[-1].resultado if passos else "Sem resultado."
         return True, ultimo
 
-
 async def executar_tarefa_complexa(objetivo: str, contexto: str = "") -> str:
     plano = PlanoAgente(objetivo=objetivo, contexto=contexto, ts_inicio=time.time())
 
@@ -131,10 +121,9 @@ async def executar_tarefa_complexa(objetivo: str, contexto: str = "") -> str:
 
         plano.status = StatusAgente.PLANEJANDO
         log.info("[AGENTE] Planejando...")
-        plano_raw     = await planejar(objetivo, analise)
-        passos_defs   = plano_raw[:MAX_PASSOS]
+        plano_raw = await planejar(objetivo, analise)
 
-        for i, pd in enumerate(passos_defs, 1):
+        for i, pd in enumerate(plano_raw[:MAX_PASSOS], 1):
             plano.passos.append(Passo(
                 numero=i,
                 descricao=str(pd.get("descricao", "")),
@@ -159,7 +148,7 @@ async def executar_tarefa_complexa(objetivo: str, contexto: str = "") -> str:
             log.info("[AGENTE] Passo %d concluído: %s", passo.numero, passo.resultado[:60])
 
         plano.status = StatusAgente.VALIDANDO
-        sucesso, sintese     = await validar(objetivo, plano.passos)
+        sucesso, sintese      = await validar(objetivo, plano.passos)
         plano.resultado_final = sintese
         plano.status          = StatusAgente.CONCLUIDO if sucesso else StatusAgente.FALHOU
 

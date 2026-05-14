@@ -19,7 +19,6 @@ ESTADO_ALTERADO   = "estado_alterado"
 FERRAMENTA_USADA  = "ferramenta_usada"
 MONITOR_ALERTA    = "monitor_alerta"
 
-
 @dataclass
 class Evento:
     tipo:      str
@@ -27,17 +26,15 @@ class Evento:
     timestamp: float = field(default_factory=time.time)
     origem:    str   = ""
 
-
 Handler = Callable[[Evento], Coroutine | None]
-
 
 class EventBus:
 
     def __init__(self) -> None:
         self.listeners: dict[str, list[Handler]] = defaultdict(list)
         self.historico: list[Evento]             = []
-        self.max_hist   = 200
-        self.loop:      asyncio.AbstractEventLoop | None = None
+        self.max_hist = 200
+        self.loop: asyncio.AbstractEventLoop | None = None
 
     def registrar_loop(self, loop: asyncio.AbstractEventLoop) -> None:
         self.loop = loop
@@ -61,9 +58,7 @@ class EventBus:
 
     def publicar(self, tipo: str, dados: dict | None = None, origem: str = "") -> None:
         ev = Evento(tipo=tipo, dados=dados or {}, origem=origem)
-        self.historico.append(ev)
-        if len(self.historico) > self.max_hist:
-            self.historico = self.historico[-self.max_hist:]
+        self._guardar(ev)
 
         for handler in list(self.listeners.get(tipo, [])):
             try:
@@ -78,9 +73,7 @@ class EventBus:
 
     async def publicar_async(self, tipo: str, dados: dict | None = None, origem: str = "") -> None:
         ev = Evento(tipo=tipo, dados=dados or {}, origem=origem)
-        self.historico.append(ev)
-        if len(self.historico) > self.max_hist:
-            self.historico = self.historico[-self.max_hist:]
+        self._guardar(ev)
 
         for handler in list(self.listeners.get(tipo, [])):
             try:
@@ -91,18 +84,20 @@ class EventBus:
                 log.error("Handler async '%s' falhou: %s",
                           getattr(handler, "__name__", "?"), exc)
 
+    def _guardar(self, ev: Evento) -> None:
+        self.historico.append(ev)
+        if len(self.historico) > self.max_hist:
+            self.historico = self.historico[-self.max_hist:]
+
     def get_historico(self, tipo: str | None = None, limite: int = 50) -> list[dict]:
         base = [e for e in self.historico if tipo is None or e.tipo == tipo]
-        return [
-            {"tipo": e.tipo, "dados": e.dados, "ts": e.timestamp, "origem": e.origem}
-            for e in base[-limite:]
-        ]
+        return [{"tipo": e.tipo, "dados": e.dados, "ts": e.timestamp, "origem": e.origem}
+                for e in base[-limite:]]
 
     def on(self, tipo: str):
         def decorator(fn: Handler) -> Handler:
             self.assinar(tipo, fn)
             return fn
         return decorator
-
 
 bus = EventBus()

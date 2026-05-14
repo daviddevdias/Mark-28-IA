@@ -16,55 +16,20 @@ class ToolResult:
     duracao:  float = 0.0
     erro:     str  = ""
 
-
-
-
-
-
-
-
     @property
     def sucesso(self) -> bool:
         return self.status == "ok"
 
-
-
-
-
-
-
-
     def para_texto(self) -> str:
         return f"Erro: {self.erro}" if self.erro else (self.mensagem or str(self.dados))
-
-
-
-
-
-
-
 
     @staticmethod
     def ok(mensagem: str, dados: dict | None = None) -> "ToolResult":
         return ToolResult(status="ok", mensagem=mensagem, dados=dados or {})
 
-
-
-
-
-
-
-
     @staticmethod
     def falhou(erro: str, mensagem: str = "") -> "ToolResult":
         return ToolResult(status="erro", erro=erro, mensagem=mensagem)
-
-
-
-
-
-
-
 
     @staticmethod
     def pendente(mensagem: str) -> "ToolResult":
@@ -73,46 +38,17 @@ class ToolResult:
 ToolFn = Callable[[dict, dict], ToolResult]
 REGISTRY: dict[str, ToolFn] = {}
 
-
-
-
-
-
-
-
 def registrar_tool(nome: str, fn: ToolFn) -> None:
     REGISTRY[nome] = fn
     log.debug("Tool '%s' registrada.", nome)
 
-
-
-
-
-
-
-
 def tool(nome: str):
-
-
-
-
-
-
-
 
     def decorator(fn: ToolFn) -> ToolFn:
         registrar_tool(nome, fn)
         return fn
 
-
     return decorator
-
-
-
-
-
-
-
 
 async def executar_tool(nome: str, entrada: dict, contexto: dict | None = None) -> ToolResult:
     ctx    = contexto or {}
@@ -130,10 +66,8 @@ async def executar_tool(nome: str, entrada: dict, contexto: dict | None = None) 
             if cached is not None:
                 return ToolResult(status="ok", mensagem=str(cached))
 
-
     except Exception:
         pass
-
 
     fn = REGISTRY.get(nome)
     try:
@@ -148,7 +82,6 @@ async def executar_tool(nome: str, entrada: dict, contexto: dict | None = None) 
                 timeout=timeout_s,
             )
 
-
         resultado = raw if isinstance(raw, ToolResult) else ToolResult(status="ok", mensagem=str(raw))
 
     except asyncio.TimeoutError:
@@ -158,7 +91,6 @@ async def executar_tool(nome: str, entrada: dict, contexto: dict | None = None) 
         sucesso   = False
         log.error("Tool '%s' erro: %s", nome, exc)
         resultado = ToolResult(status="erro", erro=str(exc))
-
 
     resultado.duracao = time.time() - inicio
 
@@ -173,25 +105,7 @@ async def executar_tool(nome: str, entrada: dict, contexto: dict | None = None) 
         except Exception:
             pass
 
-
-    try:
-        from storage.observability import registrar_acao, registrar_metrica
-        duracao_ms = int(resultado.duracao * 1000)
-        registrar_acao(tipo="tool_exec", modulo=nome, descricao=str(entrada)[:200],
-                       duracao_ms=duracao_ms, sucesso=sucesso)
-        registrar_metrica(f"tool.{nome}.duracao_ms", duracao_ms, "ms")
-    except Exception:
-        pass
-
-
     return resultado
-
-
-
-
-
-
-
 
 def listar_tools() -> list[str]:
     try:
@@ -199,6 +113,5 @@ def listar_tools() -> list[str]:
         externas = set(EXECUTOR_FERRAMENTAS.keys())
     except (ImportError, AttributeError):
         externas = set()
-
 
     return sorted(set(REGISTRY.keys()) | externas)

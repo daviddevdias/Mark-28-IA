@@ -461,6 +461,7 @@ class JarvisBridge(QObject):
     @pyqtSlot()
     def solicitar_analise_visual(self):
         global main_async_loop
+
         if main_async_loop is not None and not main_async_loop.is_closed():
             asyncio.run_coroutine_threadsafe(self.rotina_visao_ui(), main_async_loop)
 

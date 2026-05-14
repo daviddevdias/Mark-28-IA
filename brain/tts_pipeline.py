@@ -10,13 +10,6 @@ log = logging.getLogger("jarvis.tts")
 SEPARADORES = re.compile(r"(?<=[.!?;:])\s+|(?<=,)\s{2,}")
 MIN_CHUNK   = 20
 
-
-
-
-
-
-
-
 def segmentar(texto: str) -> list[str]:
     partes    = SEPARADORES.split(texto.strip())
     resultado: list[str] = []
@@ -26,34 +19,17 @@ def segmentar(texto: str) -> list[str]:
         if not parte:
             continue
 
-
         acumulado = (acumulado + " " + parte).strip() if acumulado else parte
         if len(acumulado) >= MIN_CHUNK:
             resultado.append(acumulado)
             acumulado = ""
 
-
     if acumulado:
         resultado.append(acumulado)
 
-
     return resultado or [texto]
 
-
-
-
-
-
-
-
 class FilaTTS:
-
-
-
-
-
-
-
 
     def __init__(self) -> None:
         self.fila:    asyncio.Queue[str | None] = asyncio.Queue(maxsize=20)
@@ -61,37 +37,15 @@ class FilaTTS:
         self.task:    asyncio.Task | None       = None
         self.falar:   Callable | None           = None
 
-
-
-
-
-
-
-
     def registrar_falar(self, fn: Callable) -> None:
         self.falar = fn
-
-
-
-
-
-
-
 
     async def iniciar(self) -> None:
         if self.rodando:
             return
 
-
         self.rodando = True
         self.task    = asyncio.create_task(self.consumidor())
-
-
-
-
-
-
-
 
     def limpar_fila(self) -> None:
         while not self.fila.empty():
@@ -101,18 +55,10 @@ class FilaTTS:
             except asyncio.QueueEmpty:
                 break
 
-
-
-
-
-
-
-
     async def parar(self, forcar: bool = False) -> None:
         self.rodando = False
         if forcar:
             self.limpar_fila()
-
 
         await self.fila.put(None)
         if self.task:
@@ -121,27 +67,12 @@ class FilaTTS:
             except (asyncio.TimeoutError, Exception):
                 self.task.cancel()
 
-
-
-
-
-
-
-
     async def enfileirar(self, texto: str) -> None:
         for seg in segmentar(texto):
             if not self.rodando:
                 break
 
-
             await self.fila.put(seg)
-
-
-
-
-
-
-
 
     async def consumidor(self) -> None:
         while self.rodando:
@@ -153,10 +84,8 @@ class FilaTTS:
                 log.error("TTS fila erro: %s", exc)
                 continue
 
-
             if item is None:
                 break
-
 
             if self.falar:
                 try:
@@ -164,21 +93,12 @@ class FilaTTS:
                 except Exception as exc:
                     log.error("TTS síntese erro (segmento=%r): %s", item[:40], exc)
 
-
             self.fila.task_done()
-
-
-
-
-
-
-
 
 async def falar_streaming(gerador: AsyncIterator[str], falar_fn: Callable) -> str:
     fila_tts.registrar_falar(falar_fn)
     if not fila_tts.rodando:
         await fila_tts.iniciar()
-
 
     buffer     = ""
     texto_full = ""
@@ -191,10 +111,8 @@ async def falar_streaming(gerador: AsyncIterator[str], falar_fn: Callable) -> st
                 await fila_tts.enfileirar(seg)
                 buffer = ""
 
-
     if buffer.strip():
         await fila_tts.enfileirar(buffer.strip())
-
 
     return texto_full
 

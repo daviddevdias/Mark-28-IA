@@ -16,7 +16,6 @@ log = logging.getLogger("jarvis.cmd_security")
 
 _DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "audit.db")
 
-
 def _get_conn() -> sqlite3.Connection:
     os.makedirs(os.path.dirname(_DB_PATH), exist_ok=True)
     conn = sqlite3.connect(_DB_PATH, check_same_thread=False, timeout=5)
@@ -35,7 +34,6 @@ def _get_conn() -> sqlite3.Connection:
     conn.execute("CREATE INDEX IF NOT EXISTS idx_ts ON audit_log(ts)")
     conn.commit()
     return conn
-
 
 def _audit(
     comando: str,
@@ -61,7 +59,6 @@ def _audit(
     except Exception as e:
         log.error("[Audit] Falha ao registrar: %s", e)
 
-
 class Categoria(Enum):
     LEITURA    = "leitura"
     SISTEMA    = "sistema"
@@ -69,13 +66,11 @@ class Categoria(Enum):
     DESTRUTIVO = "destrutivo"
     BLOQUEADO  = "bloqueado"
 
-
 @dataclass
 class Regra:
     padrao:    re.Pattern
     categoria: Categoria
     shell:     bool = False
-
 
 @dataclass
 class Avaliacao:
@@ -84,7 +79,6 @@ class Avaliacao:
     categoria: Categoria = Categoria.BLOQUEADO
     motivo:    str       = ""
     cmd:       Optional[str] = None
-
 
 BLOQUEIOS = [
     r"rm\s+-rf\s+[/~\$]",
@@ -123,14 +117,11 @@ REGRAS: list[Regra] = [
 BLOQUEIOS_COMPILADOS = [re.compile(p, re.IGNORECASE) for p in BLOQUEIOS]
 INJECOES = [";", "&&", "||", "`", "$(", ">{", "<(", "2>&1 |"]
 
-
 def sanitizar(cmd: str) -> str:
     return re.sub(r"\s+", " ", cmd.strip())
 
-
 def tem_injecao(cmd: str) -> bool:
     return any(s in cmd.lower() for s in INJECOES)
-
 
 def avaliar(comando: str) -> Avaliacao:
     cmd = sanitizar(comando)
@@ -165,7 +156,6 @@ def avaliar(comando: str) -> Avaliacao:
         cmd=cmd,
         motivo="Comando não catalogado.",
     )
-
 
 def executar(
     comando: str,
@@ -226,10 +216,8 @@ def executar(
         _audit(cmd, resultado=msg, origem=origem, ferramenta=ferramenta)
         return msg
 
-
 class SecurityBlockError(Exception):
     pass
-
 
 def validar_codigo_ast(codigo_fonte: str) -> bool:
     modulos_proibidos = {'os', 'sys', 'shutil', 'subprocess', 'socket', 'requests', 'pty'}
@@ -258,7 +246,6 @@ def validar_codigo_ast(codigo_fonte: str) -> bool:
 
     return True
 
-
 def audit_recente(limite: int = 50) -> list[dict]:
     try:
         with _get_conn() as conn:
@@ -270,7 +257,6 @@ def audit_recente(limite: int = 50) -> list[dict]:
             return [dict(r) for r in rows]
     except Exception:
         return []
-
 
 avaliar_comando = avaliar
 executar_seguro = executar

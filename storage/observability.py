@@ -11,12 +11,6 @@ from typing import Any
 _DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs", "observability.db")
 log = logging.getLogger("jarvis.obs")
 
-
-
-
-
-
-
 def conectar_banco() -> sqlite3.Connection:
     os.makedirs(os.path.dirname(_DB_PATH), exist_ok=True)
     c = sqlite3.connect(_DB_PATH, check_same_thread=False, timeout=5)
@@ -50,12 +44,6 @@ def conectar_banco() -> sqlite3.Connection:
     c.commit()
     return c
 
-
-
-
-
-
-
 def registrar_acao(
     tipo: str,
     descricao: str = "",
@@ -83,12 +71,6 @@ def registrar_acao(
     except Exception as exc:
         log.debug("obs registrar_acao: %s", exc)
 
-
-
-
-
-
-
 def registrar_metrica(nome: str, valor: float, unidade: str = "") -> None:
     try:
         with conectar_banco() as c:
@@ -100,12 +82,6 @@ def registrar_metrica(nome: str, valor: float, unidade: str = "") -> None:
     except Exception as exc:
         log.debug("obs registrar_metrica: %s", exc)
 
-
-
-
-
-
-
 class Temporizador:
 
     def __init__(self, tipo: str, modulo: str = "", dados: dict | None = None) -> None:
@@ -114,21 +90,9 @@ class Temporizador:
         self._dados   = dados or {}
         self._inicio  = 0.0
 
-
-
-
-
-
-
     def __enter__(self) -> "Temporizador":
         self._inicio = time.time()
         return self
-
-
-
-
-
-
 
     def __exit__(self, exc_type, exc_val, exc_tb) -> None:
         duracao_ms = int((time.time() - self._inicio) * 1000)
@@ -141,12 +105,6 @@ class Temporizador:
             dados=self._dados,
         )
         registrar_metrica(f"duracao.{self._tipo}", duracao_ms, "ms")
-
-
-
-
-
-
 
 def historico_acoes(tipo: str | None = None, limite: int = 50) -> list[dict]:
     try:
@@ -166,12 +124,6 @@ def historico_acoes(tipo: str | None = None, limite: int = 50) -> list[dict]:
             return [dict(r) for r in rows]
     except Exception:
         return []
-
-
-
-
-
-
 
 def resumo_metricas(nome: str, janela_s: int = 3600) -> dict:
     limite_ts = time.time() - janela_s
@@ -195,12 +147,6 @@ def resumo_metricas(nome: str, janela_s: int = 3600) -> dict:
     except Exception:
         return {"nome": nome, "amostras": 0}
 
-
-
-
-
-
-
 def taxa_erros(janela_s: int = 3600) -> float:
     limite_ts = time.time() - janela_s
     try:
@@ -214,12 +160,6 @@ def taxa_erros(janela_s: int = 3600) -> float:
             return round(erros / total, 4) if total else 0.0
     except Exception:
         return 0.0
-
-
-
-
-
-
 
 def purgar_antigos(dias: int = 7) -> int:
     limite = time.time() - dias * 86400

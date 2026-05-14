@@ -8,12 +8,6 @@ from datetime import datetime
 from enum import Enum, auto
 from typing import Sequence
 
-
-
-
-
-
-
 class WakeIntent(Enum):
     NONE = auto()
     ACTIVATION = auto()
@@ -21,53 +15,23 @@ class WakeIntent(Enum):
     START_MONITORING = auto()
     STOP_MONITORING = auto()
 
-
-
-
-
-
-
 @dataclass(frozen=True, slots=True)
 class WakeResult:
     detected: bool
     intent: WakeIntent
     command: str = ""
 
-
-
-
-
-
-
     @property
     def is_monitoring(self) -> bool:
         return self.intent == WakeIntent.START_MONITORING
-
-
-
-
-
-
 
     @property
     def is_stop_monitoring(self) -> bool:
         return self.intent == WakeIntent.STOP_MONITORING
 
-
-
-
-
-
-
     def __iter__(self):
         yield self.detected
         yield self.command
-
-
-
-
-
-
 
 class WakeWordConfig:
 
@@ -166,51 +130,21 @@ class WakeWordConfig:
     FUZZY_MIN_LEN: int = 4
     FUZZY_MAX_LEN: int = 9
 
-
-
-
-
-
-
 _CFG = WakeWordConfig()
-
-
-
-
-
-
 
 def strip_accents(text: str) -> str:
     nfd = unicodedata.normalize("NFD", text)
     return "".join(ch for ch in nfd if unicodedata.category(ch) != "Mn")
-
-
-
-
-
-
 
 def apply_stt_corrections(text: str, corrections: Sequence[tuple[str, str]]) -> str:
     for wrong, right in corrections:
         text = text.replace(wrong, right)
     return text
 
-
-
-
-
-
-
 RE_GREETING_GLUED = re.compile(r"(hey|hi|ei|yo|ok|oi|ola|eai)(jarvis)")
 RE_PUNCTUATION = re.compile(r"[.,!?;:'\"-]")
 RE_JARVIS_GLUED = re.compile(r"jarvis([a-z])")
 RE_SPACES = re.compile(r"\s+")
-
-
-
-
-
-
 
 def normalizar_frase(texto: str) -> str:
     t = texto.lower().strip()
@@ -221,12 +155,6 @@ def normalizar_frase(texto: str) -> str:
     t = RE_SPACES.sub(" ", t)
     t = apply_stt_corrections(t, _CFG.STT_CORRECTIONS)
     return t
-
-
-
-
-
-
 
 def distancia_edicao(a: str, b: str) -> int:
     if abs(len(a) - len(b)) > _CFG.FUZZY_MAX_DIST + 1:
@@ -250,30 +178,12 @@ def distancia_edicao(a: str, b: str) -> int:
 
     return prev[len(b)]
 
-
-
-
-
-
-
 def normalizar_set(s: frozenset[str]) -> list[str]:
     return sorted({normalizar_frase(w) for w in s}, key=len, reverse=True)
-
-
-
-
-
-
 
 WAKE_WORDS_NORM:        list[str] = normalizar_set(_CFG.WAKE_WORDS)
 MON_START_NORM:         list[str] = normalizar_set(_CFG.MONITORING_START)
 MON_STOP_NORM:          list[str] = normalizar_set(_CFG.MONITORING_STOP)
-
-
-
-
-
-
 
 def match_prefix(frase: str, palavras_norm: list[str]) -> str | None:
     for w in palavras_norm:
@@ -283,31 +193,13 @@ def match_prefix(frase: str, palavras_norm: list[str]) -> str | None:
             return frase[len(w) + 1:].strip()
     return None
 
-
-
-
-
-
-
 def match_substring(frase: str, palavras_norm: list[str]) -> bool:
     return any(w in frase for w in palavras_norm)
-
-
-
-
-
-
 
 def jarvis_isolado(frase: str) -> bool:
     if _CFG.CANON not in frase:
         return False
     return bool(re.search(r"(^|\s)" + re.escape(_CFG.CANON) + r"($|\s)", frase))
-
-
-
-
-
-
 
 def fuzzy_token_match(token: str) -> bool:
     t = token.strip(".")
@@ -326,12 +218,6 @@ def fuzzy_token_match(token: str) -> bool:
             return True
 
     return False
-
-
-
-
-
-
 
 def processar_wake(texto: str) -> WakeResult:
     if not texto:
@@ -364,29 +250,11 @@ def processar_wake(texto: str) -> WakeResult:
 
     return WakeResult(False, WakeIntent.NONE)
 
-
-
-
-
-
-
 def e_comando_monitoramento(texto: str) -> bool:
     return match_substring(normalizar_frase(texto), MON_START_NORM)
 
-
-
-
-
-
-
 def e_comando_parar_monitor(texto: str) -> bool:
     return match_substring(normalizar_frase(texto), MON_STOP_NORM)
-
-
-
-
-
-
 
 def resposta_ativacao_aleatoria() -> str:
     hora = datetime.now().hour

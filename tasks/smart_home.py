@@ -135,6 +135,7 @@ def calcular_pontuacao_tv(device: dict) -> int:
         score += 14
     return score
 
+
 def gerar_amostra_devices(n: int = 5) -> str:
     try:
         nomes: list[str] = []
@@ -146,11 +147,13 @@ def gerar_amostra_devices(n: int = 5) -> str:
     except Exception:
         return "(erro amostra)"
 
+
 def diagnosticar_falha_tv() -> str:
     return (
         "O monitor do sistema indica que a TV está offline na rede SmartThings. "
         f"Aparelhos detectados agora: {gerar_amostra_devices(6)}"
     )
+
 
 def buscar_id_tv(forcar: bool = False) -> str | None:
     global tv_id_cache
@@ -175,6 +178,7 @@ def buscar_id_tv(forcar: bool = False) -> str | None:
     if best_id and best >= 8:
         tv_id_cache = best_id
         return tv_id_cache
+    
     for device in devices:
         label = remover_acentos(device.get("label", ""))
         name = remover_acentos(device.get("name", ""))
@@ -197,11 +201,13 @@ def energia_tv(ligar: bool) -> bool:
             return True
     return False
 
+
 def enviar_comando_tv(comando: str, capacidade: str, argumentos: list | None = None) -> bool:
     device_id = buscar_id_tv()
     if not device_id:
         return False
     return enviar_comando_device(device_id, comando, capacidade, argumentos)
+
 
 def ligar_tv() -> bool:
     return energia_tv(True)
@@ -212,6 +218,7 @@ def desligar_tv() -> bool:
 def ajustar_volume_tv(nivel: int) -> bool:
     nivel = max(0, min(100, nivel))
     return enviar_comando_tv("setVolume", "audioVolume", [nivel])
+
 
 def verificar_luz_acesa(dados: dict) -> bool | None:
     if not dados:
@@ -228,6 +235,9 @@ def verificar_luz_acesa(dados: dict) -> bool | None:
     if v in ("on", "off"):
         return v == "on"
     return None
+
+
+
 
 def abrir_youtube_tv() -> str:
     device_id = buscar_id_tv(True)
@@ -264,6 +274,7 @@ def status_tv() -> str:
         estado = str(sw.get("value", "desconhecido")).upper()
         return f"A TV reporta estado: {estado}."
     return "Dispositivo presente, porém silencioso quanto à energia."
+
 
 def listar_dispositivos() -> str:
     devices = carregar_devices(forcar=True)
