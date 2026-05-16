@@ -1,8 +1,8 @@
 import subprocess
 import platform
 from pathlib import Path
-
 from engine.cmd_security import avaliar
+
 
 try:
     import pyautogui
@@ -22,6 +22,7 @@ except ImportError:
 
 OS = platform.system()
 
+
 def fechar_janela() -> str:
     if not PYAUTOGUI:
         return "Interação de interface indisponível."
@@ -33,6 +34,7 @@ def fechar_janela() -> str:
         return "A janela prioritária foi fechada."
     except Exception:
         return "O sistema não pôde encerrar a janela solicitada."
+
 
 def minimizar_tudo() -> str:
     if not PYAUTOGUI:
@@ -49,6 +51,7 @@ def minimizar_tudo() -> str:
     except Exception:
         return "Erro na requisição de interface."
 
+
 def print_tela() -> str:
     if not PYAUTOGUI:
         return "Interação de interface indisponível."
@@ -63,6 +66,7 @@ def print_tela() -> str:
         return "Ferramenta de captura estática acionada."
     except Exception:
         return "Erro ao acionar buffer de tela."
+
 
 def bloquear_tela() -> str:
     try:
@@ -80,6 +84,7 @@ def bloquear_tela() -> str:
     except Exception:
         return "A solicitação de segurança falhou em nível de OS."
 
+
 def limpar_lixeira() -> str:
     try:
         cmds = {
@@ -91,6 +96,7 @@ def limpar_lixeira() -> str:
         return "Registro de descartes do sistema totalmente purgado."
     except Exception:
         return "Conflito de privilégios ao expurgar a lixeira."
+
 
 def injetar_volume_pycaw(nivel: int) -> bool:
     if not PYCAW_AVAILABLE or OS != "Windows":
@@ -104,6 +110,7 @@ def injetar_volume_pycaw(nivel: int) -> bool:
         return True
     except Exception:
         return False
+
 
 def ajustar_volume(nivel: int) -> str:
     nivel = max(0, min(100, nivel))
@@ -128,6 +135,7 @@ def ajustar_volume(nivel: int) -> str:
     except Exception:
         return "Os drivers de áudio não acataram a modificação solicitada."
 
+
 def desligar_computador(atraso: int = 30) -> str:
     try:
         if OS == "Windows":
@@ -149,6 +157,8 @@ def desligar_computador(atraso: int = 30) -> str:
     except Exception:
         return "O processo mestre impediu a queda do sistema."
 
+
+
 def cancelar_desligamento() -> str:
     try:
         if OS == "Windows":
@@ -159,6 +169,8 @@ def cancelar_desligamento() -> str:
         return "A queda programada foi suspensa. Reestabelecendo operações padrão."
     except Exception:
         return "Falha grave. O contador de desligamento não responde ao cancelamento."
+
+
 
 def reiniciar_computador(atraso: int = 30) -> str:
     try:
@@ -177,6 +189,8 @@ def reiniciar_computador(atraso: int = 30) -> str:
         return f"Ciclo de força agendado para daqui a {atraso} segundos, Senhor."
     except Exception:
         return "O kernel recusou a solicitação de reinício."
+
+
 
 def computer_settings(parameters: dict) -> str:
     action = parameters.get("action", "").lower()

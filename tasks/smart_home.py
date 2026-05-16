@@ -257,6 +257,7 @@ def abrir_youtube_tv() -> str:
             return "YouTube inicializado na TV via protocolo legado."
     return "A TV existe, mas rejeitou a execução do App."
 
+
 def status_tv() -> str:
     device_id = buscar_id_tv()
     if not device_id:

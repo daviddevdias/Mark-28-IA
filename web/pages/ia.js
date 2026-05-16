@@ -1,50 +1,40 @@
 'use strict';
 
-
-
-
-
-
-
 function pgIA(wrap) {
     const { ia } = state;
-    wrap.innerHTML =`
+    wrap.innerHTML = `
         <div class="page-header">
             <div>
-                <div class="page-title">MODELO DE IA</div>
-                <div class="page-sub">Selecione e gerencie o motor de inteligência</div>
+                <div class="page-title" style="font-weight:700;">MODELO DE IA</div>
+                <div class="page-sub"   style="font-weight:700;">Selecione e gerencie o motor de inteligência</div>
             </div>
         </div>
-
-
-
-
 
         <div class="ia-grid">
             <div class="ia-option ${ia.modo === 'ollama' ? 'ia-active' : ''}"
                  onclick="trocarIA('ollama')">
                 <div class="ia-option-header">
-                    <div class="ia-name" style="color:var(--accent);">OLLAMA</div>
+                    <div class="ia-name" style="color:var(--accent);font-weight:700;">OLLAMA</div>
                     <div class="ia-badge-dot ${ia.ollama ? 'online' : ''} ${ia.modo === 'ollama' ? 'active-dot' : ''}"></div>
                 </div>
-                <div class="ia-desc">LLM local via Ollama. Privacidade total, sem API key. Requer ollama serve.</div>
-                <div class="ia-model-tag">${ia.modo === 'ollama' && ia.modelo ? ia.modelo : 'nenhum detectado'}</div>
+                <div class="ia-desc" style="font-weight:700;">LLM local via Ollama. Privacidade total, sem API key. Requer ollama serve.</div>
+                <div class="ia-model-tag" style="font-weight:700;">${ia.modo === 'ollama' && ia.modelo ? ia.modelo : 'nenhum detectado'}</div>
             </div>
 
             <div class="ia-option ${ia.modo === 'gemini' ? 'ia-active' : ''}"
                  onclick="trocarIA('gemini')">
                 <div class="ia-option-header">
-                    <div class="ia-name" style="color:var(--yellow);">GEMINI</div>
+                    <div class="ia-name" style="color:var(--yellow);font-weight:700;">GEMINI</div>
                     <div class="ia-badge-dot ${ia.modo === 'gemini' ? 'active-dot' : ''}"></div>
                 </div>
-                <div class="ia-desc">Google Gemini via API. Maior capacidade, requer chave configurada.</div>
-                <div class="ia-model-tag">${ia.modo === 'gemini' ? 'gemini-pro' : '—'}</div>
+                <div class="ia-desc" style="font-weight:700;">Google Gemini via API. Maior capacidade, requer chave configurada.</div>
+                <div class="ia-model-tag" style="font-weight:700;">${ia.modo === 'gemini' ? 'gemini-pro' : '—'}</div>
             </div>
         </div>
 
         <div class="card" style="padding:22px;margin-top:0;">
             <div class="card-accent" style="background:linear-gradient(90deg,var(--accent),transparent);"></div>
-            <div style="font-family:var(--mono);    font-size:10px; font-weight:700;
+            <div style="font-family:var(--mono);font-size:10px;font-weight:700;
                  color:var(--text3);letter-spacing:3px;margin-bottom:18px;margin-top:6px;">
                  STATUS DO MOTOR
             </div>
@@ -56,17 +46,10 @@ function pgIA(wrap) {
         </div>
 
         <div style="display:flex;gap:12px;">
-            <button class="btn btn-accent" onclick="atualizarStatusIA()">↺ ATUALIZAR STATUS</button>
-            <button class="btn btn-ghost"  onclick="testarIA()">▶ TESTAR IA</button>
-        </div>
-    `;
+            <button class="btn btn-accent" style="font-weight:700;" onclick="atualizarStatusIA()">↺ ATUALIZAR STATUS</button>
+            <button class="btn btn-ghost"  style="font-weight:700;" onclick="testarIA()">▶ TESTAR IA</button>
+        </div>`;
 }
-
-
-
-
-
-
 
 function iaStatus(lbl, val, col) {
     return `
@@ -77,12 +60,6 @@ function iaStatus(lbl, val, col) {
         </div>`;
 }
 
-
-
-
-
-
-
 async function trocarIA(modo) {
     if (!window.jarvis) { toast('Bridge não conectada.', 'err'); return; }
     const res = await bridgeCall('alternar_ia', modo);
@@ -92,12 +69,6 @@ async function trocarIA(modo) {
     state.ia.modo = modo;
     if (state.page === PG.IA) renderPage();
 }
-
-
-
-
-
-
 
 async function atualizarStatusIA() {
     const raw = await bridge('obter_ia_status');
@@ -113,12 +84,6 @@ async function atualizarStatusIA() {
         toast('Status IA indisponível.', 'warn');
     }
 }
-
-
-
-
-
-
 
 function testarIA() {
     enviarComando('olá jarvis');

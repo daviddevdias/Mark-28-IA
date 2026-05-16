@@ -1,19 +1,13 @@
 'use strict';
 
-
-
-
-
-
-
 function pgTemas(wrap) {
     const ids = Object.keys(state.themes);
 
     wrap.innerHTML = `
         <div class="page-header">
             <div>
-                <div class="page-title">PROTOCOLO VISUAL</div>
-                <div class="page-sub">Selecione o esquema de cores da interface</div>
+                <div class="page-title" style="font-weight:700;">PROTOCOLO VISUAL</div>
+                <div class="page-sub"   style="font-weight:700;">Selecione o esquema de cores da interface</div>
             </div>
         </div>
 
@@ -40,10 +34,9 @@ function pgTemas(wrap) {
                                 <div class="theme-swatch" style="background:${a2};"></div>
                                 <div class="theme-swatch" style="background:${a3};"></div>
                             </div>
-                            <div class="theme-name" style="color:${a1};">${id}</div>
-                            <button class="theme-apply-btn"
-                                    style="border-color:${a1};color:${a1};
-                                           background:${active ? a1+'1a' : 'transparent'};">
+                            <div class="theme-name" style="color:${a1};font-weight:700;">${id}</div>
+                            <button class="theme-apply-btn" style="font-weight:700;border-color:${a1};color:${a1};
+                                    background:${active ? a1 + '1a' : 'transparent'};">
                                 ${active ? '✓ ATIVO' : 'APLICAR'}
                             </button>
                         </div>`;
@@ -57,15 +50,8 @@ function pgTemas(wrap) {
             Tema ativo persistido em
             <span style="color:var(--accent);">api/config_core.json</span>
             · restaurado automaticamente no próximo boot.
-        </div>
-    `;
+        </div>`;
 }
-
-
-
-
-
-
 
 function aplicarTema(id) {
     if (!state.themes[id]) return;
@@ -75,12 +61,6 @@ function aplicarTema(id) {
     if (state.page === PG.TEMAS) renderPage();
     toast(`Tema ${id} ativado.`);
 }
-
-
-
-
-
-
 
 function applyTheme(id) {
     const t = state.themes[id];

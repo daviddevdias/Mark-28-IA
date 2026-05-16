@@ -285,9 +285,9 @@ TOOL_DECLARATIONS = [
                 "properties": {
                     "segundos": {"type": "integer", "description": "Tempo em segundos para escutar o áudio (padrão 10)."}
                 },
-                "required": []
-            }
-        }
+                "required": [],
+            },
+        },
     },
     {
         "type": "function",
@@ -297,8 +297,8 @@ TOOL_DECLARATIONS = [
             "parameters": {
                 "type": "object",
                 "properties": {},
-                "required": []
-            }
-        }
-    }
+                "required": [],
+            },
+        },
+    },
 ]

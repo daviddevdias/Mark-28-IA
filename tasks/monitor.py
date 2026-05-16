@@ -176,15 +176,15 @@ def checar_bateria() -> None:
         ALERTAS["bateria"] = False
 
 
-def checar_cpu() -> None:
-    uso = psutil.cpu_percent(interval=1)
-    if uso >= CPU_CRITICO and not ALERTAS["cpu"]:
-        registrar_log_alerta("cpu", f"CPU em {uso:.0f}%", uso)
-        falar(f"Processador em {int(uso)} por cento. Sistema sobrecarregado.")
-        ALERTAS["cpu"] = True
-        finalizar_processos_gargalo(limite_pct=85.0)
-    elif uso < CPU_OK and ALERTAS["cpu"]:
-        ALERTAS["cpu"] = False
+# def checar_cpu() -> None:
+#     uso = psutil.cpu_percent(interval=1)
+#     if uso >= CPU_CRITICO and not ALERTAS["cpu"]:
+#         registrar_log_alerta("cpu", f"CPU em {uso:.0f}%", uso)
+#         falar(f"Processador em {int(uso)} por cento. Sistema sobrecarregado.")
+#         ALERTAS["cpu"] = True
+#         finalizar_processos_gargalo(limite_pct=85.0)
+#     elif uso < CPU_OK and ALERTAS["cpu"]:
+#         ALERTAS["cpu"] = False
 
 
 def checar_disco() -> None:
@@ -203,7 +203,7 @@ def checar_disco() -> None:
         ALERTAS["disco"] = False
 
 
-CHECKERS = [checar_rede, checar_temperatura, checar_bateria, checar_cpu, checar_disco]
+CHECKERS = [checar_rede, checar_temperatura, checar_bateria,  checar_disco]
 
 
 def monitorar_proativo() -> None:
