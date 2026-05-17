@@ -80,7 +80,7 @@ class SystemOrchestrator:
         try:
             from tasks.weather import get_cidade_painel
             cidade = get_cidade_painel()
-        except ImportError:
+        except (ImportError, AttributeError):
             cidade = "Desconhecida"
 
         ctx = f"Mestre: {nome}. Cidade padrão (clima): {cidade}."

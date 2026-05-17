@@ -65,8 +65,8 @@ def gerenciador_cmd(argumentos: dict) -> str:
     if not av.permitido:
         return f"Ação abortada por segurança, Senhor. Motivo: {av.motivo}"
     
-    executar(comando, timeout=20, ferramenta="cmd_control")
-    return f"Comando '{comando}' enviado para a camada do núcleo e executado com sucesso."
+    saida = executar(comando, timeout=20, ferramenta="cmd_control")
+    return f"Comando '{comando}' executado. Saída: {saida}"
 
 def gerenciador_web_search(argumentos: dict) -> str:
     query = argumentos.get("query", "").strip()
@@ -170,7 +170,46 @@ def gerenciador_arquivos(argumentos: dict) -> str:
     acao = argumentos.get("action", "")
     caminho = argumentos.get("path", "")
     nome = argumentos.get("name", "")
-    return f"Estruturação de arquivos executada. Operação de '{acao}' finalizada no diretório {caminho}/{nome}."
+    conteudo = argumentos.get("content", "")
+    permanente = argumentos.get("permanent", False)
+
+    import os, shutil, pathlib
+
+    # Resolve atalhos de caminho
+    atalhos = {
+        "desktop":   os.path.join(os.path.expanduser("~"), "Desktop"),
+        "downloads": os.path.join(os.path.expanduser("~"), "Downloads"),
+        "documentos": os.path.join(os.path.expanduser("~"), "Documents"),
+        "home":      os.path.expanduser("~"),
+    }
+    caminho_resolvido = atalhos.get(caminho.lower(), caminho) if caminho else os.path.expanduser("~")
+    alvo = os.path.join(caminho_resolvido, nome) if nome else caminho_resolvido
+
+    try:
+        if acao == "list":
+            itens = os.listdir(caminho_resolvido)
+            return "Itens em " + caminho_resolvido + ": " + ", ".join(itens[:30])
+        if acao == "create_file":
+            pathlib.Path(alvo).write_text(conteudo, encoding="utf-8")
+            return f"Arquivo '{alvo}' criado com sucesso."
+        if acao == "create_folder":
+            os.makedirs(alvo, exist_ok=True)
+            return f"Pasta '{alvo}' criada."
+        if acao == "read":
+            texto = pathlib.Path(alvo).read_text(encoding="utf-8", errors="replace")
+            return texto[:1000]
+        if acao == "delete":
+            if os.path.isdir(alvo):
+                shutil.rmtree(alvo) if permanente else shutil.move(alvo, os.path.join(os.path.expanduser("~"), ".Trash", nome or "pasta"))
+            else:
+                os.remove(alvo) if permanente else shutil.move(alvo, os.path.join(os.path.expanduser("~"), "Desktop", "lixo_" + nome))
+            return f"'{alvo}' removido."
+        if acao == "disk":
+            total, usado, livre = shutil.disk_usage("/")
+            return f"Disco: {livre // (1024**3)} GB livres de {total // (1024**3)} GB."
+        return f"Ação '{acao}' não reconhecida pelo gerenciador de arquivos."
+    except Exception as e:
+        return f"Erro no gerenciador de arquivos: {e}"
 
 def gerenciador_memoria(argumentos: dict) -> str:
     categoria = argumentos.get("category")
@@ -192,8 +231,8 @@ def gerenciador_plano(argumentos: dict) -> str:
         return "Estrutura de planejamento vazia. Por favor, forneça o objetivo central."
     
     coro = router.responder(f"Crie um plano estruturado para: {objetivo}. Contexto extra: {contexto}")
-    executar_no_loop_atual(coro)
-    return f"Matriz de planejamento tático calculada para o objetivo: '{objetivo}'. Pronto para execução, Senhor."
+    resultado = executar_no_loop_atual(coro)
+    return resultado or f"Matriz de planejamento tático calculada para o objetivo: '{objetivo}'. Pronto para execução, Senhor."
 
 def gerenciador_codigo(argumentos: dict) -> str:
     from engine.ia_router import router
@@ -209,7 +248,15 @@ def gerenciador_codigo(argumentos: dict) -> str:
     codigo_gerado = executar_no_loop_atual(router.responder(comando_ia))
     
     if executar_flag and codigo_gerado:
-        cmd = f"python -c {codigo_gerado}" if linguagem == "python" else f"bash -c {codigo_gerado}"
+        import shlex
+        # Extrai só o bloco de código se vier em markdown
+        import re as _re
+        match = _re.search(r"```(?:\w+)?\n([\s\S]+?)```", codigo_gerado)
+        codigo_limpo = match.group(1).strip() if match else codigo_gerado.strip()
+        if linguagem == "python":
+            cmd = f"python -c {shlex.quote(codigo_limpo)}"
+        else:
+            cmd = f"bash -c {shlex.quote(codigo_limpo)}"
         av = avaliar(cmd)
         if not av.permitido:
             return f"Compilação bloqueada pela diretiva de proteção do núcleo: {av.motivo}"

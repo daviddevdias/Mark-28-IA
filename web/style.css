@@ -1250,7 +1250,7 @@ select.input option { background: var(--card); color: var(--text); }
 .alm-shell  { display:flex; flex-direction:column; gap:12px; }
 
 .alm-header {
-    display: flex;
+    display: flex;\
     align-items: flex-start;
     justify-content: space-between;
     flex-wrap: wrap;
@@ -1258,7 +1258,7 @@ select.input option { background: var(--card); color: var(--text); }
 }
 
 .alm-title { font-family:var(--mono); font-size:18px; font-weight:700; letter-spacing:3px; margin-bottom:4px; }
-.alm-sub   { font-size:11px; color:var(--text3); letter-spacing:1px; font-family:var(--mono); }
+.alm-sub   { font-size:15px; color:var(--text3); letter-spacing:1px; font-family:var(--mono); }
 
 .alm-stats { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; }
 
@@ -1274,15 +1274,15 @@ select.input option { background: var(--card); color: var(--text); }
     overflow: hidden;
 }
 
-.alm-stat-lbl { font-family:var(--mono); font-size:8px; font-weight:700; color:var(--text3); letter-spacing:3px; }
+.alm-stat-lbl { font-family:var(--mono); font-size:14px; font-weight:700; color:var(--text3); letter-spacing:3px; }
 .alm-stat-val { font-size:30px; font-weight:900; font-family:var(--orb); line-height:1; }
 
 .alm-quick { background:var(--card); border:1px solid var(--border); border-radius:var(--r-md); padding:18px; }
-.alm-quick-title { font-family:var(--mono); font-size:9px; font-weight:700; color:var(--text3); letter-spacing:3.5px; margin-bottom:14px; }
+.alm-quick-title { font-family:var(--mono); font-size:14px; font-weight:700; color:var(--text3); letter-spacing:3.5px; margin-bottom:14px; }
 .alm-quick-row { display:flex; gap:10px; flex-wrap:wrap; align-items:flex-end; }
 
 .alm-field  { display:flex; flex-direction:column; gap:5px; }
-.alm-label  { font-family:var(--mono); font-size:9px; font-weight:700; color:var(--text3); letter-spacing:2.5px; }
+.alm-label  { font-family:var(--mono); font-size:14px; font-weight:700; color:var(--text3); letter-spacing:2.5px; }
 
 .alm-inp {
     background: rgba(255,255,255,.025);
@@ -1291,7 +1291,7 @@ select.input option { background: var(--card); color: var(--text); }
     padding: 8px 12px;
     color: var(--text);
     font-family: var(--mono);
-    font-size: 13px;
+    font-size: 14px;
     font-weight: 600;
     outline: none;
     transition: border-color .18s;
@@ -1310,7 +1310,7 @@ select.input option { background: var(--card); color: var(--text); }
     align-items: center;
     gap: 4px;
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 14px;
     color: var(--text2);
     padding: 4px 8px;
     border: 1px solid var(--border);
@@ -1327,7 +1327,7 @@ select.input option { background: var(--card); color: var(--text); }
     align-items: center;
     gap: 5px;
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 14px;
     color: var(--accent2);
     padding: 4px 10px;
     border: 1px solid var(--border);
@@ -1346,7 +1346,7 @@ select.input option { background: var(--card); color: var(--text); }
     border-radius: var(--r-sm);
     padding: 4px 12px;
     font-family: var(--mono);
-    font-size: 8px;
+    font-size: 14px;
     font-weight: 700;
     letter-spacing: 1.5px;
     color: var(--text3);
@@ -1380,7 +1380,7 @@ select.input option { background: var(--card); color: var(--text); }
 
 .alm-time { font-family:var(--orb); font-size:22px; font-weight:800; min-width:70px; line-height:1; }
 .alm-info { flex:1; min-width:0; }
-.alm-mission { font-size:13px; font-weight:700; color:var(--text); margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.alm-mission { font-size:14px; font-weight:700; color:var(--text); margin-bottom:2px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .alm-meta    { font-family:var(--mono); font-size:8px; color:var(--text3); letter-spacing:1.5px; }
 .alm-actions { display:flex; gap:5px; flex-shrink:0; }
 
@@ -1390,7 +1390,7 @@ select.input option { background: var(--card); color: var(--text); }
     border-radius: var(--r-sm);
     padding: 4px 9px;
     font-family: var(--mono);
-    font-size: 9px;
+    font-size: 14px;
     font-weight: 700;
     cursor: pointer;
     transition: all .12s;
@@ -1406,7 +1406,7 @@ select.input option { background: var(--card); color: var(--text); }
     padding: 44px 18px;
     color: var(--text3);
     font-family: var(--mono);
-    font-size: 11px;
+    font-size: 14px;
     font-weight: 700;
     letter-spacing: 2px;
     display: flex;
@@ -1424,7 +1424,7 @@ select.input option { background: var(--card); color: var(--text); }
     border-radius: var(--r-sm);
     padding: 9px 20px;
     font-family: var(--mono);
-    font-size: 10px;
+    font-size: 14px;
     font-weight: 700;
     letter-spacing: 2px;
     cursor: pointer;
@@ -1440,7 +1440,7 @@ select.input option { background: var(--card); color: var(--text); }
     border-radius: var(--r-sm);
     padding: 8px 18px;
     font-family: var(--mono);
-    font-size: 10px;
+    font-size: 14px;
     font-weight: 700;
     letter-spacing: 2px;
     cursor: pointer;
@@ -1461,7 +1461,7 @@ select.input option { background: var(--card); color: var(--text); }
     border-radius: var(--r-md);
     color: var(--accent2);
     font-family: var(--mono);
-    font-size: 12px;
+    font-size: 14px;
     font-weight: 600;
     letter-spacing: 1.5px;
     transform: translateY(-72px) scale(.92);

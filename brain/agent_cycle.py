@@ -117,7 +117,7 @@ async def executar_tarefa_complexa(objetivo: str, contexto: str = "") -> str:
     try:
         plano.status = StatusAgente.PENSANDO
         log.info("[AGENTE] Pensando sobre: %s", objetivo[:60])
-        analise = await pensar(objetivo, contexto)
+        analise = await pensar(objetivo, plano.contexto)
 
         plano.status = StatusAgente.PLANEJANDO
         log.info("[AGENTE] Planejando...")

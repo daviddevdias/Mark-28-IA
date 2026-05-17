@@ -102,14 +102,14 @@ async def comprimir_banco_auditoria() -> str:
 
 
 def purgar_resumos_antigos(dias: int = 365) -> int:
-
     import time as _time
     limite = _time.time() - dias * 86400
     try:
         conexao = conectar_banco_auditoria()
+
         cur = conexao.execute(
-            "DELETE FROM audit_resumos WHERE ts < ?",
-            (str(limite),),
+            "DELETE FROM audit_resumos WHERE ts < datetime(?, 'unixepoch')",
+            (limite,),
         )
         conexao.commit()
         removidos = cur.rowcount

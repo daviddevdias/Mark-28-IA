@@ -40,7 +40,13 @@ modelo:       str   = ""
 disponivel:   bool  = False
 ultimo_check: float = 0.0
 
-SHUTDOWN_EVENT = asyncio.Event()
+_SHUTDOWN_EVENT: asyncio.Event | None = None
+
+def _get_shutdown_event() -> asyncio.Event:
+    global _SHUTDOWN_EVENT
+    if _SHUTDOWN_EVENT is None:
+        _SHUTDOWN_EVENT = asyncio.Event()
+    return _SHUTDOWN_EVENT
 
 Handler = Callable[[str], Awaitable[Optional[str]]]
 ROUTES: list[tuple[tuple[str, ...], Handler]] = []
@@ -87,7 +93,7 @@ def extrair_termo(cmd: str, prefixos: list) -> str:
 
 
 def get_shutdown_event() -> asyncio.Event:
-    return SHUTDOWN_EVENT
+    return _get_shutdown_event()
 
 
 async def detectar_modelo() -> bool:
@@ -126,7 +132,14 @@ def ligar_monitor(intervalo_s: float = 10.0, callback=None) -> None:
     from vision.capture import iniciar_monitor as iniciar_mon, MonitorConfig
     cfg = MonitorConfig(intervalo_s=intervalo_s, callback=callback)
     try:
-        asyncio.run_coroutine_threadsafe(iniciar_mon(cfg), asyncio.get_event_loop())
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        loop = None
+    try:
+        if loop and loop.is_running():
+            asyncio.run_coroutine_threadsafe(iniciar_mon(cfg), loop)
+        else:
+            asyncio.run(iniciar_mon(cfg))
     except Exception as e:
         log.error("Erro ao ligar monitor: %s", e)
 
@@ -191,7 +204,8 @@ class IARRouter:
             return text
         if isinstance(imagem, str) and os.path.isfile(imagem):
             try:
-                imagem = open(imagem, "rb").read()
+                with open(imagem, "rb") as f:
+                    imagem = f.read()
             except Exception:
                 return text
         if isinstance(imagem, bytes):

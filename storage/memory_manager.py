@@ -166,12 +166,19 @@ async def process_memory_logic(user_text: str, core_text: str) -> None:
     try:
         from engine.ia_router import router
 
-        prompt = f"{TEXTO_PROMPT_EXTRACAO}{LISTA_CATEGORIAS_MEMORIA}\n\n{user_text}\n{core_text}"
+        prompt = (
+            f"{TEXTO_PROMPT_EXTRACAO}{LISTA_CATEGORIAS_MEMORIA}\n\n"
+            f"Usuário disse: {user_text}\n"
+            f"Assistente respondeu: {core_text}"
+        )
         resposta = await router.responder(prompt)
         patch = json_da_resposta_ia(resposta)
 
-        if patch:
-            update_memory(patch)
+        categorias_validas = set(estrutura_memoria_vazia().keys())
+        if patch and isinstance(patch, dict):
+            patch_filtrado = {k: v for k, v in patch.items() if k in categorias_validas}
+            if patch_filtrado:
+                update_memory(patch_filtrado)
 
     except Exception:
         pass

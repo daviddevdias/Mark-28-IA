@@ -211,42 +211,57 @@ def interromper_voz():
 
 
 def barge_loop():
+    """Escuta interrupções durante a fala usando um único stream PyAudio aberto.
+
+    A criação/destruição repetida de sr.Microphone dentro de um loop causava
+    corrupção de heap no Windows (0xc0000374) porque o PyAudio chama
+    Pa_Terminate() no __exit__ enquanto outro stream ainda pode estar ativo.
+    Aqui abrimos o stream UMA vez e só saímos do 'with' ao terminar o loop.
+    """
     idx = normalizar_indice_microfone(getattr(config, "DEVICE_INDEX", None))
-
     rec = criar_reconhecedor()
+    rec.pause_threshold = 0.4
+    rec.non_speaking_duration = 0.2
 
-    while not barge_stop_event.is_set():
+    kwargs = {}
+    if idx is not None:
+        kwargs["device_index"] = idx
 
-        if not falando or interrompido:
-            break
+    # Aguarda o mic_lock sem tentar abrir enquanto captura_sync estiver ativo.
+    # Se não conseguir o lock em 2 s, desiste (a fala provavelmente já acabou).
+    if not mic_lock.acquire(timeout=2.0):
+        return
 
-        try:
-            kwargs = {}
-            if idx is not None:
-                kwargs["device_index"] = idx
-
-            with mic_lock:
-                with sr.Microphone(**kwargs) as source:
-                    try:
-                        rec.adjust_for_ambient_noise(source, duration=0.15)
-                        audio = rec.listen(source, timeout=0.5, phrase_time_limit=1.5)
-                    except sr.WaitTimeoutError:
-                        continue
-
+    try:
+        with sr.Microphone(**kwargs) as source:
+            mic_lock.release()          # libera imediatamente após abrir o stream
             try:
-                txt = limpar_texto_stt(rec.recognize_google(audio, language="pt-BR"))
+                rec.adjust_for_ambient_noise(source, duration=0.15)
             except Exception:
-                txt = ""
+                pass
 
-            if txt:
-                print(f"ouvido durante fala: {txt}")
-                interromper_voz()
-                break
-
-        except Exception:
+            while not barge_stop_event.is_set():
+                if not falando or interrompido:
+                    break
+                try:
+                    audio = rec.listen(source, timeout=0.6, phrase_time_limit=1.5)
+                    try:
+                        txt = limpar_texto_stt(rec.recognize_google(audio, language="pt-BR"))
+                    except Exception:
+                        txt = ""
+                    if txt:
+                        print(f"ouvido durante fala: {txt}")
+                        interromper_voz()
+                        break
+                except sr.WaitTimeoutError:
+                    continue
+                except Exception:
+                    break
+    except Exception:
+        try:
+            mic_lock.release()
+        except RuntimeError:
             pass
-
-        time.sleep(0.1)
 
 
 
@@ -352,17 +367,21 @@ async def falar(texto):
 
 
 def captura_sync():
-
     idx = normalizar_indice_microfone(getattr(config, "DEVICE_INDEX", None))
 
     with audio_io_lock:
         suspender_pygame_mixer_para_capture()
 
-    # Garante que o barge_loop encerrou antes de abrir novo Microphone.
-    # Evita a corrupção de heap do PyAudio no Windows (código 0xc0000374).
+    # Sinaliza o barge_loop para parar ANTES de tentar pegar o mic_lock.
+    # O barge_loop novo libera o mic_lock assim que abre o stream, então o
+    # join(timeout=3) é mais que suficiente para ele fechar o 'with Microphone'.
     parar_listener_interrupcao()
     if barge_thread and barge_thread.is_alive():
-        barge_thread.join(timeout=1.0)
+        barge_thread.join(timeout=3.0)      # era 1.0 — insuficiente no Windows
+
+    # Pequena pausa para o driver de áudio do Windows liberar o dispositivo
+    # após o stream do barge ser destruído. Sem isso o Pa_OpenStream() falha.
+    time.sleep(0.15)
 
     print("\nEscutando...\n")
 
@@ -373,9 +392,7 @@ def captura_sync():
 
         with mic_lock:
             with sr.Microphone(**kwargs) as source:
-
                 reconhecedor.adjust_for_ambient_noise(source, duration=0.8)
-
                 try:
                     audio = reconhecedor.listen(source, timeout=10, phrase_time_limit=9)
                 except sr.WaitTimeoutError:
