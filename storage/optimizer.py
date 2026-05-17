@@ -99,3 +99,26 @@ async def comprimir_banco_auditoria() -> str:
 
     finally:
         conexao.close()
+
+
+def purgar_resumos_antigos(dias: int = 365) -> int:
+    """Remove resumos de auditoria mais antigos que `dias` dias.
+    Chamado por alarm.py no ciclo horário de manutenção.
+    """
+    import time as _time
+    limite = _time.time() - dias * 86400
+    try:
+        conexao = conectar_banco_auditoria()
+        cur = conexao.execute(
+            "DELETE FROM audit_resumos WHERE ts < ?",
+            (str(limite),),
+        )
+        conexao.commit()
+        removidos = cur.rowcount
+        conexao.close()
+        if removidos:
+            log.info("[optimizer] purgar_resumos_antigos: %d resumo(s) removido(s).", removidos)
+        return removidos
+    except Exception as exc:
+        log.warning("[optimizer] purgar_resumos_antigos falhou: %s", exc)
+        return 0

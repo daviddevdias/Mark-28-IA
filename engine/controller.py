@@ -18,16 +18,14 @@ from vision.capture import status_monitor as info_monitor, parar_monitor as desl
 
 log = logging.getLogger("engine.controller")
 
-URL_OLLAMA = "http://127.0.0.1:11434/api/chat"
-TIMEOUT    = 25.0
+# --- URLs DO LM STUDIO ---
+URL_LOCAL_CHAT = "http://127.0.0.1:1234/v1/chat/completions"
+URL_LOCAL_MODELS = "http://127.0.0.1:1234/v1/models"
+
+TIMEOUT    = 60.0
 MAX_HIST   = 20
 MAX_TOOLS  = 5
 COOLDOWN   = 30.0
-
-PREFERIDOS       = ["gemma4:e4b", "gemma4", "llama3.2", "llama3.1", "qwen2.5", "phi4", "mistral"]
-TOOLS_SUPORTADOS = ["gemma4", "llama4", "llama3.1", "llama3.2", "qwen", "phi4"]
-
-OPTIONS = {"num_predict": 400, "temperature": 0.7}
 
 SYSTEM = (
     "Você é o Jarvis. Responda de forma prestativa, educada e levemente sarcástica como o assistente do Stark. "
@@ -54,7 +52,7 @@ PREFIXOS_SPOTIFY = [
     "colocar", "coloca", "tocar", "toca", "buscar", "busca",
     "musica", "musicas",
 ]
-PREFIXOS_YOUTUBE = ["buscar no youtube", "tocar no youtube", "youtube"]
+PREFIXOS_YOUTUBE = ["pesquisar no youtube", "buscar no youtube", "tocar no youtube", "youtube"]
 PREFIXOS_WEB = [
     "pesquisar na web", "pesquisar no google", "buscar na web",
     "pesquisar", "pesquisa", "buscar", "busca",
@@ -64,10 +62,6 @@ PREFIXOS_WEB = [
 def system_msg(ctx: str) -> str:
     agora = datetime.now().strftime("%d/%m/%Y %H:%M:%S")
     return SYSTEM.format(ctx=f"{ctx} | Horário Atual: {agora}"[:400])
-
-
-def suporta_tools(nome: str) -> bool:
-    return any(s in nome.lower() for s in TOOLS_SUPORTADOS)
 
 
 def normalizar(texto: str) -> str:
@@ -100,22 +94,22 @@ async def detectar_modelo() -> bool:
     global modelo, disponivel, ultimo_check
     try:
         async with aiohttp.ClientSession() as s:
-            async with s.get("http://127.0.0.1:11434/api/tags",
-                             timeout=aiohttp.ClientTimeout(total=5)) as r:
+            async with s.get(URL_LOCAL_MODELS, timeout=aiohttp.ClientTimeout(total=5)) as r:
                 if r.status != 200:
                     disponivel = False
                     return False
-                modelos = [m["name"] for m in (await r.json()).get("models", [])]
+                
+                resposta = await r.json()
+                modelos = [m.get("id") for m in resposta.get("data", [])]
+                
                 if not modelos:
                     disponivel = False
                     return False
-                modelo = next(
-                    (m for p in PREFERIDOS for m in modelos if m.startswith(p)),
-                    modelos[0],
-                )
+                
+                modelo = modelos[0]
                 disponivel    = True
                 ultimo_check  = time.time()
-                print("OLLAMA Ligado comunicando! Versão 1.0")
+                print(f"LM Studio Online! Modelo carregado: {modelo}")
                 return True
     except Exception:
         disponivel = False
@@ -163,11 +157,11 @@ class IARRouter:
 
     def __init__(self):
         self.historico = Historico()
-        self.provedor  = "ollama"
+        self.provedor  = "lmstudio"
 
     @property
     def status(self) -> dict:
-        return {"modelo": modelo, "ollama": disponivel, "provedor": self.provedor}
+        return {"modelo": modelo, "servidor": disponivel, "provedor": self.provedor}
 
     @property
     def modo_atual(self) -> str:
@@ -184,8 +178,9 @@ class IARRouter:
                 return "Chave da API externa ausente no sistema."
             self.provedor = "openrouter"
             return "Modelos externos do OpenRouter ativados com sucesso."
-        self.provedor = "ollama"
-        return f"Processamento neural local ativado. Modelo: {modelo or 'nenhum detectado'}."
+        
+        self.provedor = "lmstudio"
+        return f"Processamento neural local ativado via LM Studio. Modelo: {modelo or 'nenhum detectado'}."
 
     def resetar_conversa(self) -> str:
         self.historico.clear()
@@ -231,17 +226,24 @@ class IARRouter:
 
         if not modelo:
             return None
-        payload = {"model": modelo, "messages": messages, "stream": False, "options": OPTIONS}
-        if tools and suporta_tools(modelo):
+        
+        payload = {"model": modelo, "messages": messages, "temperature": 0.7, "max_tokens": 800}
+        
+        if tools:
             payload["tools"] = TOOL_DECLARATIONS
+            
         try:
             async with aiohttp.ClientSession() as s:
-                async with s.post(URL_OLLAMA, json=payload,
+                async with s.post(URL_LOCAL_CHAT, json=payload,
                                   timeout=aiohttp.ClientTimeout(total=TIMEOUT)) as r:
                     if r.status != 200:
+                        log.error(f"Erro na API Local: Status {r.status}")
                         return None
-                    return (await r.json()).get("message")
-        except Exception:
+                    
+                    dados = await r.json()
+                    return dados.get("choices", [{}])[0].get("message")
+        except Exception as e:
+            log.error(f"Erro de conexão com LM Studio: {e}")
             return None
 
     async def dispatch(self, name: str, args: dict) -> str:
@@ -253,14 +255,14 @@ class IARRouter:
 
     async def responder(self, pergunta: str, nome: str = "Chefe",
                         memoria: str = "", imagem: Any = None) -> str:
-        if self.provedor == "ollama":
+        if self.provedor == "lmstudio":
             await check()
             if not disponivel:
                 await check(force=True)
             if not disponivel:
-                return "Ollama offline. Rode 'ollama serve' no terminal ou mude para a nuvem."
+                return "Servidor local offline. Inicie o Local Server no LM Studio."
             if not modelo:
-                return "Nenhum modelo detectado. Recomendo: ollama pull"
+                return "Nenhum modelo carregado na memória. Carregue um modelo no LM Studio."
 
         self.historico.add("user", self.montar_content(pergunta, imagem))
         msgs = [{"role": "system", "content": system_msg(memoria)}] + self.historico.msgs()
@@ -268,7 +270,8 @@ class IARRouter:
         for _ in range(MAX_TOOLS):
             msg = await self.chat(msgs)
             if msg is None:
-                return "Falha na comunicação com a IA."
+                return "Falha na comunicação com a IA local."
+            
             tool_calls = msg.get("tool_calls") or []
             if not tool_calls:
                 reply = (msg.get("content") or "").strip()
@@ -276,6 +279,7 @@ class IARRouter:
                     reply = "Comando processado, Senhor."
                 self.historico.add("assistant", reply)
                 return reply
+                
             for tc in tool_calls:
                 call_id = tc.get("id", "call_0")
                 fn      = tc.get("function", {})
@@ -289,6 +293,25 @@ class IARRouter:
                 self.historico.add_tool(call_id, fn.get("name", ""), result)
 
         return "Protocolo concluído."
+
+
+async def abrir_web_direto(cmd: str) -> str:
+    from engine.tools_mapper import gerenciador_browser
+    cmd_lower = cmd.lower()
+    if "youtube" in cmd_lower:
+        gerenciador_browser({"action": "open", "url": "https://www.youtube.com"})
+        return "Acessando o YouTube imediatamente."
+    elif "google" in cmd_lower:
+        gerenciador_browser({"action": "open", "url": "https://www.google.com"})
+        return "Abrindo o Google de imediato."
+    return "Comando web processado."
+
+
+async def youtube_busca(cmd: str) -> str:
+    """Pesquisa um termo no YouTube abrindo o navegador."""
+    from engine.tools_mapper import gerenciador_youtube
+    termo = extrair_termo(cmd, PREFIXOS_YOUTUBE)
+    return gerenciador_youtube({"query": termo} if termo else {})
 
 
 async def silencio(cmd: str) -> str:
@@ -464,6 +487,9 @@ async def parar_alarme(cmd: str) -> str:
 
 
 ROUTES_LEGADAS: list[tuple[tuple[str, ...], Handler]] = [
+    (("abrir", "youtube"),      abrir_web_direto),
+    (("pesquisar", "youtube"),  youtube_busca),       # fix: "pesquisar no youtube sobre X"
+    (("pesquisar", "google"),   abrir_web_direto),
     (("silencio",),             silencio),
     (("mutar",),                silencio),
     (("bloquear",),             bloquear),

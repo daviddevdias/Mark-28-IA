@@ -44,6 +44,7 @@ APP_ALIASES = {
     "figma": {"Windows": "Figma", "Darwin": "Figma", "Linux": "figma"},
 }
 
+
 def verificar_processo_ativo(app_name: str) -> bool:
     target = app_name.lower().replace(".exe", "")
     for proc in psutil.process_iter(['name']):
@@ -53,6 +54,7 @@ def verificar_processo_ativo(app_name: str) -> bool:
         except (psutil.NoSuchProcess, psutil.AccessDenied, psutil.ZombieProcess):
             pass
     return False
+
 
 def padronizar_nome(raw: str) -> str:
     system = platform.system()
@@ -64,30 +66,20 @@ def padronizar_nome(raw: str) -> str:
             return os_map.get(system, raw)
     return raw
 
+
 def disparar_no_windows(app_name: str) -> bool:
     if shutil.which(app_name):
         try:
-            subprocess.Popen([app_name], shell=False,
-                             stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            subprocess.Popen([app_name], shell=False, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             return True
         except Exception:
             pass
     try:
-        subprocess.Popen(app_name, shell=True,
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return True
-    except Exception:
-        pass
-    try:
-        import pyautogui
-        pyautogui.press("win")
-        time.sleep(0.6)
-        pyautogui.write(app_name, interval=0.05)
-        time.sleep(0.8)
-        pyautogui.press("enter")
+        subprocess.Popen(app_name, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return True
     except Exception:
         return False
+
 
 def disparar_no_mac(app_name: str) -> bool:
     try:
@@ -95,17 +87,10 @@ def disparar_no_mac(app_name: str) -> bool:
         if res.returncode == 0:
             return True
         res = subprocess.run(["open", "-a", f"{app_name}.app"], capture_output=True, timeout=8)
-        if res.returncode == 0:
-            return True
-        import pyautogui
-        pyautogui.hotkey("command", "space")
-        time.sleep(0.6)
-        pyautogui.write(app_name, interval=0.05)
-        time.sleep(0.8)
-        pyautogui.press("enter")
-        return True
+        return res.returncode == 0
     except Exception:
         return False
+
 
 def disparar_no_linux(app_name: str) -> bool:
     binary = shutil.which(app_name) or shutil.which(app_name.lower())
@@ -122,6 +107,7 @@ def disparar_no_linux(app_name: str) -> bool:
         pass
     return False
 
+
 def open_app(parameters=None, **kwargs) -> str:
     app_name = (parameters or {}).get("app_name", "").strip()
 
@@ -136,8 +122,8 @@ def open_app(parameters=None, **kwargs) -> str:
 
     launchers = {
         "Windows": disparar_no_windows,
-        "Darwin": disparar_no_mac,
-        "Linux": disparar_no_linux,
+        "Darwin":  disparar_no_mac,
+        "Linux":   disparar_no_linux,
     }
 
     launcher = launchers.get(system)

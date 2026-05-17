@@ -3,7 +3,6 @@ import platform
 from pathlib import Path
 from engine.cmd_security import avaliar
 
-
 try:
     import pyautogui
     pyautogui.FAILSAFE = True
@@ -116,7 +115,7 @@ def ajustar_volume(nivel: int) -> str:
     nivel = max(0, min(100, nivel))
     try:
         if injetar_volume_pycaw(nivel):
-            return f"Parâmetros de áudio ajustados com precisão via hardware interno para {nivel}%."
+            return f"Parâmetros de áudio adjusted para {nivel}%."
 
         if OS == "Windows":
             nircmd = Path("nircmd.exe")
@@ -131,7 +130,7 @@ def ajustar_volume(nivel: int) -> str:
                 )
                 subprocess.run(["powershell", "-Command", script], capture_output=True)
 
-        return f"A injeção de evento confirmou a alteração para {nivel}%."
+        return f"Alteração de áudio processada para {nivel}%."
     except Exception:
         return "Os drivers de áudio não acataram a modificação solicitada."
 
@@ -158,7 +157,6 @@ def desligar_computador(atraso: int = 30) -> str:
         return "O processo mestre impediu a queda do sistema."
 
 
-
 def cancelar_desligamento() -> str:
     try:
         if OS == "Windows":
@@ -169,7 +167,6 @@ def cancelar_desligamento() -> str:
         return "A queda programada foi suspensa. Reestabelecendo operações padrão."
     except Exception:
         return "Falha grave. O contador de desligamento não responde ao cancelamento."
-
 
 
 def reiniciar_computador(atraso: int = 30) -> str:
@@ -191,7 +188,6 @@ def reiniciar_computador(atraso: int = 30) -> str:
         return "O kernel recusou a solicitação de reinício."
 
 
-
 def computer_settings(parameters: dict) -> str:
     action = parameters.get("action", "").lower()
     if action == "volume":
@@ -209,3 +205,26 @@ def computer_settings(parameters: dict) -> str:
     }
     fn = actions.get(action)
     return fn() if fn else f"O registro de ações '{action}' não consta nos meus protocolos."
+
+
+# ---------- aliases para compatibilidade com controller.py ----------
+
+def fechar_janela_ativa() -> str:
+    """Alias de fechar_janela() — nome esperado pelo controller."""
+    return fechar_janela()
+
+
+def minimizar_janelas() -> str:
+    """Alias de minimizar_tudo() — nome esperado pelo controller."""
+    return minimizar_tudo()
+
+
+def mutar_volume() -> str:
+    """Silencia o áudio do sistema pressionando a tecla mute."""
+    if PYAUTOGUI:
+        try:
+            pyautogui.press("volumemute")
+            return "Volume silenciado."
+        except Exception:
+            pass
+    return ajustar_volume(0)

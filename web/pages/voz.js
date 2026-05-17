@@ -1,6 +1,6 @@
 'use strict';
 
-// ─── MEDIDOR DE VOZ (LOOP A 50ms) ────────────────────────────────────────────
+//  MEDIDOR DE VOZ (LOOP A 50ms) ──
 function atualizarMedidorVoz() {
     const wrap = document.getElementById('vozMeterBars');
     if (!wrap) return;
@@ -28,7 +28,7 @@ setInterval(() => {
     if (state.page === PG.VOZ) atualizarMedidorVoz();
 }, 50);
 
-// ─── PÁGINA DE VOZ ───────────────────────────────────────────────────────────
+//  PÁGINA DE VOZ ──
 function pgVoz(wrap) {
     const v    = state.voz;
     const apis = state.apis;
@@ -264,7 +264,7 @@ function pgVoz(wrap) {
     atualizarMedidorVoz();
 }
 
-// ─── TESTE DE VOZ ────────────────────────────────────────────────────────────
+//  TESTE DE VOZ 
 function testarVoz() {
     if (!window.jarvis) { toast('Bridge não conectada.', 'err'); return; }
     window.jarvis.testar_voz_painel();

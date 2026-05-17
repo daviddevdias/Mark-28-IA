@@ -87,12 +87,7 @@ def parse_alarme_voz(cmd: str) -> tuple[str | None, str | None, str, list[int] |
         m_sl = re.search(r"\b(\d{1,2})[/-](\d{1,2})(?:[/-](\d{2,4}))?\b", raw)
         if m_sl:
             a, b, y = int(m_sl.group(1)), int(m_sl.group(2)), m_sl.group(3)
-            if a > 12:
-                mth, d = a, b
-            elif b > 12:
-                d, mth = a, b
-            else:
-                d, mth = a, b
+            d, mth = (b, a) if a > 12 else (a, b)
             yi = int(y) if y else datetime.now().year
             if y and yi < 100:
                 yi += 2000

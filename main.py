@@ -1,15 +1,23 @@
 from __future__ import annotations
 
 import os
+import sys
+import faulthandler
+
+# 1. Habilita o rastreio de quedas silenciosas (C/C++) que fecham o Python do nada
+faulthandler.enable()
 
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "hide")
+
+# 2. Desativa a renderização via GPU da interface para evitar crashs na RX 580
+os.environ["QT_LOGGING_RULES"] = "qt.qpa.window=false"
+os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-logging --disable-gpu --no-sandbox"
 
 import asyncio
 import json
 import logging
 import shutil
 import subprocess
-import sys
 import threading
 import time
 
@@ -29,16 +37,6 @@ from app_ul.interface import JarvisUI
 from storage.wake import processar_wake, resposta_ativacao_aleatoria
 from integrations.telegram_bridge_auth_patch import iniciar_telegram
 
-os.environ["QT_LOGGING_RULES"] = "qt.qpa.window=false"
-os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-logging"
-
-
-
-
-
-
-
-
 QApplication.setAttribute(Qt.ApplicationAttribute.AA_ShareOpenGLContexts)
 app = QApplication(sys.argv)
 try:
@@ -52,59 +50,13 @@ logging.getLogger("httpcore").setLevel(logging.WARNING)
 logging.getLogger("telegram").setLevel(logging.WARNING)
 logging.getLogger("faster_whisper").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
-
-
-
-
-def achar_ollama() -> str | None:
-    candidatos = [
-        shutil.which("ollama"),
-        rf"C:\Users\{os.environ.get('USERNAME', '')}\AppData\Local\Programs\Ollama\ollama.exe",
-        r"C:\Program Files\Ollama\ollama.exe",
-    ]
-    for c in candidatos:
-        if c and os.path.exists(c):
-            return c
-    return None
-
-
-
-
-
-
-
-def iniciar_ollama():
-    try:
-        r = requests.get("http://127.0.0.1:11434/api/tags", timeout=2)
-        if r.status_code == 200:
-            print("OLLAMA Já ativo.")
-            return
-    except Exception:
-        pass
-    path = achar_ollama()
-    if path:
-        print("OLLAMA Inicializando com suporte AMD RX 580...")
-        env = os.environ.copy()
-        env["HSA_OVERRIDE_GFX_VERSION"] = "8.0.3"
-        subprocess.Popen([path, "serve"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, env=env)
-        time.sleep(3)
-
-
-
-
-
-
+sys.argv.append("--disable-gpu")
+sys.argv.append("--disable-software-rasterizer")
+os.environ["QT_LOGGING_RULES"] = "qt.qpa.window=false"
+os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-logging"
 
 async def executar(cmd: str, ui: PainelCore):
-    resposta = await processar_comando(cmd)
-    if resposta:
-        await falar(resposta)
-
-
-
-
-
-
+    await processar_comando(cmd)
 
 async def engine(ui: PainelCore):
     await inicializar_ia()
@@ -118,18 +70,17 @@ async def engine(ui: PainelCore):
         bus.registrar_loop(loop)
         registrar_modulos_padrao()
         watchdog.iniciar()
-
-
     except Exception as e:
         log.warning("watchdog/event_bus não carregou: %s", e)
     try:
         from storage.observability import registrar_acao, purgar_antigos
         purgar_antigos(dias=7)
         registrar_acao("startup", modulo="main", descricao="Jarvis inicializado", sucesso=True)
-        
     except Exception as e:
         log.warning("observability não carregou: %s", e)
+    
     threading.Thread(target=iniciar_telegram, daemon=True, name="TelegramBot").start()
+    
     while not get_shutdown_event().is_set():
         try:
             config.recarregar_identidade_painel()
@@ -148,12 +99,6 @@ async def engine(ui: PainelCore):
             log.exception("erro no ciclo principal")
             await asyncio.sleep(0.3)
 
-
-
-
-
-
-
 def engine_thread(ui: PainelCore):
     loop = asyncio.new_event_loop()
     asyncio.set_event_loop(loop)
@@ -165,14 +110,7 @@ def engine_thread(ui: PainelCore):
     finally:
         loop.close()
 
-
-
-
-
-
-
 def iniciar_sistema():
-    iniciar_ollama()
     try:
         ui = PainelCore()
         hud = JarvisUI()
@@ -188,12 +126,6 @@ def iniciar_sistema():
         sys.exit(app.exec())
     except Exception as e:
         print(f"Falha na subida: {e}")
-
-
-
-
-
-
 
 if __name__ == "__main__":
     iniciar_sistema()

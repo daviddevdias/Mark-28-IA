@@ -106,7 +106,7 @@ cfg = carregar_tudo()
 
 QWEN_API_KEY             = cfg.get("qwen", "")
 GEMINI_API_KEY           = cfg.get("gemini", "")
-CURRENT_MODEL            = cfg.get("current_model", "qwen/qwen-vl-max")
+CURRENT_MODEL            = cfg.get("current_model", "qwen/qwen2.5-vl-72b-instruct")
 BASE_URL                 = "https://openrouter.ai/api/v1"
 
 SPOTIFY_ID               = cfg.get("spotify_id", "")

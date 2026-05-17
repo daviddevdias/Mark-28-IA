@@ -1,6 +1,6 @@
 'use strict';
 
-// ─── ÍCONE POR DESCRIÇÃO ─────────────────────────────────────────────────────
+// ÍCONE POR DESCRIÇÃO──
 function wxIcon(desc) {
     if (!desc) return '🌡️';
     const d = desc.toLowerCase();
@@ -16,7 +16,7 @@ function wxIcon(desc) {
 }
 window.wxIcon = wxIcon;
 
-// ─── CONDIÇÃO NORMALIZADA ────────────────────────────────────────────────────
+// CONDIÇÃO NORMALIZADA─
 function wxConditionKey(desc) {
     if (!desc) return 'clear';
     const d = desc.toLowerCase();
@@ -28,13 +28,13 @@ function wxConditionKey(desc) {
     return 'clear';
 }
 
-// ─── GRAUS → PONTO CARDEAL ───────────────────────────────────────────────────
+// GRAUS → PONTO CARDEAL
 function degToCard(deg) {
     if (deg == null) return '';
     return ['N', 'NE', 'L', 'SE', 'S', 'SO', 'O', 'NO'][Math.round(deg / 45) % 8];
 }
 
-// ─── NORMALIZAR DADOS (wttr.in ou OWM) ───────────────────────────────────────
+// NORMALIZAR DADOS (wttr.in ou OWM)
 function normalizeWeather(raw, cityFallback) {
     if (!raw || raw.error) return null;
 
@@ -104,7 +104,7 @@ function normalizeWeather(raw, cityFallback) {
     return null;
 }
 
-// ─── PÁGINA DE CLIMA ─────────────────────────────────────────────────────────
+// PÁGINA DE CLIMA
 function pgWeather(wrap) {
     const currentCity = state.apis.cidade_padrao || state.weather.city || 'São Paulo';
     state.weather.city = currentCity;
@@ -136,7 +136,7 @@ function pgWeather(wrap) {
 }
 window.pgWeather = pgWeather;
 
-// ─── BUSCAR ──────────────────────────────────────────────────────────────────
+// BUSCAR
 function buscarClima() {
     const city = (document.getElementById('wxCity')?.value || '').trim();
     if (!city) return;
@@ -148,7 +148,7 @@ function buscarClima() {
 }
 window.buscarClima = buscarClima;
 
-// ─── ATUALIZAR ───────────────────────────────────────────────────────────────
+// ATUALIZAR
 async function atualizarClima() {
     state.weather.norm  = null;
     state.weather.error = null;
@@ -156,7 +156,7 @@ async function atualizarClima() {
 }
 window.atualizarClima = atualizarClima;
 
-// ─── LOOP (1 min) ────────────────────────────────────────────────────────────
+// LOOP (1 min)
 let climaRodando = false;
 async function loopClima() {
     if (climaRodando) return;
@@ -167,7 +167,7 @@ async function loopClima() {
     }
 }
 
-// ─── FETCH (bridge → wttr.in fallback) ───────────────────────────────────────
+// FETCH (bridge → wttr.in fallback)
 async function fetchWeather(city) {
     const el = document.getElementById('wxMain');
     if (el) el.innerHTML = `
@@ -198,7 +198,7 @@ async function fetchWeather(city) {
 }
 window.fetchWeather = fetchWeather;
 
-// ─── PARSE ───────────────────────────────────────────────────────────────────
+// PARSE─
 function parseWeatherData(raw, city) {
     try {
         const fallback = state.apis.cidade_padrao || state.weather.city || 'São Paulo';
@@ -221,7 +221,7 @@ function parseWeatherData(raw, city) {
 }
 window.parseWeatherData = parseWeatherData;
 
-// ─── ERRO ────────────────────────────────────────────────────────────────────
+// ERRO──
 function renderWeatherError() {
     const el = document.getElementById('wxMain');
     if (!el) return;
@@ -236,7 +236,7 @@ function renderWeatherError() {
 }
 window.renderWeatherError = renderWeatherError;
 
-// ─── CANVAS ANIMADO ──────────────────────────────────────────────────────────
+// CANVAS ANIMADO─
 function startWeatherCanvas(condition, temp) {
     const canvas = document.getElementById('wxBgCanvas');
     if (!canvas) return;
@@ -336,7 +336,7 @@ function startWeatherCanvas(condition, temp) {
     tick();
 }
 
-// ─── RENDER COMPLETO ─────────────────────────────────────────────────────────
+// RENDER COMPLETO
 function renderWeatherFull(wx) {
     const el = document.getElementById('wxMain');
     if (!el) return;
@@ -492,7 +492,7 @@ function renderWeatherFull(wx) {
 }
 window.renderWeatherFull = renderWeatherFull;
 
-// ─── RENDER (atalho) ─────────────────────────────────────────────────────────
+// RENDER (atalho)
 function renderWeather() {
     if (state.weather.norm) renderWeatherFull(state.weather.norm);
 }

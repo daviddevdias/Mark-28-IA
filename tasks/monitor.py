@@ -176,17 +176,6 @@ def checar_bateria() -> None:
         ALERTAS["bateria"] = False
 
 
-# def checar_cpu() -> None:
-#     uso = psutil.cpu_percent(interval=1)
-#     if uso >= CPU_CRITICO and not ALERTAS["cpu"]:
-#         registrar_log_alerta("cpu", f"CPU em {uso:.0f}%", uso)
-#         falar(f"Processador em {int(uso)} por cento. Sistema sobrecarregado.")
-#         ALERTAS["cpu"] = True
-#         finalizar_processos_gargalo(limite_pct=85.0)
-#     elif uso < CPU_OK and ALERTAS["cpu"]:
-#         ALERTAS["cpu"] = False
-
-
 def checar_disco() -> None:
     try:
         uso = psutil.disk_usage("/").percent

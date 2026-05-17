@@ -91,6 +91,23 @@ class SystemOrchestrator:
     async def inicializar_ia(self) -> None:
         await detectar_modelo()
 
+    def registrar_telemetria(self, tipo: str, comando: str, modulo: str, ts_inicio: float) -> None:
+        duracao = time.time() - ts_inicio
+        logging.info(f"[TELEMETRIA] {tipo} | Modulo: {modulo} | Duracao: {duracao:.3f}s | Cmd: '{comando}'")
+
+        try:
+            from storage.observability import registrar_acao
+            registrar_acao(
+                tipo=tipo,
+                modulo=modulo,
+                descricao=comando[:200],
+                sucesso=True
+            )
+        except ImportError:
+            pass
+        except Exception as e:
+            logging.debug(f"Aviso: Não foi possível gravar telemetria no banco: {e}")
+
     async def analisar_tela_agora(self) -> None:
         await falar("Iniciando análise da tela.")
 
@@ -246,7 +263,7 @@ class SystemOrchestrator:
             if resultado_local:
                 logging.info(f"[LOCAL]: {resultado_local}")
                 await falar(resultado_local)
-                self._registrar_telemetria("comando_local", comando, "controller", ts_inicio)
+                self.registrar_telemetria("comando_local", comando, "controller", ts_inicio)
             return resultado_local
 
         resposta_ia = await router.responder(
@@ -257,7 +274,7 @@ class SystemOrchestrator:
             logging.info(f"[IA]: {resposta_ia}")
             await falar(resposta_ia)
             asyncio.create_task(process_memory_logic(comando, resposta_ia))
-            self._registrar_telemetria("comando_ia", comando, "ia_router", ts_inicio)
+            self.registrar_telemetria("comando_ia", comando, "ia_router", ts_inicio)
 
         return resposta_ia or None
 
@@ -266,5 +283,11 @@ monitor_state = MonitorState()
 orchestrator = SystemOrchestrator(ui_manager, monitor_state)
 inicializar_ia = orchestrator.inicializar_ia
 
-registrar_ui_bridge = ui_manager.registrar
-processar_comando = orchestrator.processar_comando
+registrar_ui_bridge     = ui_manager.registrar
+processar_comando       = orchestrator.processar_comando
+
+# Exportações que controller.py importa diretamente
+ligar_monitoramento     = orchestrator.ligar_monitoramento
+desligar_monitoramento  = orchestrator.desligar_monitoramento
+status_do_sistema       = orchestrator.status_do_sistema
+analisar_tela_agora     = orchestrator.analisar_tela_agora

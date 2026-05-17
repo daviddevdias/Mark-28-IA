@@ -22,7 +22,7 @@ class PerfilModelo:
 PERFIS: dict[str, PerfilModelo] = {
     "phi3":             PerfilModelo("phi3",             NivelModelo.RAPIDO,        512,  ["saudacao", "comando_simples", "status"]),
     "llama3":           PerfilModelo("llama3",           NivelModelo.INTERMEDIARIO, 1024, ["busca", "clima", "spotify", "app"]),
-    "qwen/qwen-vl-max": PerfilModelo("qwen/qwen-vl-max", NivelModelo.PESADO,        2048, ["visao", "codigo", "plano", "analise", "agente"]),
+    "qwen/qwen2.5-vl-72b-instruct": PerfilModelo("qwen/qwen2.5-vl-72b-instruct", NivelModelo.PESADO,        2048, ["visao", "codigo", "plano", "analise", "agente"]),
 }
 
 RAPIDO_REGEX = re.compile(
@@ -61,9 +61,9 @@ def modelo_rapido(modelos: set[str]) -> str | None:
 def modelo_atual() -> str:
     try:
         from engine.ia_router import modelo as m
-        return m or "qwen/qwen-vl-max"
+        return m or "qwen/qwen2.5-vl-72b-instruct"
     except Exception:
-        return "qwen/qwen-vl-max"
+        return "qwen/qwen2.5-vl-72b-instruct"
 
 def complexidade_heuristica(comando: str) -> float:
     palavras = comando.split()
@@ -87,7 +87,7 @@ def escolher_modelo(contexto: dict) -> str:
         return forcado
 
     if tem_imagem or VISAO_REGEX.search(comando):
-        return "qwen/qwen-vl-max"
+        return "qwen/qwen2.5-vl-72b-instruct"
 
     if PESADO_REGEX.search(comando):
         return modelo_atual()

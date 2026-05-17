@@ -141,7 +141,7 @@ watchdog = Watchdog()
 def check_ia() -> bool:
     try:
         import requests
-        return requests.get("http://127.0.0.1:11434/api/tags", timeout=2).status_code == 200
+        return requests.get("http://127.0.0.1:1234/v1/models", timeout=2).status_code == 200
     except Exception:
         return False
 
