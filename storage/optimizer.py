@@ -102,9 +102,7 @@ async def comprimir_banco_auditoria() -> str:
 
 
 def purgar_resumos_antigos(dias: int = 365) -> int:
-    """Remove resumos de auditoria mais antigos que `dias` dias.
-    Chamado por alarm.py no ciclo horário de manutenção.
-    """
+
     import time as _time
     limite = _time.time() - dias * 86400
     try:

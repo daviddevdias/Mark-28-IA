@@ -4,12 +4,10 @@ import os
 import sys
 import faulthandler
 
-# 1. Habilita o rastreio de quedas silenciosas (C/C++) que fecham o Python do nada
 faulthandler.enable()
 
 os.environ.setdefault("PYGAME_HIDE_SUPPORT_PROMPT", "hide")
 
-# 2. Desativa a renderização via GPU da interface para evitar crashs na RX 580
 os.environ["QT_LOGGING_RULES"] = "qt.qpa.window=false"
 os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = "--disable-logging --disable-gpu --no-sandbox"
 

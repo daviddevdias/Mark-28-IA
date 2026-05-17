@@ -36,7 +36,6 @@ class SpotifyManager:
             pass
         self.inicializado = True
 
-
     def executar_via_api(self, termo: str) -> bool:
         if not self.sp:
             return False
@@ -50,10 +49,9 @@ class SpotifyManager:
         except Exception:
             return False
 
-
     def listar_e_tocar_playlist(self, nome_busca: str = "") -> str:
         if not self.sp:
-            return "API do Spotify não configurada."
+            return "API do Spotify não configurada, senhor. Credenciais ausentes."
         try:
             playlists = self.sp.current_user_playlists(limit=50)
             uri_escolhida = "spotify:user:me:collection"
@@ -65,40 +63,43 @@ class SpotifyManager:
                         nome_exibicao = playlist["name"]
                         break
             self.sp.start_playback(context_uri=uri_escolhida)
-            return f"Executando a playlist {nome_exibicao} via API."
+            return f"Reproduzindo a playlist '{nome_exibicao}', senhor. Sistema de áudio ativado."
         except Exception:
-            return "Ocorreu um erro ao conectar ou comandar a API do Spotify."
-
+            return "Falha na conexão com a API do Spotify, senhor. Verifique as credenciais."
 
     def abrir_e_buscar(self, termo: str) -> str:
         if self.executar_via_api(termo):
-            return f"Tocando {termo} imediatamente pela integração direta."
+            return f"Reprodução de '{termo}' iniciada imediatamente via integração direta, senhor."
         termo_formatado = termo.replace(" ", "%20")
         os.system(f"start spotify:search:{termo_formatado}")
-        return f"Comando de inicialização enviado para busca de {termo}."
-
+        return f"Comando de busca enviado ao Spotify para '{termo}', senhor."
 
     def controlar_reproducao(self, acao: str = "playpause") -> str:
         if not self.sp:
-            return "API indisponível."
+            return "API do Spotify indisponível, senhor. Sem conexão ativa."
         try:
             acao_lower = acao.lower()
             if acao_lower in ["proxima", "proximo"]:
                 self.sp.next_track()
+                return "Avançando para a próxima faixa, senhor."
             elif acao_lower in ["anterior", "voltar"]:
                 self.sp.previous_track()
+                return "Retornando à faixa anterior, senhor."
             elif acao_lower in ["pause", "pausar"]:
                 self.sp.pause_playback()
+                return "Reprodução pausada, senhor. Aguardando sua ordem para retomar."
             elif acao_lower in ["continuar", "play", "retomar"]:
                 self.sp.start_playback()
+                return "Reprodução retomada, senhor."
             else:
                 atual = self.sp.current_playback()
                 if atual and atual["is_playing"]:
                     self.sp.pause_playback()
+                    return "Reprodução pausada, senhor."
                 else:
                     self.sp.start_playback()
-            return "Comando de reprodução aceito."
+                    return "Reprodução iniciada, senhor."
         except Exception:
-            return "Barramento de controle remoto falhou."
+            return "O barramento de controle remoto do Spotify falhou, senhor."
 
 spotify_stark = SpotifyManager()

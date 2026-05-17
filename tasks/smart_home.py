@@ -111,14 +111,17 @@ def gerar_amostra_devices(n: int = 5) -> str:
         for d in carregar_devices(True)[:25]:
             nomes.append(d.get("label") or d.get("name") or "?")
         if not nomes:
-            return "(nenhum listado)"
+            return "(nenhum dispositivo listado)"
         return ", ".join(nomes[:n]) + ("…" if len(nomes) > n else "")
     except Exception:
-        return "(erro amostra)"
+        return "(erro ao amostrar dispositivos)"
 
 
 def diagnosticar_falha_tv() -> str:
-    return f"A TV está offline na rede SmartThings. Aparelhos detectados agora: {gerar_amostra_devices(6)}"
+    return (
+        f"A TV está offline na rede SmartThings, senhor. "
+        f"Dispositivos detectados no momento: {gerar_amostra_devices(6)}"
+    )
 
 
 def buscar_id_tv(forcar: bool = False) -> str | None:
@@ -179,15 +182,16 @@ def abrir_youtube_tv() -> str:
     device_id = buscar_id_tv()
     if not device_id:
         return diagnosticar_falha_tv()
-    # Tenta via mediaPlayback / applicationId; fallback por inputSource
+
     tentativas = [
         ("setInputSource", "mediaInputSource", ["YouTube"]),
         ("launchApp",      "samsungce.appIdentification", ["com.samsung.app.livetv.youtube"]),
     ]
+
     for cmd, cap, args in tentativas:
         if enviar_comando_device(device_id, cmd, cap, args):
-            return "YouTube aberto na TV, Senhor."
-    return "Não consegui abrir o YouTube na TV. Verifique se o app está instalado."
+            return "YouTube inicializado na TV, senhor. Entretenimento a postos."
+    return "Não foi possível abrir o YouTube na TV, senhor. Verifique se o aplicativo está instalado."
 
 
 def status_tv() -> str:
@@ -196,8 +200,9 @@ def status_tv() -> str:
         return diagnosticar_falha_tv()
     dados = solicitar_api(f"devices/{device_id}/status")
     if not dados:
-        return "Conexão de diagnóstico falhou."
+        return "Conexão de diagnóstico com a TV falhou, senhor. SmartThings sem resposta."
     sw = dados.get("components", {}).get("main", {}).get("switch", {}).get("switch", {})
     if isinstance(sw, dict) and "value" in sw:
-        return f"A TV reporta estado: {str(sw.get('value')).upper()}."
-    return "Dispositivo presente, porém silencioso quanto à energia."
+        estado = str(sw.get("value")).upper()
+        return f"A TV reporta estado: {estado}, senhor."
+    return "Dispositivo localizado, senhor, porém sem resposta de status de energia."

@@ -112,10 +112,10 @@ def open_app(parameters=None, **kwargs) -> str:
     app_name = (parameters or {}).get("app_name", "").strip()
 
     if not app_name:
-        return "Qual aplicativo devo providenciar a abertura?"
+        return "Qual aplicativo devo inicializar, senhor? Aguardo o nome."
 
     if verificar_processo_ativo(app_name):
-        return f"O processo ligado a {app_name} já se encontra ativo na memória."
+        return f"{app_name} já está ativo em memória, senhor. Processo localizado."
 
     system = platform.system()
     normalized = padronizar_nome(app_name)
@@ -128,14 +128,14 @@ def open_app(parameters=None, **kwargs) -> str:
 
     launcher = launchers.get(system)
     if not launcher:
-        return f"Sistema {system} rejeitou a operação."
+        return f"Sistema operacional {system} não reconhecido nos meus protocolos, senhor."
 
     success = launcher(normalized)
     if not success and normalized != app_name:
         success = launcher(app_name)
 
     return (
-        f"Ação concluída. {app_name} disparado."
+        f"Inicialização concluída, senhor. {app_name} foi lançado com sucesso."
         if success
-        else f"Falha sistêmica ao localizar o atalho para {app_name}."
+        else f"Não localizei o atalho para {app_name} nos registros do sistema, senhor."
     )

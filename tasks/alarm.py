@@ -303,6 +303,15 @@ def parar_alarme_total():
         "Protocolo encerrado. Mantenha o foco, Senhor.",
         "Ameaça neutralizada. Estou na escuta.",
         "Comando aceito. Alarme silenciado.",
+        "Sequência de despertar encerrada, Senhor. Bom dia.",
+        "Alarme desativado. Os sistemas continuam operacionais, Senhor.",
+        "Entendido, Senhor. Retomando modo de escuta.",
+        "Sinal interrompido. À sua disposição, Senhor.",
+        "Protocolo de alerta suspenso. Aguardando novas instruções.",
+        "Missão de despertar concluída, Senhor. O resto é com o senhor.",
+        "Alarme silenciado. Que tenha um excelente dia, Senhor.",
+        "Comando recebido. Encerrando rotina de alerta.",
+        "Despertador desarmado, Senhor. Sistemas em standby.",
     ])
 
 
