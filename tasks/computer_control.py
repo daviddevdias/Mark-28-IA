@@ -207,7 +207,6 @@ def computer_settings(parameters: dict) -> str:
     return fn() if fn else f"O registro de ações '{action}' não consta nos meus protocolos."
 
 
-#  aliases para compatibilidade com controller.py 
 
 def fechar_janela_ativa() -> str:
     """Alias de fechar_janela() — nome esperado pelo controller."""

@@ -175,13 +175,13 @@ def gerenciador_arquivos(argumentos: dict) -> str:
 
     import os, shutil, pathlib
 
-    # Resolve atalhos de caminho
     atalhos = {
         "desktop":   os.path.join(os.path.expanduser("~"), "Desktop"),
         "downloads": os.path.join(os.path.expanduser("~"), "Downloads"),
         "documentos": os.path.join(os.path.expanduser("~"), "Documents"),
         "home":      os.path.expanduser("~"),
     }
+
     caminho_resolvido = atalhos.get(caminho.lower(), caminho) if caminho else os.path.expanduser("~")
     alvo = os.path.join(caminho_resolvido, nome) if nome else caminho_resolvido
 
@@ -211,6 +211,7 @@ def gerenciador_arquivos(argumentos: dict) -> str:
     except Exception as e:
         return f"Erro no gerenciador de arquivos: {e}"
 
+
 def gerenciador_memoria(argumentos: dict) -> str:
     categoria = argumentos.get("category")
     chave = argumentos.get("key")
@@ -218,7 +219,6 @@ def gerenciador_memoria(argumentos: dict) -> str:
     if not all([categoria, chave, valor]):
         return "Indexação de memória de longo prazo falhou devido a argumentos ausentes."
 
-    # update_memory recebe um patch dict aninhado — NÃO um nome de arquivo
     resultado = update_memory({categoria: {chave: valor}})
     sucesso = isinstance(resultado, dict)
     return f"Dados gravados com sucesso na minha memória de longo prazo. Setor: {categoria}." if sucesso else "Falha crítica ao persistir dados na estrutura de memória interna."
@@ -249,7 +249,7 @@ def gerenciador_codigo(argumentos: dict) -> str:
     
     if executar_flag and codigo_gerado:
         import shlex
-        # Extrai só o bloco de código se vier em markdown
+
         import re as _re
         match = _re.search(r"```(?:\w+)?\n([\s\S]+?)```", codigo_gerado)
         codigo_limpo = match.group(1).strip() if match else codigo_gerado.strip()

@@ -18,7 +18,7 @@ from vision.capture import status_monitor as info_monitor, parar_monitor as desl
 
 log = logging.getLogger("engine.controller")
 
-# --- URLs DO LM STUDIO ---
+
 URL_LOCAL_CHAT = "http://127.0.0.1:1234/v1/chat/completions"
 URL_LOCAL_MODELS = "http://127.0.0.1:1234/v1/models"
 
@@ -502,7 +502,7 @@ async def parar_alarme(cmd: str) -> str:
 
 ROUTES_LEGADAS: list[tuple[tuple[str, ...], Handler]] = [
     (("abrir", "youtube"),      abrir_web_direto),
-    (("pesquisar", "youtube"),  youtube_busca),       # fix: "pesquisar no youtube sobre X"
+    (("pesquisar", "youtube"),  youtube_busca),       
     (("pesquisar", "google"),   abrir_web_direto),
     (("silencio",),             silencio),
     (("mutar",),                silencio),

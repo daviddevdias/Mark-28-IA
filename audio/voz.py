@@ -17,19 +17,9 @@ from typing import Optional
 
 
 
-
-
-
-
-
-
-
 audio_io_lock = threading.RLock()
 
 mic_lock = threading.Lock()
-
-
-
 
 
 
@@ -372,15 +362,10 @@ def captura_sync():
     with audio_io_lock:
         suspender_pygame_mixer_para_capture()
 
-    # Sinaliza o barge_loop para parar ANTES de tentar pegar o mic_lock.
-    # O barge_loop novo libera o mic_lock assim que abre o stream, então o
-    # join(timeout=3) é mais que suficiente para ele fechar o 'with Microphone'.
     parar_listener_interrupcao()
     if barge_thread and barge_thread.is_alive():
-        barge_thread.join(timeout=3.0)      # era 1.0 — insuficiente no Windows
+        barge_thread.join(timeout=3.0)     
 
-    # Pequena pausa para o driver de áudio do Windows liberar o dispositivo
-    # após o stream do barge ser destruído. Sem isso o Pa_OpenStream() falha.
     time.sleep(0.15)
 
     print("\nEscutando...\n")
